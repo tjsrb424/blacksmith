@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="fu-g" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#2a1008"/>
+      <stop offset="0.5" stop-color="#120805"/>
+      <stop offset="1" stop-color="#050403"/>
+    </linearGradient>
+    <radialGradient id="fu-core" cx="50%" cy="55%" r="40%">
+      <stop offset="0" stop-color="#f97316" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#fu-g)"/>
+  <ellipse cx="400" cy="340" rx="220" ry="160" fill="url(#fu-core)"/>
+</svg>
