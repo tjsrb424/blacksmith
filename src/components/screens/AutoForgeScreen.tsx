@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { useGameStore } from "@/store/gameStore";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 function formatMaxAccumLabel(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -51,6 +52,7 @@ function ForgeProgressBar({
 }
 
 export function AutoForgeScreen() {
+  useRenderDiagnostics("AutoForgeScreen");
   const forgeLevel = useGameStore((s) => s.forgeLevel);
   const forgeLastCollectAt = useGameStore((s) => s.forgeLastCollectAt);
   const ember = useGameStore((s) => s.ember);

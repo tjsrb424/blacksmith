@@ -14,9 +14,13 @@ import { LoginScreen } from "@/components/auth/LoginScreen";
 import { NicknameSetupModal } from "@/components/auth/NicknameSetupModal";
 import { ApiRequestError } from "@/lib/server/http";
 import { bootstrapPlayerSnapshot } from "@/lib/server/playerApi";
-import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import {
+  diagnosticLog,
+  updatePerformanceMetric,
+} from "@/lib/performanceMetrics";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getGameMode, getSupabaseBrowserEnv } from "@/lib/supabase/env";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 import type {
   BetaPlayerSnapshot,
@@ -53,11 +57,21 @@ function getOriginLabel() {
   return window.location.origin;
 }
 
+function getUserAgentShort() {
+  if (typeof navigator === "undefined") return "-";
+  const ua = navigator.userAgent;
+  if (ua.includes("CriOS")) return "iOS Chrome";
+  if (ua.includes("Safari") && ua.includes("Mobile")) return "iOS Safari";
+  if (ua.includes("Chrome")) return "Chrome";
+  return ua.slice(0, 48);
+}
+
 export function useBetaPlayer() {
   return useContext(BetaPlayerContext);
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
+  useRenderDiagnostics("AuthGate");
   const mode = getGameMode();
   const [session, setSession] = useState<Session | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -68,11 +82,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [stageStartedAt, setStageStartedAt] = useState(() => Date.now());
   const [stageElapsedMs, setStageElapsedMs] = useState(0);
   const [debugOrigin, setDebugOrigin] = useState("-");
+  const [userAgentShort, setUserAgentShort] = useState("-");
+  const [lastAuthEvent, setLastAuthEvent] = useState("init");
+  const [lastAuthError, setLastAuthError] = useState("-");
   const [authAttempt, setAuthAttempt] = useState(0);
   const supabaseEnv = getSupabaseBrowserEnv();
 
   const setAuthStage = useCallback((nextStage: AuthStage) => {
     const now = Date.now();
+    diagnosticLog("auth", "stage changed", { stage: nextStage });
     setStage(nextStage);
     setStageStartedAt(now);
     setStageElapsedMs(0);
@@ -82,9 +100,48 @@ export function AuthGate({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  useEffect(() => {
-    queueMicrotask(() => setDebugOrigin(getOriginLabel()));
+  const setAuthEvent = useCallback(
+    (event: string, details?: Record<string, unknown>) => {
+      diagnosticLog("auth", event, details);
+      setLastAuthEvent(event);
+      updatePerformanceMetric({
+        lastAuthEvent: event,
+        authAttempt,
+        gameMode: mode,
+        origin: getOriginLabel(),
+        userAgentShort: getUserAgentShort(),
+      });
+    },
+    [authAttempt, mode],
+  );
+
+  const setAuthFailure = useCallback((message: string) => {
+    setLastAuthError(message);
+    updatePerformanceMetric({ lastAuthError: message });
   }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      const origin = getOriginLabel();
+      const ua = getUserAgentShort();
+      setDebugOrigin(origin);
+      setUserAgentShort(ua);
+      setLastAuthEvent("component_mounted");
+      updatePerformanceMetric({
+        gameMode: mode,
+        origin,
+        userAgentShort: ua,
+        authAttempt,
+        lastAuthEvent: "component_mounted",
+      });
+      diagnosticLog("auth", "component mounted", {
+        gameMode: mode,
+        origin,
+        userAgent: ua,
+        authAttempt,
+      });
+    });
+  }, [authAttempt, mode]);
 
   useEffect(() => {
     if (stage === "ready") return;
@@ -100,6 +157,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   const retryAuthCheck = useCallback(() => {
+    setAuthEvent("retry_auth_check");
     setSession(null);
     setSnapshot(null);
     setError(null);
@@ -107,16 +165,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setLoadingSnapshot(false);
     setAuthStage("checking_session");
     setAuthAttempt((value) => value + 1);
-  }, [setAuthStage]);
+  }, [setAuthEvent, setAuthStage]);
 
   const refresh = useCallback(async () => {
     setLoadingSnapshot(true);
     setError(null);
     setAuthStage("bootstrap_loading");
+    setAuthEvent("bootstrap started");
     const bootstrapStartedAt = Date.now();
 
     try {
       const nextSnapshot = await bootstrapPlayerSnapshot();
+      setAuthEvent("bootstrap resolved", {
+        elapsedMs: Date.now() - bootstrapStartedAt,
+      });
       updatePerformanceMetric({
         bootstrapElapsedMs: Date.now() - bootstrapStartedAt,
       });
@@ -130,14 +192,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
       });
       setAuthStage("ready");
     } catch (loadError) {
+      const message = getFriendlyLoadError(loadError);
+      setAuthEvent("bootstrap rejected", {
+        message,
+      });
+      setAuthFailure(message);
       setAuthStage("error");
-      setError(getFriendlyLoadError(loadError));
+      setError(message);
     } finally {
       setLoadingSnapshot(false);
     }
-  }, [setAuthStage]);
+  }, [setAuthEvent, setAuthFailure, setAuthStage]);
 
   const signOutAndReset = useCallback(async () => {
+    setAuthEvent("sign_out_requested");
     const supabase = createSupabaseBrowserClient();
     setSnapshot(null);
     setSession(null);
@@ -146,14 +214,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthStage("checking_session");
     if (supabase) await supabase.auth.signOut();
     setAuthChecked(true);
-  }, [setAuthStage]);
+  }, [setAuthEvent, setAuthStage]);
 
   useEffect(() => {
-    if (mode !== "beta") return;
+    if (mode !== "beta") {
+      queueMicrotask(() => setAuthEvent("local_mode_skip_auth"));
+      return;
+    }
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       queueMicrotask(() => {
-        setError("로그인 설정을 확인하지 못했습니다.");
+        const message = "로그인 설정을 확인하지 못했습니다.";
+        setAuthEvent("supabase_client_missing");
+        setAuthFailure(message);
+        setError(message);
         setAuthStage("error");
         setAuthChecked(true);
       });
@@ -166,6 +240,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     queueMicrotask(() => {
       if (!mounted) return;
+      setAuthEvent("checking_session started", { authAttempt });
       setAuthStage("checking_session");
       setError(null);
     });
@@ -181,16 +256,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const watchdog = window.setTimeout(() => {
       if (!mounted || finished) return;
       finish("error");
-      setError("로그인 상태를 확인하지 못했습니다. 다시 시도해주세요.");
+      const message = "로그인 상태를 확인하지 못했습니다. 다시 시도해주세요.";
+      setAuthEvent("getSession timeout", { elapsedMs: Date.now() - startedAt });
+      setAuthFailure(message);
+      setError(message);
       setAuthStage("error");
       setAuthChecked(true);
     }, 10_000);
 
+    queueMicrotask(() => {
+      if (mounted) setAuthEvent("getSession called", { authAttempt });
+    });
     void supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted || finished) return;
         finish("ready");
+        setAuthEvent("getSession resolved", {
+          hasSession: Boolean(data.session),
+          userId:
+            process.env.NODE_ENV !== "production"
+              ? data.session?.user.id.slice(0, 8)
+              : undefined,
+        });
         setSession(data.session);
         setAuthStage("ready");
         setAuthChecked(true);
@@ -198,7 +286,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
       .catch((sessionError: unknown) => {
         if (!mounted || finished) return;
         finish("error");
-        setError(getFriendlyLoadError(sessionError));
+        const message = getFriendlyLoadError(sessionError);
+        setAuthEvent("getSession rejected", { message });
+        setAuthFailure(message);
+        setError(message);
         setAuthStage("error");
         setAuthChecked(true);
       });
@@ -207,6 +298,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      setAuthEvent("onAuthStateChange event", {
+        event: _event,
+        hasSession: Boolean(nextSession),
+      });
       setSession(nextSession);
       if (!nextSession) setSnapshot(null);
       if (!finished) finish("ready");
@@ -218,7 +313,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       window.clearTimeout(watchdog);
       subscription.unsubscribe();
     };
-  }, [authAttempt, mode, setAuthStage]);
+  }, [authAttempt, mode, setAuthEvent, setAuthFailure, setAuthStage]);
 
   useEffect(() => {
     if (mode !== "beta" || !session) return;
@@ -251,6 +346,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
         stage={stage}
         stageElapsedMs={stageElapsedMs}
         debugOrigin={debugOrigin}
+        userAgentShort={userAgentShort}
+        gameMode={mode}
+        authAttempt={authAttempt}
+        lastAuthEvent={lastAuthEvent}
+        lastAuthError={lastAuthError}
         message="로그인 상태 확인 중..."
       />
     );
@@ -263,6 +363,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
         stage={stage}
         stageElapsedMs={stageElapsedMs}
         debugOrigin={debugOrigin}
+        userAgentShort={userAgentShort}
+        gameMode={mode}
+        authAttempt={authAttempt}
+        lastAuthEvent={lastAuthEvent}
+        lastAuthError={lastAuthError}
         onRetry={session ? () => void refresh() : retryAuthCheck}
         onReloadServer={session ? () => void refresh() : retryAuthCheck}
         onSignOut={() => void signOutAndReset()}
@@ -280,6 +385,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
         stage={stage}
         stageElapsedMs={stageElapsedMs}
         debugOrigin={debugOrigin}
+        userAgentShort={userAgentShort}
+        gameMode={mode}
+        authAttempt={authAttempt}
+        lastAuthEvent={lastAuthEvent}
+        lastAuthError={lastAuthError}
         message="서버 프로필 불러오는 중..."
       />
     );
@@ -307,11 +417,21 @@ function AuthLoading({
   stage,
   stageElapsedMs,
   debugOrigin,
+  userAgentShort,
+  gameMode,
+  authAttempt,
+  lastAuthEvent,
+  lastAuthError,
 }: {
   message: string;
   stage: AuthStage;
   stageElapsedMs: number;
   debugOrigin: string;
+  userAgentShort: string;
+  gameMode: string;
+  authAttempt: number;
+  lastAuthEvent: string;
+  lastAuthError: string;
 }) {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-center text-sm text-zinc-500">
@@ -322,6 +442,11 @@ function AuthLoading({
             <p>{stage}</p>
             <p>{stageElapsedMs}ms</p>
             <p>{debugOrigin}</p>
+            <p>mode: {gameMode}</p>
+            <p>ua: {userAgentShort}</p>
+            <p>attempt: {authAttempt}</p>
+            <p>event: {lastAuthEvent}</p>
+            <p>error: {lastAuthError}</p>
           </div>
         ) : null}
       </div>
@@ -334,6 +459,11 @@ function AuthErrorPanel({
   stage,
   stageElapsedMs,
   debugOrigin,
+  userAgentShort,
+  gameMode,
+  authAttempt,
+  lastAuthEvent,
+  lastAuthError,
   onRetry,
   onReloadServer,
   onSignOut,
@@ -342,6 +472,11 @@ function AuthErrorPanel({
   stage: AuthStage;
   stageElapsedMs: number;
   debugOrigin: string;
+  userAgentShort: string;
+  gameMode: string;
+  authAttempt: number;
+  lastAuthEvent: string;
+  lastAuthError: string;
   onRetry: () => void;
   onReloadServer: () => void;
   onSignOut: () => void;
@@ -356,6 +491,11 @@ function AuthErrorPanel({
             <p>stage: {stage}</p>
             <p>elapsed: {stageElapsedMs}ms</p>
             <p>origin: {debugOrigin}</p>
+            <p>mode: {gameMode}</p>
+            <p>ua: {userAgentShort}</p>
+            <p>attempt: {authAttempt}</p>
+            <p>event: {lastAuthEvent}</p>
+            <p>last error: {lastAuthError}</p>
           </div>
         ) : null}
         <div className="mt-5 grid gap-2">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAdRewardStatus } from "@/lib/ads/adRewardApi";
+import { updatePerformanceMetric } from "@/lib/performanceMetrics";
 import { getGameMode } from "@/lib/supabase/env";
 import type { AdRewardStatusEntry, AdRewardType } from "@/types/ads";
 
@@ -44,12 +45,24 @@ export function AdRewardStatusText({
     const load = async () => {
       const cached = statusCache.get(key);
       if (cached && cached.expiresAt > Date.now()) {
+        updatePerformanceMetric({
+          adStatusCacheHit: true,
+        });
         if (active) setEntry(cached.entry);
         return;
       }
 
       try {
+        const startedAt = Date.now();
+        updatePerformanceMetric({
+          adStatusCacheHit: false,
+        });
         const status = await getAdRewardStatus({ relatedActionId });
+        const elapsedMs = Date.now() - startedAt;
+        updatePerformanceMetric({
+          adStatusFetchMs: elapsedMs,
+          adStatusRefreshMs: elapsedMs,
+        });
         const nextEntry = status.rewards[rewardType] ?? null;
         statusCache.set(key, {
           entry: nextEntry,

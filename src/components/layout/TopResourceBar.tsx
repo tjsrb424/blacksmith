@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ResourcePill } from "@/components/ui/ResourcePill";
 import { CURRENCY_ICONS } from "@/data/assets";
 import { getSoundSettings, setSfxEnabled } from "@/lib/sound";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
 function CurrencyIcon({
@@ -54,6 +55,7 @@ function SfxToggle() {
 }
 
 export function TopResourceBar() {
+  useRenderDiagnostics("TopResourceBar");
   const gold = useGameStore((s) => s.gold);
   const ember = useGameStore((s) => s.ember);
   const stone = useGameStore((s) => s.transcendStone);

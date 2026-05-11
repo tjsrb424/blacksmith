@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { playSound } from "@/lib/sound";
 import { EFFECT_ASSETS } from "@/data/assets";
 import { getGameMode } from "@/lib/supabase/env";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 
 function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
@@ -193,6 +194,7 @@ function ModalToneEffects({ modal }: { modal: ModalPayload }) {
 }
 
 export function ModalRoot() {
+  useRenderDiagnostics("ModalRoot");
   const modal = useGameStore((s) => s.modal);
   const prevModalRef = useRef(modal);
   useEffect(() => {

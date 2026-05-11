@@ -15,6 +15,8 @@ Use this checklist before external beta testing.
 - Development logs should show elapsed time for player bootstrap/me, game actions, forge upgrade, ad reward request/complete/status, and ranking weekly/world.
 - Any request above 1000ms should log as a slow request.
 - The development performance panel should show last API name, elapsed time, error code, bootstrap time, player sync time, tab switch time, and ad reward complete time.
+- Sprint 18-C diagnostics add auth attempt/event/error, current origin, short user agent, render tick/counts, enhance timing, ad reward timing, ranking cache hit/miss, and ad status timing.
+- If iPhone shows `checking_session 0ms -`, that means client effects/timers have not progressed yet. Check whether the overlay later changes origin/user agent or remains static.
 
 ## Action UX
 
@@ -58,5 +60,15 @@ Development mode can feel slower than the deployed bundle. Always compare agains
 4. For beta OAuth, add `http://<PC-IP>:3000/auth/callback` to Supabase Authentication > URL Configuration > Redirect URLs if Google login returns to the internal IP.
 5. Test `NEXT_PUBLIC_GAME_MODE=local` for pure rendering/tap performance.
 6. Test `NEXT_PUBLIC_GAME_MODE=beta` for auth, bootstrap, action latency, ad reward complete, ranking cache, and tab switching.
-7. If dev mode stutters but production local is smooth, treat the issue as development overhead unless production logs show slow API requests.
-8. If production local still stalls on `checking_session`, capture the visible auth stage, elapsed time, origin, and Supabase redirect URL list.
+7. Compare these readings between dev and production local:
+   - auth stage elapsed and last auth event
+   - enhance API/modal/store sync timings
+   - ad complete API/modal/store sync timings
+   - tab switch timing and ranking/ad-status cache status
+   - render counts for GameRoot, ModalRoot, active screen, TopResourceBar, BottomTabs, and WeaponCard
+8. Result interpretation:
+   - dev only slow, production local smooth: dev server/HMR overhead.
+   - production local slow too: app render/store sync/image decode issue.
+   - iPhone only stuck on `checking_session`: mobile origin/cookie/AuthGate effect/hydration issue.
+   - `checking_session 0ms -` never changes: client JS/effects are not running or hydration is blocked before AuthGate effects.
+9. If production local still stalls on `checking_session`, capture the visible auth stage, elapsed time, origin, user agent, last auth event, last auth error, and Supabase redirect URL list.

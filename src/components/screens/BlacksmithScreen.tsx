@@ -27,8 +27,10 @@ import {
 } from "@/lib/transcend";
 import { useGameStore } from "@/store/gameStore";
 import { cn } from "@/lib/cn";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 export function BlacksmithScreen() {
+  useRenderDiagnostics("BlacksmithScreen");
   const modal = useGameStore((s) => s.modal);
   const equippedId = useGameStore((s) => s.equippedWeaponId);
   const owned = useGameStore((s) => s.ownedWeapons);

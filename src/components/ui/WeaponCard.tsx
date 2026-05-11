@@ -11,6 +11,7 @@ import {
   getRarityArtBackdropClass,
   getRarityFrameClass,
 } from "@/data/assets";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 export const WeaponCard = memo(function WeaponCard({
   def,
@@ -41,6 +42,7 @@ export const WeaponCard = memo(function WeaponCard({
   transcendReady?: boolean;
   maxEnhanceHighlight?: boolean;
 }) {
+  useRenderDiagnostics("WeaponCard");
   const compact = variant === "compact";
   const el = enhanceLevel ?? 0;
   const tl = transcendLevel ?? 0;

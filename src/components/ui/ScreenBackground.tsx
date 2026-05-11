@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getBackgroundImagePath,
   getScreenBackgroundOverlayClass,
@@ -8,6 +8,7 @@ import {
   type ScreenKey,
 } from "@/data/assets";
 import { cn } from "@/lib/cn";
+import { updatePerformanceMetric } from "@/lib/performanceMetrics";
 
 /**
  * 화면별 배경 — 파일 없거나 로드 실패 시 CSS 그라데이션만 사용
@@ -21,6 +22,11 @@ export function ScreenBackground({
 }) {
   const path = getBackgroundImagePath(screen);
   const [imgFailed, setImgFailed] = useState(false);
+  const requestedAtRef = useRef(0);
+
+  useEffect(() => {
+    requestedAtRef.current = performance.now();
+  }, [path]);
 
   return (
     <div
@@ -40,6 +46,20 @@ export function ScreenBackground({
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-[center_35%] opacity-[0.68] saturate-[1.02] mix-blend-normal sm:object-center sm:opacity-[0.74] sm:saturate-[1.08]"
           onDragStart={(e) => e.preventDefault()}
+          onLoad={() => {
+            const entry = performance
+              .getEntriesByName(path)
+              .find((item) => item.entryType === "resource") as
+              | PerformanceResourceTiming
+              | undefined;
+            const requestedAt = requestedAtRef.current || performance.now();
+            updatePerformanceMetric({
+              backgroundLoadedFromCache:
+                entry != null
+                  ? entry.transferSize === 0 || entry.duration < 8
+                  : performance.now() - requestedAt < 8,
+            });
+          }}
           onError={() => setImgFailed(true)}
         />
       ) : null}

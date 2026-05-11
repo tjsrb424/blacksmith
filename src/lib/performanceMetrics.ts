@@ -24,6 +24,7 @@ export type ClientPerfMetric = {
   adRewardModalOpenMs?: number;
   adRewardStoreSyncMs?: number;
   adStatusRefreshMs?: number;
+  renderCountDuringAdReward?: number;
   rankingCacheStatus?: "hit" | "miss";
   enhanceTotalMs?: number;
   enhanceApiMs?: number;
@@ -56,6 +57,7 @@ export function subscribePerformanceMetrics(listener: () => void) {
 }
 
 export function recordRender(component: string) {
+  if (process.env.NODE_ENV === "production") return;
   const renderCounts = { ...(snapshot.renderCounts ?? {}) };
   renderCounts[component] = (renderCounts[component] ?? 0) + 1;
   renderTick += 1;

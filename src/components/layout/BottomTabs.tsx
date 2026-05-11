@@ -3,9 +3,13 @@
 import type { NavTab } from "@/types/game";
 import { TAB_ICONS } from "@/data/assets";
 import { cn } from "@/lib/cn";
-import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import {
+  diagnosticLog,
+  updatePerformanceMetric,
+} from "@/lib/performanceMetrics";
 import { navTabToScreenKey, preloadScreenBackground } from "@/lib/preloadAssets";
 import { playUiClick } from "@/lib/sound";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 import { startTransition, useState } from "react";
 
@@ -23,6 +27,7 @@ const TABS: Array<{
 ];
 
 export function BottomTabs() {
+  useRenderDiagnostics("BottomTabs");
   const tab = useGameStore((s) => s.activeTab);
   const setTab = useGameStore((s) => s.setActiveTab);
   const isEnhancing = useGameStore((s) => s.isEnhancing);
@@ -41,6 +46,11 @@ export function BottomTabs() {
             onClick={() => {
               if (tab === t.id) return;
               const startedAt = performance.now();
+              diagnosticLog("tab", "click", { from: tab, to: t.id });
+              updatePerformanceMetric({
+                tabTarget: t.id,
+                currentScreen: t.id,
+              });
               preloadScreenBackground(navTabToScreenKey(t.id));
               startTransition(() => setTab(t.id));
               requestAnimationFrame(() => {

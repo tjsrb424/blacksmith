@@ -12,6 +12,7 @@ import { serverRankingAdapter } from "@/lib/ranking/serverRankingAdapter";
 import { formatSeasonCountdown, getCurrentSeasonInfo } from "@/lib/season";
 import type { RankingCategory, RankingRowDisplay } from "@/types/game";
 import { useGameStore } from "@/store/gameStore";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 type SubTab = "weekly" | "world" | "me";
 
@@ -66,6 +67,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export function RankingScreen() {
+  useRenderDiagnostics("RankingScreen");
   const [sub, setSub] = useState<SubTab>("weekly");
   const [weeklyCat, setWeeklyCat] = useState<RankingCategory>(
     "weeklyStrongestWeapon",

@@ -13,10 +13,12 @@ import { navTabToScreenKey, preloadBootstrapAssets } from "@/lib/preloadAssets";
 import {
   getPerformanceMetricSnapshot,
   subscribePerformanceMetrics,
+  updatePerformanceMetric,
 } from "@/lib/performanceMetrics";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import { preloadSounds, unlockAudio } from "@/lib/sound";
 import { getGameMode } from "@/lib/supabase/env";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
 function DevTools() {
@@ -93,13 +95,22 @@ function BetaPerformancePanel({ screen }: { screen: string }) {
   );
 
   if (!enabled) return null;
+  const renderSummary = Object.entries(metrics.renderCounts ?? {})
+    .slice(-8)
+    .map(([name, count]) => `${name}:${count}`)
+    .join(" ");
 
   return (
-    <div className="pointer-events-none fixed left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-40 max-w-[230px] rounded-lg border border-zinc-700/70 bg-black/75 p-2 font-mono text-[10px] leading-4 text-zinc-300 shadow-xl backdrop-blur">
+    <div className="pointer-events-none fixed left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-40 max-h-[48vh] max-w-[280px] overflow-hidden rounded-lg border border-zinc-700/70 bg-black/75 p-2 font-mono text-[10px] leading-4 text-zinc-300 shadow-xl backdrop-blur">
       <div>mode: {getGameMode()}</div>
-      <div>screen: {screen}</div>
+      <div>screen: {metrics.currentScreen ?? screen}</div>
+      <div>origin: {metrics.origin ?? "-"}</div>
+      <div>ua: {metrics.userAgentShort ?? "-"}</div>
       <div>auth: {metrics.authStage ?? "-"}</div>
       <div>auth elapsed: {metrics.authStageElapsedMs ?? "-"}ms</div>
+      <div>auth attempt: {metrics.authAttempt ?? "-"}</div>
+      <div>auth event: {metrics.lastAuthEvent ?? "-"}</div>
+      <div>auth error: {metrics.lastAuthError ?? "-"}</div>
       <div>api: {metrics.apiName ?? "-"}</div>
       <div>elapsed: {metrics.elapsedMs ?? "-"}ms</div>
       <div>error: {metrics.errorCode ?? "-"}</div>
@@ -107,8 +118,20 @@ function BetaPerformancePanel({ screen }: { screen: string }) {
       <div>player sync: {metrics.playerSyncElapsedMs ?? "-"}ms</div>
       <div>store sync: {metrics.lastStoreSyncElapsedMs ?? "-"}ms</div>
       <div>tab: {metrics.tabSwitchElapsedMs ?? "-"}ms</div>
+      <div>tab target: {metrics.tabTarget ?? "-"}</div>
       <div>ranking cache: {metrics.rankingCacheStatus ?? "-"}</div>
+      <div>ranking fetch: {metrics.rankingFetchMs ?? "-"}ms</div>
+      <div>ad status: {metrics.adStatusCacheHit == null ? "-" : metrics.adStatusCacheHit ? "hit" : "miss"}</div>
+      <div>ad status fetch: {metrics.adStatusFetchMs ?? "-"}ms</div>
       <div>ad complete: {metrics.adRewardCompleteElapsedMs ?? "-"}ms</div>
+      <div>ad modal: {metrics.adRewardModalOpenMs ?? "-"}ms</div>
+      <div>ad sync: {metrics.adRewardStoreSyncMs ?? "-"}ms</div>
+      <div>enhance total: {metrics.enhanceTotalMs ?? "-"}ms</div>
+      <div>enhance api: {metrics.enhanceApiMs ?? "-"}ms</div>
+      <div>enhance modal: {metrics.enhanceModalOpenMs ?? "-"}ms</div>
+      <div>enhance sync: {metrics.enhanceStoreSyncMs ?? "-"}ms</div>
+      <div>render tick: {metrics.renderTick ?? "-"}</div>
+      <div>renders: {renderSummary || "-"}</div>
     </div>
   );
 }
@@ -130,6 +153,7 @@ function ServerActionOverlay() {
 }
 
 export function GameRoot() {
+  useRenderDiagnostics("GameRoot");
   const [hydrated, setHydrated] = useState(false);
   const [hydrateSlow, setHydrateSlow] = useState(false);
   const tab = useGameStore((s) => s.activeTab);
@@ -195,6 +219,11 @@ export function GameRoot() {
 
   useEffect(() => {
     if (!hydrated) return;
+    const tabStartedAt = performance.now();
+    updatePerformanceMetric({
+      currentScreen: tab,
+      tabSwitchElapsedMs: Math.round(performance.now() - tabStartedAt),
+    });
     preloadBootstrapAssets({
       screen: navTabToScreenKey(tab),
       equippedWeaponId,

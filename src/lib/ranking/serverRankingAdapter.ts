@@ -39,7 +39,11 @@ async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
     return entry.value as T;
   }
   updatePerformanceMetric({ rankingCacheStatus: "miss" });
+  const startedAt = Date.now();
   const value = await loader();
+  updatePerformanceMetric({
+    rankingFetchMs: Date.now() - startedAt,
+  });
   cache.set(key, {
     value,
     expiresAt: now + RANKING_CACHE_TTL_MS,

@@ -62,7 +62,11 @@ import {
 } from "@/lib/ads/adRewardApi";
 import { ApiRequestError } from "@/lib/server/http";
 import { getCurrentPlayerSnapshot } from "@/lib/server/playerApi";
-import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import {
+  diagnosticLog,
+  getRenderCount,
+  updatePerformanceMetric,
+} from "@/lib/performanceMetrics";
 import { getGameMode } from "@/lib/supabase/env";
 import type {
   EnhanceAnimationTier,
@@ -340,14 +344,22 @@ function syncServerSnapshotDeferred(
   snapshot: BetaPlayerSnapshot,
   get: () => GameStore,
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
+  source?: "enhance" | "adReward",
 ): void {
   runWhenIdle(() => {
     const startedAt = Date.now();
     set({
       ...mapServerSnapshot(snapshot, get()),
     });
+    const elapsedMs = Date.now() - startedAt;
     updatePerformanceMetric({
       lastStoreSyncElapsedMs: Date.now() - startedAt,
+      ...(source === "enhance" ? { enhanceStoreSyncMs: elapsedMs } : {}),
+      ...(source === "adReward" ? { adRewardStoreSyncMs: elapsedMs } : {}),
+    });
+    diagnosticLog("store", "server snapshot sync complete", {
+      source,
+      elapsedMs,
     });
   });
 }
@@ -358,6 +370,7 @@ async function runAdRewardAction(params: {
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void;
   onApplied?: () => void;
 }) {
+  const renderStart = getRenderCount("ModalRoot");
   params.set({
     serverActionPending: true,
     serverActionMessage: "보상 확인 중...",
@@ -383,16 +396,30 @@ async function runAdRewardAction(params: {
     });
     updatePerformanceMetric({
       adRewardCompleteElapsedMs: Date.now() - completeStartedAt,
+      adCompleteApiMs: Date.now() - completeStartedAt,
     });
     params.onApplied?.();
     const nextPatch = patchFromServerAction(response, params.get());
     const nextModal = nextPatch.modal;
+    const modalStartedAt = Date.now();
     params.set({
       modal: nextModal,
       serverActionPending: false,
       serverActionMessage: null,
     });
-    syncServerSnapshotDeferred(response.snapshot, params.get, params.set);
+    requestAnimationFrame(() => {
+      updatePerformanceMetric({
+        adRewardModalOpenMs: Date.now() - modalStartedAt,
+        renderCountDuringAdReward:
+          getRenderCount("ModalRoot") - renderStart,
+      });
+    });
+    syncServerSnapshotDeferred(
+      response.snapshot,
+      params.get,
+      params.set,
+      "adReward",
+    );
   } catch (error) {
     playUiError();
     const message = serverErrorMessage(error);
@@ -980,7 +1007,14 @@ export const useGameStore = create<GameStore>()(
           const tier: EnhanceAnimationTier = targetLevel >= 8 ? "heavy" : "fast";
           const minAnimationMs = tier === "heavy" ? 1_800 : 650;
           const slowMessageMs = tier === "heavy" ? 2_500 : 1_500;
+          const actionStartedAt = Date.now();
+          const renderStart = getRenderCount("BlacksmithScreen");
           let waitMessageTimer: ReturnType<typeof setTimeout> | null = null;
+          diagnosticLog("enhance", "button click", {
+            weaponInstanceId: id,
+            targetLevel,
+            tier,
+          });
           set({
             serverActionPending: true,
             serverActionMessage: null,
@@ -991,6 +1025,12 @@ export const useGameStore = create<GameStore>()(
             enhanceHammerPhase: 0,
           });
           playSound("enhanceStart", { bypassThrottle: true });
+          updatePerformanceMetric({
+            enhanceTotalMs: 0,
+            enhanceApiMs: undefined,
+            enhanceAnimationWaitMs: minAnimationMs,
+            enhanceRenderCountDuringAction: 0,
+          });
           waitMessageTimer = setTimeout(() => {
             if (get().serverActionPending) {
               set({ serverActionMessage: "결과 확인 중..." });
@@ -999,16 +1039,27 @@ export const useGameStore = create<GameStore>()(
           void (async () => {
             const animationPromise = delay(minAnimationMs);
             try {
+              const apiStartedAt = Date.now();
+              diagnosticLog("enhance", "api request start", { targetLevel });
               const responsePromise = enhanceWeaponApi({
                 ...newActionMeta(),
                 weaponInstanceId: id,
+              }).then((response) => {
+                const apiMs = Date.now() - apiStartedAt;
+                diagnosticLog("enhance", "api response received", { apiMs });
+                updatePerformanceMetric({ enhanceApiMs: apiMs });
+                return response;
               });
               const [response] = await Promise.all([
                 responsePromise,
                 animationPromise,
               ]);
+              diagnosticLog("enhance", "animation and api complete", {
+                elapsedMs: Date.now() - actionStartedAt,
+              });
               const display = response.display;
               const resultModal = modalFromEnhanceResponse(response);
+              const modalStartedAt = Date.now();
               set({
                 serverActionPending: false,
                 serverActionMessage: null,
@@ -1018,6 +1069,14 @@ export const useGameStore = create<GameStore>()(
                 enhanceHammerPhase: 0,
                 modal: resultModal,
               });
+              requestAnimationFrame(() => {
+                updatePerformanceMetric({
+                  enhanceModalOpenMs: Date.now() - modalStartedAt,
+                  enhanceTotalMs: Date.now() - actionStartedAt,
+                  enhanceRenderCountDuringAction:
+                    getRenderCount("BlacksmithScreen") - renderStart,
+                });
+              });
               if (display?.kind === "enhance") {
                 scheduleEnhanceOutcomeSounds(
                   display.result,
@@ -1025,7 +1084,7 @@ export const useGameStore = create<GameStore>()(
                   100,
                 );
               }
-              syncServerSnapshotDeferred(response.snapshot, get, set);
+              syncServerSnapshotDeferred(response.snapshot, get, set, "enhance");
             } catch (error) {
               await animationPromise.catch(() => undefined);
               playUiError();

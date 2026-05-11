@@ -10,6 +10,7 @@ import { formatGold } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { WeaponGrade } from "@/types/game";
 import { cn } from "@/lib/cn";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 const GRADE_FILTERS: Array<{ id: WeaponGrade | "all"; label: string }> = [
   { id: "all", label: "전체" },
@@ -22,6 +23,7 @@ const GRADE_FILTERS: Array<{ id: WeaponGrade | "all"; label: string }> = [
 ];
 
 export function WeaponShopScreen() {
+  useRenderDiagnostics("WeaponShopScreen");
   const buyWeapon = useGameStore((s) => s.buyWeapon);
   const gold = useGameStore((s) => s.gold);
   const ownedWeapons = useGameStore((s) => s.ownedWeapons);

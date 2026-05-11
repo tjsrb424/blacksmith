@@ -12,8 +12,10 @@ import { formatGold } from "@/lib/format";
 import { gradeLabel } from "@/lib/labels";
 import { useGameStore } from "@/store/gameStore";
 import { cn } from "@/lib/cn";
+import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 export function InventoryScreen() {
+  useRenderDiagnostics("InventoryScreen");
   const owned = useGameStore((s) => s.ownedWeapons);
   const equippedId = useGameStore((s) => s.equippedWeaponId);
   const equip = useGameStore((s) => s.equipWeapon);
