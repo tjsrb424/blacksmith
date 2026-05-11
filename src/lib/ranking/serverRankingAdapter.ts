@@ -4,6 +4,7 @@ import {
   getWorldRecords as fetchWorldRecords,
   submitRankingCandidate as postRankingCandidate,
 } from "@/lib/server/rankingApi";
+import { updatePerformanceMetric } from "@/lib/performanceMetrics";
 import type {
   PlayerRecordAdapterResult,
   RankingAdapter,
@@ -19,6 +20,31 @@ import type { RankingCandidateSubmitPayload } from "@/types/server";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown ranking API error";
+}
+
+const RANKING_CACHE_TTL_MS = 90_000;
+
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const entry = cache.get(key);
+  if (entry && entry.expiresAt > now) {
+    updatePerformanceMetric({ rankingCacheStatus: "hit" });
+    return entry.value as T;
+  }
+  updatePerformanceMetric({ rankingCacheStatus: "miss" });
+  const value = await loader();
+  cache.set(key, {
+    value,
+    expiresAt: now + RANKING_CACHE_TTL_MS,
+  });
+  return value;
 }
 
 function withFallbackSource<T extends { source: RankingAdapterSource; error?: string }>(
@@ -43,11 +69,15 @@ export class ServerRankingAdapter implements RankingAdapter {
     context: RankingAdapterContext,
   ): Promise<WeeklyRankingAdapterResult> {
     try {
-      const response = await fetchWeeklyRanking({
-        category,
-        seasonId,
-        playerId: context.playerId,
-      });
+      const response = await cached(
+        `weekly:${seasonId}:${category}:${context.playerId ?? "guest"}`,
+        () =>
+          fetchWeeklyRanking({
+            category,
+            seasonId,
+            playerId: context.playerId,
+          }),
+      );
       return {
         source: this.id,
         category: response.category,
@@ -71,7 +101,10 @@ export class ServerRankingAdapter implements RankingAdapter {
     try {
       return {
         source: this.id,
-        records: await fetchWorldRecords(context.playerId),
+        records: await cached(
+          `world:${context.playerId ?? "guest"}`,
+          () => fetchWorldRecords(context.playerId),
+        ),
       };
     } catch (error) {
       const fallback = await this.fallback.getWorldRecords(context);
@@ -87,7 +120,10 @@ export class ServerRankingAdapter implements RankingAdapter {
     try {
       return {
         source: this.id,
-        record: await fetchPlayerRecord(playerId, seasonId),
+        record: await cached(
+          `record:${seasonId}:${playerId}`,
+          () => fetchPlayerRecord(playerId, seasonId),
+        ),
       };
     } catch (error) {
       const fallback = await this.fallback.getPlayerRecord(

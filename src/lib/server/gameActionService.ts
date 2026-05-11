@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
-import { DEFAULT_DURABILITY, durabilityLossOnFail } from "@/data/balance";
+import { DEFAULT_DURABILITY, durabilityLossOnFail, forgeUpgradeCostGold } from "@/data/balance";
 import { WEAPONS_BY_ID } from "@/data/weapons";
 import { calculateAdSaleGold, calculateSaleGold } from "@/lib/economy";
 import { clampDurability } from "@/lib/enhancement";
@@ -37,6 +37,7 @@ import type {
   BuyActionRequest,
   EnhanceActionRequest,
   ForgeCollectActionRequest,
+  ForgeUpgradeActionRequest,
   SellActionRequest,
   ServerGameActionResponse,
   TranscendActionRequest,
@@ -365,6 +366,16 @@ export async function enhanceWeaponServer(
           const admin = getSupabaseAdminClient();
           const { error } = await admin.from("owned_weapons").delete().eq("id", weapon.id);
           if (error) throw error;
+          await upsertWorldRecord({
+            category: "worldRecordDestroyedWeapon",
+            userId: user.id,
+            nickname: profile.nickname,
+            weaponName: def.name,
+            weaponId: def.id,
+            enhanceLevel: owned.enhanceLevel,
+            transcendLevel: owned.transcendLevel,
+            value: calculateRankingValue(def, owned),
+          });
           updatedWeapon = null;
           await updatePlayerState(state.id, {
             forge_ember: nextEmber + scrap.ember,
@@ -413,6 +424,12 @@ export async function enhanceWeaponServer(
         seasonId: weekly.seasonId,
         category: "weeklyEnhancementKing",
         score: nextRecords.totalEnhanceSuccesses,
+      });
+      await upsertWorldRecord({
+        category: "worldRecordEnhanceAttempts",
+        userId: user.id,
+        nickname: profile.nickname,
+        value: nextRecords.totalEnhanceAttempts,
       });
 
       return {
@@ -553,6 +570,16 @@ export async function transcendWeaponServer(
           const admin = getSupabaseAdminClient();
           const { error } = await admin.from("owned_weapons").delete().eq("id", weapon.id);
           if (error) throw error;
+          await upsertWorldRecord({
+            category: "worldRecordDestroyedWeapon",
+            userId: user.id,
+            nickname: profile.nickname,
+            weaponName: def.name,
+            weaponId: def.id,
+            enhanceLevel: owned.enhanceLevel,
+            transcendLevel: owned.transcendLevel,
+            value: beforeRankingValue,
+          });
           updatedWeapon = null;
           await updatePlayerState(state.id, {
             transcend_stone: nextStone + scrap.transcendStone,
@@ -602,6 +629,25 @@ export async function transcendWeaponServer(
         category: "weeklyTranscendKing",
         score: nextRecords.transcendSuccessCount,
       });
+      await upsertWorldRecord({
+        category: "worldRecordTranscendSuccesses",
+        userId: user.id,
+        nickname: profile.nickname,
+        value: nextRecords.transcendSuccessCount,
+      });
+      if (updatedWeapon) {
+        const updatedOwned = rowToOwnedWeapon(updatedWeapon);
+        await upsertWorldRecord({
+          category: "worldRecordTranscend",
+          userId: user.id,
+          nickname: profile.nickname,
+          weaponName: def.name,
+          weaponId: def.id,
+          enhanceLevel: updatedOwned.enhanceLevel,
+          transcendLevel: updatedOwned.transcendLevel,
+          value: calculateRankingValue(def, updatedOwned),
+        });
+      }
 
       return {
         actionId: payload.actionId,
@@ -642,6 +688,13 @@ export async function sellWeaponServer(
       const saleGold = calculateSaleGold(def, owned);
       const usedAdBonus =
         payload.sellMode === "adBonus" || payload.adBonusRequested === true;
+      if (usedAdBonus) {
+        throw new GameActionError(
+          "Ad bonus sale must use the ad reward flow",
+          400,
+          "ad_reward_required",
+        );
+      }
       const finalGold = usedAdBonus ? calculateAdSaleGold(saleGold) : saleGold;
       const rankingValue = calculateRankingValue(def, owned);
       const records = currentRecords(record);
@@ -765,6 +818,48 @@ export async function collectForgeServer(
           basePending: pending,
           usedAd,
           bonusAmount,
+        },
+      };
+    },
+  });
+}
+
+export async function upgradeForgeServer(
+  user: User,
+  payload: ForgeUpgradeActionRequest,
+): Promise<ServerGameActionResponse> {
+  return runLoggedAction({
+    user,
+    actionType: "forge_upgrade",
+    actionId: payload.actionId,
+    payload,
+    run: async () => {
+      const state = await getPlayerState(user.id);
+      const currentLevel = Number(state.forge_level);
+      if (currentLevel >= 10) {
+        throw new GameActionError("Forge is already max level", 409, "max_forge_level");
+      }
+
+      const costGold = forgeUpgradeCostGold(currentLevel);
+      if (Number(state.gold) < costGold) {
+        throw new GameActionError("Not enough gold", 409, "insufficient_gold");
+      }
+
+      const newLevel = currentLevel + 1;
+      await updatePlayerState(state.id, {
+        gold: Number(state.gold) - costGold,
+        forge_level: newLevel,
+      });
+
+      return {
+        actionId: payload.actionId,
+        actionType: "forge_upgrade",
+        snapshot: await getPlayerSnapshot(user),
+        display: {
+          kind: "forgeUpgrade",
+          previousLevel: currentLevel,
+          newLevel,
+          costGold,
         },
       };
     },

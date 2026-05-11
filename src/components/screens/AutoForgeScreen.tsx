@@ -14,6 +14,7 @@ import {
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
+import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { useGameStore } from "@/store/gameStore";
 
 function formatMaxAccumLabel(minutes: number): string {
@@ -181,6 +182,7 @@ export function AutoForgeScreen() {
               광고 보고 2배 수령
             </FantasyButton>
           </div>
+          <AdRewardStatusText rewardType="forgeCollectDouble" />
 
           <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
             <div className="rounded-xl bg-black/24 p-3 ring-1 ring-zinc-700/50">

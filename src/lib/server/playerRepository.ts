@@ -8,8 +8,9 @@ import {
   INITIAL_GOLD,
   INITIAL_TRANSCEND_STONE,
 } from "@/data/balance";
-import { STARTER_WEAPON_ID } from "@/data/weapons";
+import { STARTER_WEAPON_ID, WEAPONS_BY_ID } from "@/data/weapons";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { MissingSupabaseAdminEnvError } from "@/lib/supabase/admin";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import type {
   BestWeaponSnapshot,
@@ -26,6 +27,151 @@ import type {
   PlayerStateRow,
   ProfileRow,
 } from "@/types/supabase";
+
+type BootstrapErrorCode =
+  | "missing_admin_env"
+  | "profile_insert_failed"
+  | "player_state_insert_failed"
+  | "starter_weapon_insert_failed"
+  | "player_record_insert_failed"
+  | "starter_weapon_definition_missing"
+  | "schema_mismatch"
+  | "bootstrap_failed";
+
+type SupabaseErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+export class BootstrapError extends Error {
+  constructor(
+    message: string,
+    readonly errorCode: BootstrapErrorCode,
+    readonly step: string,
+    readonly status = 500,
+    readonly details?: string,
+    readonly cause?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+function isSupabaseErrorLike(error: unknown): error is SupabaseErrorLike {
+  return Boolean(error && typeof error === "object" && "message" in error);
+}
+
+function isUniqueViolation(error: unknown) {
+  return isSupabaseErrorLike(error) && error.code === "23505";
+}
+
+function isSchemaMismatch(error: unknown) {
+  if (!isSupabaseErrorLike(error)) return false;
+  const message = error.message ?? "";
+  return (
+    error.code === "42703" ||
+    error.code === "42P01" ||
+    (message.includes("column") && message.includes("does not exist")) ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
+function errorDetails(error: unknown) {
+  if (!isSupabaseErrorLike(error)) {
+    return error instanceof Error ? error.message : undefined;
+  }
+
+  return [error.message, error.details, error.hint].filter(Boolean).join(" ");
+}
+
+function bootstrapFailure(
+  step: string,
+  errorCode: Exclude<
+    BootstrapErrorCode,
+    "schema_mismatch" | "missing_admin_env" | "starter_weapon_definition_missing"
+  >,
+  error: unknown,
+): BootstrapError {
+  if (error instanceof MissingSupabaseAdminEnvError) {
+    return new BootstrapError(
+      error.message,
+      "missing_admin_env",
+      step,
+      500,
+      error.message,
+      error,
+    );
+  }
+
+  if (isSchemaMismatch(error)) {
+    return new BootstrapError(
+      "Failed to bootstrap player",
+      "schema_mismatch",
+      step,
+      500,
+      errorDetails(error),
+      error,
+    );
+  }
+
+  return new BootstrapError(
+    "Failed to bootstrap player",
+    errorCode,
+    step,
+    500,
+    errorDetails(error),
+    error,
+  );
+}
+
+async function selectProfile(userId: string): Promise<ProfileRow | null> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function selectPlayerState(userId: string): Promise<PlayerStateRow | null> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("player_states")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function selectOwnedWeapons(userId: string): Promise<OwnedWeaponRow[]> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("owned_weapons")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function selectPlayerRecord(userId: string): Promise<PlayerRecordRow | null> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("player_records")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
 
 export function defaultPlayerRecords(record?: PlayerRecordRow | null): PlayerRecords {
   const stats =
@@ -105,115 +251,146 @@ function bestWeaponSnapshotFromRecord(
 }
 
 async function ensureProfile(user: User): Promise<ProfileRow> {
-  const admin = getSupabaseAdminClient();
-  const { data: existing, error: selectError } = await admin
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+  const step = "ensure_profile";
+  try {
+    const existing = await selectProfile(user.id);
+    if (existing) return existing;
 
-  if (selectError) throw selectError;
-  if (existing) return existing;
+    const admin = getSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("profiles")
+      .insert({ id: user.id, nickname: null })
+      .select("*")
+      .single();
 
-  const { data, error } = await admin
-    .from("profiles")
-    .insert({ id: user.id, nickname: null })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return data;
+    if (error) {
+      if (isUniqueViolation(error)) {
+        const raced = await selectProfile(user.id);
+        if (raced) return raced;
+      }
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
+    throw bootstrapFailure(step, "profile_insert_failed", error);
+  }
 }
 
 async function ensurePlayerState(user: User): Promise<PlayerStateRow> {
-  const admin = getSupabaseAdminClient();
-  const season = getCurrentSeasonInfo();
-  const now = new Date().toISOString();
-  const { data: existing, error: selectError } = await admin
-    .from("player_states")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const step = "ensure_player_state";
+  try {
+    const existing = await selectPlayerState(user.id);
+    if (existing) return existing;
 
-  if (selectError) throw selectError;
-  if (existing) return existing;
+    const admin = getSupabaseAdminClient();
+    const season = getCurrentSeasonInfo();
+    const now = new Date().toISOString();
+    const { data, error } = await admin
+      .from("player_states")
+      .insert({
+        user_id: user.id,
+        gold: INITIAL_GOLD,
+        forge_ember: INITIAL_EMBER,
+        transcend_stone: INITIAL_TRANSCEND_STONE,
+        forge_level: FORGE_START_LEVEL,
+        forge_last_collected_at: now,
+        current_season_id: season.seasonId,
+        stats: {},
+      })
+      .select("*")
+      .single();
 
-  const { data, error } = await admin
-    .from("player_states")
-    .insert({
-      user_id: user.id,
-      gold: INITIAL_GOLD,
-      forge_ember: INITIAL_EMBER,
-      transcend_stone: INITIAL_TRANSCEND_STONE,
-      forge_level: FORGE_START_LEVEL,
-      forge_last_collected_at: now,
-      current_season_id: season.seasonId,
-      stats: {},
-    })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return data;
+    if (error) {
+      if (isUniqueViolation(error)) {
+        const raced = await selectPlayerState(user.id);
+        if (raced) return raced;
+      }
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
+    throw bootstrapFailure(step, "player_state_insert_failed", error);
+  }
 }
 
 async function ensureOwnedWeapons(user: User): Promise<OwnedWeaponRow[]> {
-  const admin = getSupabaseAdminClient();
-  const { data: existing, error: selectError } = await admin
-    .from("owned_weapons")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+  const step = "ensure_starter_weapon";
+  try {
+    if (!WEAPONS_BY_ID[STARTER_WEAPON_ID]) {
+      throw new BootstrapError(
+        "Starter weapon definition missing",
+        "starter_weapon_definition_missing",
+        step,
+        409,
+        `STARTER_WEAPON_ID=${STARTER_WEAPON_ID}`,
+      );
+    }
 
-  if (selectError) throw selectError;
-  if (existing && existing.length > 0) return existing;
+    const existing = await selectOwnedWeapons(user.id);
+    if (existing.some((weapon) => weapon.weapon_id === STARTER_WEAPON_ID)) {
+      return existing;
+    }
 
-  const { data, error } = await admin
-    .from("owned_weapons")
-    .insert({
+    const admin = getSupabaseAdminClient();
+    const { error } = await admin.from("owned_weapons").insert({
       user_id: user.id,
       weapon_id: STARTER_WEAPON_ID,
       enhance_level: 0,
       transcend_level: 0,
       durability: DEFAULT_DURABILITY,
       is_locked: false,
-    })
-    .select("*");
+    });
 
-  if (error) throw error;
-  return data ?? [];
+    if (error) {
+      if (isUniqueViolation(error)) return selectOwnedWeapons(user.id);
+      throw error;
+    }
+
+    return selectOwnedWeapons(user.id);
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
+    throw bootstrapFailure(step, "starter_weapon_insert_failed", error);
+  }
 }
 
 async function ensurePlayerRecord(user: User): Promise<PlayerRecordRow> {
-  const admin = getSupabaseAdminClient();
-  const { data: existing, error: selectError } = await admin
-    .from("player_records")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const step = "ensure_player_record";
+  try {
+    const existing = await selectPlayerRecord(user.id);
+    if (existing) return existing;
 
-  if (selectError) throw selectError;
-  if (existing) return existing;
+    const admin = getSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("player_records")
+      .insert({
+        user_id: user.id,
+        best_weapon_name: null,
+        best_weapon_id: null,
+        best_weapon_value: 0,
+        best_weapon_enhance_level: 0,
+        best_weapon_transcend_level: 0,
+        best_sale_gold: 0,
+        total_sales_gold: 0,
+        max_transcend_level: 0,
+        stats: {},
+      })
+      .select("*")
+      .single();
 
-  const { data, error } = await admin
-    .from("player_records")
-    .insert({
-      user_id: user.id,
-      best_weapon_name: null,
-      best_weapon_id: null,
-      best_weapon_value: 0,
-      best_weapon_enhance_level: 0,
-      best_weapon_transcend_level: 0,
-      best_sale_gold: 0,
-      total_sales_gold: 0,
-      max_transcend_level: 0,
-      stats: {},
-    })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return data;
+    if (error) {
+      if (isUniqueViolation(error)) {
+        const raced = await selectPlayerRecord(user.id);
+        if (raced) return raced;
+      }
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
+    throw bootstrapFailure(step, "player_record_insert_failed", error);
+  }
 }
 
 function snapshotForUser(params: {

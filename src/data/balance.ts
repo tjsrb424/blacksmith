@@ -27,11 +27,11 @@ export function roundNicePrice(n: number): number {
 
 /** 강화 비용 = 기본 가격 × 계수 (목표 단계 기준) */
 export function enhanceCostCoefficient(targetLevel: number): number {
-  if (targetLevel >= 1 && targetLevel <= 3) return 0.05;
-  if (targetLevel <= 6) return 0.08;
-  if (targetLevel <= 9) return 0.12;
-  if (targetLevel <= 12) return 0.18;
-  return 0.28;
+  if (targetLevel >= 1 && targetLevel <= 3) return 0.045;
+  if (targetLevel <= 6) return 0.075;
+  if (targetLevel <= 9) return 0.13;
+  if (targetLevel <= 12) return 0.21;
+  return 0.34;
 }
 
 /** 강화 성공률 표 — 목표 단계(+n) */
@@ -41,16 +41,16 @@ export const ENHANCE_SUCCESS_RATE_BY_TARGET: Record<number, number> = {
   3: 0.95,
   4: 0.9,
   5: 0.85,
-  6: 0.78,
-  7: 0.7,
-  8: 0.6,
-  9: 0.5,
-  10: 0.4,
-  11: 0.32,
-  12: 0.25,
-  13: 0.18,
-  14: 0.12,
-  15: 0.08,
+  6: 0.8,
+  7: 0.72,
+  8: 0.58,
+  9: 0.47,
+  10: 0.36,
+  11: 0.29,
+  12: 0.22,
+  13: 0.16,
+  14: 0.1,
+  15: 0.07,
 };
 
 /** 내구도 감소 없는 실패 구간: 목표 단계 +1 ~ +7 */
@@ -63,12 +63,12 @@ export const DEFAULT_DURABILITY = 3;
 
 /** 강화 단계별 판매 배율 — Sprint 4 (내구도·초월 별도 적용) */
 export const ENHANCEMENT_SALE_MULTIPLIER: Record<number, number> = {
-  0: 0.7,
-  1: 0.9,
-  2: 1.1,
-  3: 1.3,
-  4: 1.6,
-  5: 2.0,
+  0: 0.75,
+  1: 0.95,
+  2: 1.15,
+  3: 1.35,
+  4: 1.65,
+  5: 2.05,
   6: 2.5,
   7: 3.2,
   8: 4.0,
@@ -88,6 +88,22 @@ export function getEnhancementSaleMultiplier(level: number): number {
 
 /** 광고 Mock 판매 보너스 (+30%) */
 export const AD_SALE_MULT = 1.3;
+
+export const AD_REWARD_EXPIRY_MINUTES = 5;
+
+export const AD_REWARD_DAILY_LIMITS = {
+  forgeCollectDouble: 10,
+  sellBonus: 20,
+  destructionScrapDouble: 10,
+  dailyTranscendStoneBox: 0,
+} as const;
+
+export const AD_REWARD_COOLDOWNS = {
+  forgeCollectDouble: 3 * 60 * 1000,
+  sellBonus: 0,
+  destructionScrapDouble: 0,
+  dailyTranscendStoneBox: 0,
+} as const;
 
 /** 파괴 잔해 — 기본 가격 대비 골드 비율 */
 export const SCRAP_GOLD_MIN_RATIO = 0.1;
@@ -118,20 +134,20 @@ export function getForgeMaxAccumulateMinutes(level: number): number {
 }
 
 export const FORGE_EMBER_PER_MINUTE: Record<number, number> = {
-  1: 10,
-  2: 15,
-  3: 22,
-  4: 32,
-  5: 45,
-  6: 62,
-  7: 85,
-  8: 115,
-  9: 155,
-  10: 200,
+  1: 12,
+  2: 18,
+  3: 26,
+  4: 38,
+  5: 54,
+  6: 74,
+  7: 102,
+  8: 138,
+  9: 186,
+  10: 240,
 };
 
 export function forgeUpgradeCostGold(currentLevel: number): number {
-  return Math.round(2000 * Math.pow(1.8, currentLevel - 1));
+  return Math.round(1800 * Math.pow(1.75, currentLevel - 1));
 }
 
 /** 초월 성공률 — 다음 ★ 단계로 올리는 시도 기준 (★1 시도 … ★10 시도) */

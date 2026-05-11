@@ -37,7 +37,8 @@ export function ScreenBackground({
           src={path}
           alt=""
           draggable={false}
-          className="absolute inset-0 h-full w-full object-cover object-[center_35%] opacity-[0.74] saturate-[1.08] mix-blend-normal sm:object-center"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-[center_35%] opacity-[0.68] saturate-[1.02] mix-blend-normal sm:object-center sm:opacity-[0.74] sm:saturate-[1.08]"
           onDragStart={(e) => e.preventDefault()}
           onError={() => setImgFailed(true)}
         />

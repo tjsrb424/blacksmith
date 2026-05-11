@@ -3,9 +3,11 @@
 import type { NavTab } from "@/types/game";
 import { TAB_ICONS } from "@/data/assets";
 import { cn } from "@/lib/cn";
+import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import { navTabToScreenKey, preloadScreenBackground } from "@/lib/preloadAssets";
 import { playUiClick } from "@/lib/sound";
 import { useGameStore } from "@/store/gameStore";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 
 const TABS: Array<{
   id: NavTab;
@@ -36,7 +38,17 @@ export function BottomTabs() {
             label={t.label}
             iconSrc={TAB_ICONS[t.iconKey]}
             emoji={t.emoji}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              if (tab === t.id) return;
+              const startedAt = performance.now();
+              preloadScreenBackground(navTabToScreenKey(t.id));
+              startTransition(() => setTab(t.id));
+              requestAnimationFrame(() => {
+                updatePerformanceMetric({
+                  tabSwitchElapsedMs: Math.round(performance.now() - startedAt),
+                });
+              });
+            }}
           />
         ))}
       </div>

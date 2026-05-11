@@ -95,6 +95,24 @@ export type WorldRecordRow = {
   updated_at: string;
 };
 
+export type AdRewardLogRow = {
+  id: string;
+  user_id: string;
+  reward_type: string;
+  reward_status: string;
+  provider: string;
+  provider_reward_id: string | null;
+  action_id: string;
+  related_action_id: string | null;
+  payload: Json;
+  reward_result: Json | null;
+  requested_at: string;
+  completed_at: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -209,6 +227,33 @@ export type Database = {
           transcend_level?: number;
           value?: number;
           created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      ad_reward_logs: Table<
+        AdRewardLogRow,
+        {
+          id?: string;
+          user_id: string;
+          reward_type: string;
+          reward_status: string;
+          provider: string;
+          provider_reward_id?: string | null;
+          action_id: string;
+          related_action_id?: string | null;
+          payload?: Json;
+          reward_result?: Json | null;
+          requested_at?: string;
+          completed_at?: string | null;
+          expires_at: string;
+          created_at?: string;
+          updated_at?: string;
+        },
+        {
+          reward_status?: string;
+          provider_reward_id?: string | null;
+          reward_result?: Json | null;
+          completed_at?: string | null;
           updated_at?: string;
         }
       >;

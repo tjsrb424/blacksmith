@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type { WeaponDefinition } from "@/types/game";
 import { gradeLabel, weaponTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/cn";
@@ -12,7 +12,7 @@ import {
   getRarityFrameClass,
 } from "@/data/assets";
 
-export function WeaponCard({
+export const WeaponCard = memo(function WeaponCard({
   def,
   footer,
   className,
@@ -167,7 +167,7 @@ export function WeaponCard({
       </div>
     </article>
   );
-}
+});
 
 function WeaponArt({
   path,

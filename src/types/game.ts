@@ -11,6 +11,15 @@ export type WeaponType =
   | "bow"
   | "staff";
 
+export type AdRewardProgressPhase =
+  | "preparing"
+  | "loading"
+  | "showing"
+  | "completing"
+  | "completed"
+  | "unavailable"
+  | "notCompleted";
+
 export type WeaponDefinition = {
   id: string;
   name: string;
@@ -256,6 +265,11 @@ export type ModalPayload =
       info: SaleCompleteInfo;
     }
   | {
+      kind: "ad_reward_progress";
+      phase: AdRewardProgressPhase;
+      message: string;
+    }
+  | {
       kind: "sell_locked_notice";
     }
   | {
@@ -324,13 +338,17 @@ export type RankingCategory =
 
 export type RankingRowDisplay = {
   rank: number;
+  userId?: string;
+  nickname?: string | null;
   playerName: string;
   weaponName: string;
+  weaponId?: string | null;
   enhanceLevel: number;
   transcendLevel: number;
   /** 주간 최강 무기 = rankingValue, 그 와 카테고리는 score */
   value: number;
   score: number;
+  rankingValue?: number;
   isPlayer: boolean;
   createdAt?: number;
 };

@@ -8,7 +8,7 @@ import {
 import { useGameStore } from "@/store/gameStore";
 
 /** +0~+7 구간(+1~+7 시도): 빠른 연출 */
-const FAST_HAMMER_MS = 200;
+const FAST_HAMMER_MS = 120;
 const FAST_FINALIZE_MS = 600;
 
 /** +8 이상: 3타 후 결과 */
@@ -21,6 +21,7 @@ const HEAVY_FINALIZE_MS = 1650;
  */
 export function EnhanceAnimationOrchestrator() {
   const pending = useGameStore((s) => s.enhancePending);
+  const animationTier = useGameStore((s) => s.enhanceAnimationTier);
   const isEnhancing = useGameStore((s) => s.isEnhancing);
   const finalizeEnhanceOutcome = useGameStore((s) => s.finalizeEnhanceOutcome);
   const setEnhanceHammerPhase = useGameStore((s) => s.setEnhanceHammerPhase);
@@ -28,7 +29,9 @@ export function EnhanceAnimationOrchestrator() {
   const runIdRef = useRef(0);
 
   useEffect(() => {
-    if (!pending || !isEnhancing) return;
+    const tier = pending?.tier ?? animationTier;
+    if (!tier || !isEnhancing) return;
+    const shouldFinalizeLocalResult = Boolean(pending);
 
     const myRun = ++runIdRef.current;
     const timers: number[] = [];
@@ -42,16 +45,16 @@ export function EnhanceAnimationOrchestrator() {
       );
     };
 
-    playEnhanceStartOnly();
+    if (shouldFinalizeLocalResult) playEnhanceStartOnly();
 
-    if (pending.tier === "fast") {
+    if (tier === "fast") {
       arm(FAST_HAMMER_MS, () => {
         setEnhanceHammerPhase(2);
         playEnhanceHammerHitOnce();
       });
       arm(FAST_FINALIZE_MS, () => {
         setEnhanceHammerPhase(0);
-        finalizeEnhanceOutcome();
+        if (shouldFinalizeLocalResult) finalizeEnhanceOutcome();
       });
     } else {
       HEAVY_HAMMER_MS.forEach((delayMs, index) => {
@@ -62,14 +65,20 @@ export function EnhanceAnimationOrchestrator() {
       });
       arm(HEAVY_FINALIZE_MS, () => {
         setEnhanceHammerPhase(0);
-        finalizeEnhanceOutcome();
+        if (shouldFinalizeLocalResult) finalizeEnhanceOutcome();
       });
     }
 
     return () => {
       for (const t of timers) window.clearTimeout(t);
     };
-  }, [pending, isEnhancing, finalizeEnhanceOutcome, setEnhanceHammerPhase]);
+  }, [
+    pending,
+    animationTier,
+    isEnhancing,
+    finalizeEnhanceOutcome,
+    setEnhanceHammerPhase,
+  ]);
 
   return null;
 }

@@ -18,7 +18,7 @@
 ## Game Actions
 
 - Keep localMode unchanged for MVP play.
-- Before competitive beta, move enhance/transcend/sell/buy/forge collect to server-authoritative APIs.
+- Before competitive beta, move enhance/transcend/sell/buy/forge collect/forge upgrade to server-authoritative APIs.
 - Every mutating API must use idempotent `actionId`.
 - Server must return full resource and owned weapon state after each action.
 
@@ -28,7 +28,7 @@
 - Production store dev mutations must no-op.
 - No secret values may use `NEXT_PUBLIC_*`.
 - Server must reject replayed or mismatched action ids.
-- Rate limits must be active for mutation and ranking endpoints.
+- Ad reward daily limits and cooldowns must be active.
 - Server time must define season boundaries and offline rewards.
 
 ## UX Hardening

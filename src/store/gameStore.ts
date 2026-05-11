@@ -54,7 +54,15 @@ import {
   enhanceWeapon as enhanceWeaponApi,
   sellWeapon as sellWeaponApi,
   transcendWeapon as transcendWeaponApi,
+  upgradeForge as upgradeForgeApi,
 } from "@/lib/server/gameActionApi";
+import {
+  completeAdReward,
+  requestAdReward,
+} from "@/lib/ads/adRewardApi";
+import { ApiRequestError } from "@/lib/server/http";
+import { getCurrentPlayerSnapshot } from "@/lib/server/playerApi";
+import { updatePerformanceMetric } from "@/lib/performanceMetrics";
 import { getGameMode } from "@/lib/supabase/env";
 import type {
   EnhanceAnimationTier,
@@ -68,6 +76,7 @@ import type {
   WeeklySeasonStats,
 } from "@/types/game";
 import type { BetaPlayerSnapshot, ServerGameActionResponse } from "@/types/server";
+import type { AdRewardFlowStatus } from "@/types/ads";
 
 /** 세션당 오프라인 제련 보상 모달 1회 */
 let sessionOfflineForgeModalShown = false;
@@ -136,7 +145,25 @@ function mapServerSnapshot(snapshot: BetaPlayerSnapshot, prev: GameStore) {
 }
 
 function serverErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "서버 요청에 실패했습니다.";
+  if (error instanceof ApiRequestError) return error.message;
+  return error instanceof Error
+    ? error.message
+    : "서버 요청에 실패했습니다. 잠시 후 다시 시도해주세요.";
+}
+
+function isAdRewardUserError(error: unknown): boolean {
+  if (error instanceof ApiRequestError) {
+    return error.code?.startsWith("ad_") ?? false;
+  }
+  return error instanceof Error && error.message.includes("광고");
+}
+
+function adProgressModal(status: AdRewardFlowStatus): ModalState {
+  return {
+    kind: "ad_reward_progress",
+    phase: status.phase,
+    message: status.message,
+  };
 }
 
 function patchFromServerAction(
@@ -250,8 +277,139 @@ function patchFromServerAction(
           usedAd: display.usedAd,
         },
       };
+    case "forgeUpgrade":
+      return {
+        ...base,
+        modal: { kind: "forge_upgrade_success", newLevel: display.newLevel },
+      };
     default:
       return base;
+  }
+}
+
+function modalFromEnhanceResponse(response: ServerGameActionResponse): ModalState {
+  const display = response.display;
+  if (display?.kind !== "enhance") return null;
+
+  const recordBreak = display.recordBreak
+    ? enrichRecordBreakUi(display.recordBreak)
+    : undefined;
+
+  if (display.result.type === "success") {
+    return {
+      kind: "enhance_success",
+      weaponName: display.weaponName,
+      result: display.result,
+      recordBreak,
+    };
+  }
+
+  if (display.result.type === "fail") {
+    return {
+      kind: "enhance_fail",
+      weaponName: display.weaponName,
+      result: display.result,
+    };
+  }
+
+  return {
+    kind: "weapon_destroyed",
+    destroyCause: "enhance",
+    result: display.result,
+  };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runWhenIdle(callback: () => void): void {
+  if (typeof window === "undefined") {
+    callback();
+    return;
+  }
+  const run = () => {
+    const requestIdle = window.requestIdleCallback;
+    if (requestIdle) requestIdle(callback, { timeout: 700 });
+    else window.setTimeout(callback, 80);
+  };
+  requestAnimationFrame(run);
+}
+
+function syncServerSnapshotDeferred(
+  snapshot: BetaPlayerSnapshot,
+  get: () => GameStore,
+  set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
+): void {
+  runWhenIdle(() => {
+    const startedAt = Date.now();
+    set({
+      ...mapServerSnapshot(snapshot, get()),
+    });
+    updatePerformanceMetric({
+      lastStoreSyncElapsedMs: Date.now() - startedAt,
+    });
+  });
+}
+
+async function runAdRewardAction(params: {
+  request: Parameters<typeof requestAdReward>[0];
+  get: () => GameStore;
+  set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void;
+  onApplied?: () => void;
+}) {
+  params.set({
+    serverActionPending: true,
+    serverActionMessage: "보상 확인 중...",
+    modal: {
+      kind: "ad_reward_progress",
+      phase: "preparing",
+      message: "보상 확인 중...",
+    },
+  });
+
+  try {
+    const intent = await requestAdReward(params.request);
+    const completeStartedAt = Date.now();
+    const response = await completeAdReward(intent, {
+      onStatus: (status) =>
+        params.set({
+          modal: adProgressModal(status),
+          serverActionMessage:
+            status.phase === "completing"
+              ? "보상 확인 중..."
+              : status.message,
+        }),
+    });
+    updatePerformanceMetric({
+      adRewardCompleteElapsedMs: Date.now() - completeStartedAt,
+    });
+    params.onApplied?.();
+    const nextPatch = patchFromServerAction(response, params.get());
+    const nextModal = nextPatch.modal;
+    params.set({
+      modal: nextModal,
+      serverActionPending: false,
+      serverActionMessage: null,
+    });
+    syncServerSnapshotDeferred(response.snapshot, params.get, params.set);
+  } catch (error) {
+    playUiError();
+    const message = serverErrorMessage(error);
+    params.set({
+      serverActionPending: false,
+      serverActionMessage: null,
+      modal: isAdRewardUserError(error)
+        ? {
+            kind: "ad_reward_progress",
+            phase: message.includes("불러올") ? "unavailable" : "notCompleted",
+            message,
+          }
+        : {
+            kind: "server_error",
+            message,
+          },
+    });
   }
 }
 
@@ -261,13 +419,16 @@ export interface GameStore extends SaveDataV1 {
   /** 강화 연출 중 — persist 제외 */
   isEnhancing: boolean;
   enhancePending: EnhancePendingResolution | null;
+  enhanceAnimationTier: EnhanceAnimationTier | null;
   /** 망치 타격 연출 강도 1~3 */
   enhanceHammerPhase: 0 | 1 | 2 | 3;
   /** beta mode 서버 액션 중복 클릭 방지 */
   serverActionPending: boolean;
+  serverActionMessage: string | null;
   /** 개발 전용 — persist 제외 */
   devForceSuccess: boolean;
   syncFromServerPlayerMe: (snapshot: BetaPlayerSnapshot) => void;
+  reloadServerSnapshot: () => Promise<void>;
   setActiveTab: (tab: NavTab) => void;
   closeModal: () => void;
   acknowledgeSeasonStart: () => void;
@@ -444,12 +605,40 @@ export const useGameStore = create<GameStore>()(
       modal: null as ModalState,
       isEnhancing: false,
       enhancePending: null as EnhancePendingResolution | null,
+      enhanceAnimationTier: null as EnhanceAnimationTier | null,
       enhanceHammerPhase: 0 as 0 | 1 | 2 | 3,
       serverActionPending: false,
+      serverActionMessage: null,
       devForceSuccess: false,
 
       syncFromServerPlayerMe: (snapshot: BetaPlayerSnapshot) => {
         set((state) => mapServerSnapshot(snapshot, state));
+      },
+
+      reloadServerSnapshot: async () => {
+        if (!isBetaMode()) return;
+        set({
+          serverActionPending: true,
+          serverActionMessage: "서버 데이터 다시 불러오는 중...",
+        });
+        try {
+          const snapshot = await getCurrentPlayerSnapshot();
+          set((state) => ({
+            ...mapServerSnapshot(snapshot, state),
+            serverActionPending: false,
+            serverActionMessage: null,
+            modal: null,
+          }));
+        } catch (error) {
+          set({
+            serverActionPending: false,
+            serverActionMessage: null,
+            modal: {
+              kind: "server_error",
+              message: serverErrorMessage(error),
+            },
+          });
+        }
       },
 
       setActiveTab: (tab: NavTab) => set({ activeTab: tab }),
@@ -487,7 +676,10 @@ export const useGameStore = create<GameStore>()(
         if (isBetaMode()) {
           const state = get();
           if (state.serverActionPending) return;
-          set({ serverActionPending: true });
+          set({
+            serverActionPending: true,
+            serverActionMessage: "구매 처리 중...",
+          });
           void buyWeaponApi({
             ...newActionMeta(),
             weaponId: def.id,
@@ -497,12 +689,14 @@ export const useGameStore = create<GameStore>()(
               set({
                 ...patchFromServerAction(response, get()),
                 serverActionPending: false,
+                serverActionMessage: null,
               });
             })
             .catch((error) => {
               playUiError();
               set({
                 serverActionPending: false,
+                serverActionMessage: null,
                 modal: {
                   kind: "server_error",
                   message: serverErrorMessage(error),
@@ -595,18 +789,34 @@ export const useGameStore = create<GameStore>()(
         if (isBetaMode()) {
           const state = get();
           if (state.serverActionPending) return;
-          set({ serverActionPending: true });
-          void sellWeaponApi({
-            ...newActionMeta(),
-            weaponInstanceId: instanceId,
-            sellMode: mode,
-          })
+          const actionMeta = newActionMeta();
+          const action =
+            mode === "adBonus"
+              ? runAdRewardAction({
+                  request: {
+                    actionId: actionMeta.actionId,
+                    rewardType: "sellBonus",
+                    targetWeaponInstanceId: instanceId,
+                  },
+                  get,
+                  set,
+                  onApplied: () => playSound("weaponSell"),
+                })
+              : sellWeaponApi({
+                  ...actionMeta,
+                  weaponInstanceId: instanceId,
+                  sellMode: mode,
+                }).then((response) => {
+                  playSound("weaponSell");
+                  set({
+                    ...patchFromServerAction(response, get()),
+                    serverActionPending: false,
+                  });
+                });
+          if (mode !== "adBonus") set({ serverActionPending: true });
+          void action
             .then((response) => {
-              playSound("weaponSell");
-              set({
-                ...patchFromServerAction(response, get()),
-                serverActionPending: false,
-              });
+              void response;
             })
             .catch((error) => {
               playUiError();
@@ -748,7 +958,7 @@ export const useGameStore = create<GameStore>()(
 
       prepareEnhanceRoll: () => {
         const state = get();
-        if (state.isEnhancing && state.enhancePending) return false;
+        if (state.isEnhancing) return false;
 
         const id = state.equippedWeaponId;
         if (!id) return false;
@@ -767,20 +977,46 @@ export const useGameStore = create<GameStore>()(
 
         if (isBetaMode()) {
           if (state.serverActionPending) return false;
-          set({ serverActionPending: true, modal: null });
-          playSound("enhanceStart");
-          void enhanceWeaponApi({
-            ...newActionMeta(),
-            weaponInstanceId: id,
-          })
-            .then((response) => {
+          const tier: EnhanceAnimationTier = targetLevel >= 8 ? "heavy" : "fast";
+          const minAnimationMs = tier === "heavy" ? 1_800 : 650;
+          const slowMessageMs = tier === "heavy" ? 2_500 : 1_500;
+          let waitMessageTimer: ReturnType<typeof setTimeout> | null = null;
+          set({
+            serverActionPending: true,
+            serverActionMessage: null,
+            modal: null,
+            isEnhancing: true,
+            enhancePending: null,
+            enhanceAnimationTier: tier,
+            enhanceHammerPhase: 0,
+          });
+          playSound("enhanceStart", { bypassThrottle: true });
+          waitMessageTimer = setTimeout(() => {
+            if (get().serverActionPending) {
+              set({ serverActionMessage: "결과 확인 중..." });
+            }
+          }, slowMessageMs);
+          void (async () => {
+            const animationPromise = delay(minAnimationMs);
+            try {
+              const responsePromise = enhanceWeaponApi({
+                ...newActionMeta(),
+                weaponInstanceId: id,
+              });
+              const [response] = await Promise.all([
+                responsePromise,
+                animationPromise,
+              ]);
               const display = response.display;
+              const resultModal = modalFromEnhanceResponse(response);
               set({
-                ...patchFromServerAction(response, get()),
                 serverActionPending: false,
+                serverActionMessage: null,
                 isEnhancing: false,
                 enhancePending: null,
+                enhanceAnimationTier: null,
                 enhanceHammerPhase: 0,
+                modal: resultModal,
               });
               if (display?.kind === "enhance") {
                 scheduleEnhanceOutcomeSounds(
@@ -789,17 +1025,26 @@ export const useGameStore = create<GameStore>()(
                   100,
                 );
               }
-            })
-            .catch((error) => {
+              syncServerSnapshotDeferred(response.snapshot, get, set);
+            } catch (error) {
+              await animationPromise.catch(() => undefined);
               playUiError();
               set({
                 serverActionPending: false,
+                serverActionMessage: null,
+                isEnhancing: false,
+                enhancePending: null,
+                enhanceAnimationTier: null,
+                enhanceHammerPhase: 0,
                 modal: {
                   kind: "server_error",
                   message: serverErrorMessage(error),
                 },
               });
-            });
+            } finally {
+              if (waitMessageTimer) clearTimeout(waitMessageTimer);
+            }
+          })();
           return true;
         }
 
@@ -1296,18 +1541,29 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         if (isBetaMode()) {
           if (state.serverActionPending) return;
-          set({ serverActionPending: true });
-          void collectForgeApi({
-            ...newActionMeta(),
-            collectMode: withAd ? "adBonus" : "normal",
-          })
-            .then((response) => {
-              playSound("forgeCollect", { volumeMul: withAd ? 1.15 : 1 });
-              set({
-                ...patchFromServerAction(response, get()),
-                serverActionPending: false,
+          const actionMeta = newActionMeta();
+          const action = withAd
+            ? runAdRewardAction({
+                request: {
+                  actionId: actionMeta.actionId,
+                  rewardType: "forgeCollectDouble",
+                },
+                get,
+                set,
+                onApplied: () => playSound("forgeCollect", { volumeMul: 1.15 }),
+              })
+            : collectForgeApi({
+                ...actionMeta,
+                collectMode: "normal",
+              }).then((response) => {
+                playSound("forgeCollect", { volumeMul: 1 });
+                set({
+                  ...patchFromServerAction(response, get()),
+                  serverActionPending: false,
+                });
               });
-            })
+          if (!withAd) set({ serverActionPending: true });
+          void action
             .catch((error) => {
               playUiError();
               set({
@@ -1400,17 +1656,6 @@ export const useGameStore = create<GameStore>()(
 
       requestForgeUpgrade: () => {
         const state = get();
-        if (isBetaMode()) {
-          playUiError();
-          set({
-            modal: {
-              kind: "server_error",
-              title: "베타 서버 준비 중",
-              message: "제련로 강화는 다음 서버 액션 단계에서 연결됩니다.",
-            },
-          });
-          return;
-        }
         if (state.forgeLevel >= 10) {
           playUiError();
           return;
@@ -1441,6 +1686,30 @@ export const useGameStore = create<GameStore>()(
           playUiError();
           return;
         }
+        if (isBetaMode()) {
+          if (state.serverActionPending) return;
+          set({ serverActionPending: true });
+          void upgradeForgeApi({
+            ...newActionMeta(),
+          })
+            .then((response) => {
+              set({
+                ...patchFromServerAction(response, get()),
+                serverActionPending: false,
+              });
+            })
+            .catch((error) => {
+              playUiError();
+              set({
+                serverActionPending: false,
+                modal: {
+                  kind: "server_error",
+                  message: serverErrorMessage(error),
+                },
+              });
+            });
+          return;
+        }
         const nextLv = modal.nextLevel;
         set({
           gold: state.gold - cost,
@@ -1455,6 +1724,14 @@ export const useGameStore = create<GameStore>()(
       mockDoubleDestroyScrap: () => {
         if (isBetaMode()) {
           playUiError();
+          set({
+            modal: {
+              kind: "server_error",
+              title: "광고 보상 준비 중",
+              message:
+                "파괴 잔해 2배 보상은 서버 rewardIntent 구조만 준비되어 있습니다. 다음 Sprint에서 파괴 action과 연결합니다.",
+            },
+          });
           return;
         }
         const m = get().modal;
@@ -1540,8 +1817,10 @@ export const useGameStore = create<GameStore>()(
           modal: null,
           isEnhancing: false,
           enhancePending: null,
+          enhanceAnimationTier: null,
           enhanceHammerPhase: 0,
           serverActionPending: false,
+          serverActionMessage: null,
           devForceSuccess: false,
         });
       },

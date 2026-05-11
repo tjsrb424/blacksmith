@@ -130,6 +130,7 @@ export type WeeklyRankingResponse = {
 
 export type WorldWeaponRecord = {
   weaponName: string;
+  weaponId?: string;
   enhanceLevel: number;
   transcendLevel: number;
   rankingValue: number;
@@ -200,6 +201,8 @@ export type ForgeCollectActionRequest = GameActionBaseRequest & {
   collectMode?: "normal" | "adBonus";
 };
 
+export type ForgeUpgradeActionRequest = GameActionBaseRequest;
+
 export type ServerActionDisplay =
   | {
       kind: "buy";
@@ -235,16 +238,24 @@ export type ServerActionDisplay =
       basePending: number;
       usedAd: boolean;
       bonusAmount: number;
+    }
+  | {
+      kind: "forgeUpgrade";
+      previousLevel: number;
+      newLevel: number;
+      costGold: number;
     };
 
 export type ServerGameActionResponse = {
   actionId: string;
   actionType:
+    | "ad_reward"
     | "buy"
     | "enhance"
     | "transcend"
     | "sell"
     | "forge_collect"
+    | "forge_upgrade"
     | "ranking_submit";
   status: "applied" | "replayed";
   snapshot: BetaPlayerSnapshot;

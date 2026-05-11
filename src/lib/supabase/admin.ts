@@ -5,28 +5,39 @@ import type { Database } from "@/types/supabase";
 
 let adminClient: SupabaseClient<Database> | null = null;
 
-function getSupabaseAdminEnv():
-  | { ok: true; url: string; secretKey: string }
+export class MissingSupabaseAdminEnvError extends Error {
+  readonly code = "missing_admin_env";
+
+  constructor(message = "Missing Supabase admin key") {
+    super(message);
+  }
+}
+
+export function getSupabaseAdminEnv():
+  | { ok: true; url: string; secretKey: string; keyName: string }
   | { ok: false; message: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey =
-    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  const adminKey = serviceRoleKey ?? secretKey;
+  const keyName = serviceRoleKey
+    ? "SUPABASE_SERVICE_ROLE_KEY"
+    : "SUPABASE_SECRET_KEY";
 
-  if (!url || !secretKey) {
+  if (!url || !adminKey) {
     return {
       ok: false,
-      message:
-        "Supabase admin env is missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY.",
+      message: "Missing Supabase admin key",
     };
   }
 
-  return { ok: true, url, secretKey };
+  return { ok: true, url, secretKey: adminKey, keyName };
 }
 
 export function getSupabaseAdminClient(): SupabaseClient<Database> {
   const env = getSupabaseAdminEnv();
   if (!env.ok) {
-    throw new Error(env.message);
+    throw new MissingSupabaseAdminEnvError(env.message);
   }
 
   adminClient ??= createClient<Database>(env.url, env.secretKey, {

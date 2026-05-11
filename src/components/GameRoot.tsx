@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { BlacksmithScreen } from "@/components/screens/BlacksmithScreen";
@@ -10,8 +10,13 @@ import { InventoryScreen } from "@/components/screens/InventoryScreen";
 import { RankingScreen } from "@/components/screens/RankingScreen";
 import { EnhanceAnimationOrchestrator } from "@/components/effects/EnhanceAnimationOrchestrator";
 import { navTabToScreenKey, preloadBootstrapAssets } from "@/lib/preloadAssets";
+import {
+  getPerformanceMetricSnapshot,
+  subscribePerformanceMetrics,
+} from "@/lib/performanceMetrics";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import { preloadSounds, unlockAudio } from "@/lib/sound";
+import { getGameMode } from "@/lib/supabase/env";
 import { useGameStore } from "@/store/gameStore";
 
 function DevTools() {
@@ -77,8 +82,56 @@ function DevTools() {
   );
 }
 
+function BetaPerformancePanel({ screen }: { screen: string }) {
+  const enabled =
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
+  const metrics = useSyncExternalStore(
+    subscribePerformanceMetrics,
+    getPerformanceMetricSnapshot,
+    getPerformanceMetricSnapshot,
+  );
+
+  if (!enabled) return null;
+
+  return (
+    <div className="pointer-events-none fixed left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-40 max-w-[230px] rounded-lg border border-zinc-700/70 bg-black/75 p-2 font-mono text-[10px] leading-4 text-zinc-300 shadow-xl backdrop-blur">
+      <div>mode: {getGameMode()}</div>
+      <div>screen: {screen}</div>
+      <div>auth: {metrics.authStage ?? "-"}</div>
+      <div>auth elapsed: {metrics.authStageElapsedMs ?? "-"}ms</div>
+      <div>api: {metrics.apiName ?? "-"}</div>
+      <div>elapsed: {metrics.elapsedMs ?? "-"}ms</div>
+      <div>error: {metrics.errorCode ?? "-"}</div>
+      <div>bootstrap: {metrics.bootstrapElapsedMs ?? "-"}ms</div>
+      <div>player sync: {metrics.playerSyncElapsedMs ?? "-"}ms</div>
+      <div>store sync: {metrics.lastStoreSyncElapsedMs ?? "-"}ms</div>
+      <div>tab: {metrics.tabSwitchElapsedMs ?? "-"}ms</div>
+      <div>ranking cache: {metrics.rankingCacheStatus ?? "-"}</div>
+      <div>ad complete: {metrics.adRewardCompleteElapsedMs ?? "-"}ms</div>
+    </div>
+  );
+}
+
+function ServerActionOverlay() {
+  const pending = useGameStore((s) => s.serverActionPending);
+  const message = useGameStore((s) => s.serverActionMessage);
+  const isEnhancing = useGameStore((s) => s.isEnhancing);
+
+  if (!pending || !message || isEnhancing) return null;
+
+  return (
+    <div className="pointer-events-auto fixed inset-0 z-[45] flex items-center justify-center bg-black/25 px-4 backdrop-blur-[1px]">
+      <div className="rounded-lg border border-amber-500/30 bg-zinc-950/90 px-4 py-3 text-center text-sm font-semibold text-amber-100 shadow-2xl">
+        {message}
+      </div>
+    </div>
+  );
+}
+
 export function GameRoot() {
   const [hydrated, setHydrated] = useState(false);
+  const [hydrateSlow, setHydrateSlow] = useState(false);
   const tab = useGameStore((s) => s.activeTab);
   const equippedWeaponId = useGameStore((s) => {
     const row = s.ownedWeapons.find((o) => o.instanceId === s.equippedWeaponId);
@@ -106,9 +159,11 @@ export function GameRoot() {
       queueMicrotask(unlock);
     }
 
-    const timer = window.setTimeout(unlock, 4000);
+    const slowTimer = window.setTimeout(() => setHydrateSlow(true), 2500);
+    const timer = window.setTimeout(unlock, 5000);
 
     return () => {
+      window.clearTimeout(slowTimer);
       window.clearTimeout(timer);
       unsub();
     };
@@ -166,8 +221,19 @@ export function GameRoot() {
 
   if (!hydrated) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] text-sm text-zinc-500">
-        저장 데이터 불러오는 중…
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-center text-sm text-zinc-500">
+        <div>
+          <p>저장 데이터 불러오는 중...</p>
+          {hydrateSlow ? (
+            <button
+              type="button"
+              className="mt-4 rounded-lg border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300"
+              onClick={() => setHydrated(true)}
+            >
+              저장 데이터 없이 계속
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -183,7 +249,9 @@ export function GameRoot() {
       </AppShell>
       <ModalRoot />
       <EnhanceAnimationOrchestrator />
+      <ServerActionOverlay />
       <DevTools />
+      <BetaPerformancePanel screen={tab} />
     </>
   );
 }

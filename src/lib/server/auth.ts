@@ -17,7 +17,14 @@ export async function requireSupabaseUser(): Promise<
   if (error || !user) {
     return {
       ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      response: NextResponse.json(
+        {
+          error: "unauthenticated",
+          code: "unauthenticated",
+          message: "세션이 만료되었습니다. 다시 로그인해주세요.",
+        },
+        { status: 401 },
+      ),
     };
   }
 

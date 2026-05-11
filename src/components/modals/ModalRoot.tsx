@@ -17,6 +17,8 @@ import {
 import { cn } from "@/lib/cn";
 import { playSound } from "@/lib/sound";
 import { EFFECT_ASSETS } from "@/data/assets";
+import { getGameMode } from "@/lib/supabase/env";
+import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 
 function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
   const gap = rb.gapToMockLeaderStrongest;
@@ -204,6 +206,7 @@ export function ModalRoot() {
   }, [modal]);
 
   const close = useGameStore((s) => s.closeModal);
+  const reloadServerSnapshot = useGameStore((s) => s.reloadServerSnapshot);
   const commitEnhance = useGameStore((s) => s.prepareEnhanceRoll);
   const confirmBuy = useGameStore((s) => s.confirmBuyWeapon);
   const mockDoubleDestroyScrap = useGameStore((s) => s.mockDoubleDestroyScrap);
@@ -215,6 +218,12 @@ export function ModalRoot() {
   const requestSellEquipped = useGameStore((s) => s.requestSellEquipped);
   const requestTranscend = useGameStore((s) => s.requestTranscendEquipped);
   const acknowledgeSeasonStart = useGameStore((s) => s.acknowledgeSeasonStart);
+  const isBetaMode = getGameMode() === "beta";
+  const isTerminalAdState =
+    modal?.kind === "ad_reward_progress" &&
+    (modal.phase === "unavailable" ||
+      modal.phase === "notCompleted" ||
+      modal.phase === "completed");
   const shakeActive =
     modal?.kind === "enhance_fail" ||
     modal?.kind === "weapon_destroyed" ||
@@ -230,20 +239,21 @@ export function ModalRoot() {
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/62 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/62 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-[1px] sm:items-center sm:p-6 sm:backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.14, ease: "easeOut" }}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
         >
           <ScreenShake active={shakeActive} preset={shakePreset}>
             <motion.div
-              layout
-              initial={{ y: 24, opacity: 0 }}
+              initial={{ y: 14, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 16, opacity: 0 }}
+              exit={{ y: 10, opacity: 0 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
                 "relative max-h-[85vh] min-w-0 w-[min(92vw,380px)] max-w-[380px] overflow-y-auto sm:w-full sm:max-w-[420px] md:max-w-[460px] lg:max-w-[480px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
@@ -259,6 +269,13 @@ export function ModalRoot() {
                     {modal.title ?? "서버 오류"}
                   </h3>
                   <p className="text-sm text-zinc-300">{modal.message}</p>
+                  <FantasyButton
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => void reloadServerSnapshot()}
+                  >
+                    서버 데이터 다시 불러오기
+                  </FantasyButton>
                   <FantasyButton variant="secondary" className="w-full" onClick={close}>
                     확인
                   </FantasyButton>
@@ -405,9 +422,11 @@ export function ModalRoot() {
                     </ul>
                   </div>
                   <div className="flex flex-col gap-2.5">
-                    <FantasyButton variant="secondary" className="min-h-14 w-full" onClick={() => mockDoubleDestroyScrap()}>
-                      광고 보고 잔해 보상 2배 (Mock)
-                    </FantasyButton>
+                    {!isBetaMode ? (
+                      <FantasyButton variant="secondary" className="min-h-14 w-full" onClick={() => mockDoubleDestroyScrap()}>
+                        광고 보고 잔해 보상 2배
+                      </FantasyButton>
+                    ) : null}
                     <FantasyButton className="min-h-14 w-full" onClick={close}>
                       확인
                     </FantasyButton>
@@ -695,7 +714,7 @@ export function ModalRoot() {
                       </span>
                     </div>
                     <div className="mt-1 flex justify-between gap-2">
-                      <span className="text-zinc-500">광고 Mock 2배</span>
+                      <span className="text-zinc-500">광고 2배</span>
                       <span className="font-mono text-violet-300">
                         {formatInt(modal.pendingAdDouble)} 불씨
                       </span>
@@ -722,8 +741,9 @@ export function ModalRoot() {
                       onClick={() => collectForge(true)}
                       disabled={modal.pendingBase <= 0}
                     >
-                      광고 보고 2배 수령 (Mock)
+                      광고 보고 2배 수령
                     </FantasyButton>
+                    <AdRewardStatusText rewardType="forgeCollectDouble" />
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       나중에 받기
                     </FantasyButton>
@@ -827,6 +847,30 @@ export function ModalRoot() {
                 </div>
               ) : null}
 
+              {modal.kind === "ad_reward_progress" ? (
+                <div className="space-y-5 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-violet-500/35 bg-violet-950/35">
+                    <div
+                      className={cn(
+                        "h-7 w-7 rounded-full border-2 border-violet-300/30 border-t-violet-200",
+                        isTerminalAdState ? "" : "animate-spin",
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-violet-100">광고 보상</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+                      {modal.message}
+                    </p>
+                  </div>
+                  {isTerminalAdState ? (
+                    <FantasyButton className="w-full" onClick={close}>
+                      확인
+                    </FantasyButton>
+                  ) : null}
+                </div>
+              ) : null}
+
               {modal.kind === "sell_confirm" ? (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-amber-50">무기를 판매할까요?</h3>
@@ -856,7 +900,7 @@ export function ModalRoot() {
                       <span className="font-mono text-sky-300">{formatGold(modal.saleGold)}</span>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-zinc-500">광고 Mock +30%</span>
+                      <span className="text-zinc-500">광고 +30%</span>
                       <span className="font-mono text-orange-300">{formatGold(modal.adSaleGold)}</span>
                     </div>
                     <div className="flex justify-between gap-2 border-t border-zinc-800 pt-2">
@@ -876,6 +920,10 @@ export function ModalRoot() {
                         광고 보고 +30% 판매
                       </FantasyButton>
                     </div>
+                    <AdRewardStatusText
+                      rewardType="sellBonus"
+                      relatedActionId={modal.instanceId}
+                    />
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       취소
                     </FantasyButton>

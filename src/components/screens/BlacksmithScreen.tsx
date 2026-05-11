@@ -41,6 +41,7 @@ export function BlacksmithScreen() {
   const records = useGameStore((s) => s.records);
   const isEnhancing = useGameStore((s) => s.isEnhancing);
   const hammerPhase = useGameStore((s) => s.enhanceHammerPhase);
+  const enhanceWaitMessage = useGameStore((s) => s.serverActionMessage);
 
   const [stageFx, setStageFx] = useState<BlacksmithFxKind>("idle");
   const [fxSession, setFxSession] = useState(0);
@@ -311,6 +312,11 @@ export function BlacksmithScreen() {
                       />
                     ))}
                   </div>
+                  {enhanceWaitMessage ? (
+                    <p className="mt-2 text-[11px] font-medium text-amber-100/65">
+                      {enhanceWaitMessage}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
               <FantasyButton

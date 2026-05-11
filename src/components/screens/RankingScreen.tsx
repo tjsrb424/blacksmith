@@ -177,6 +177,13 @@ export function RankingScreen() {
             ? "betaServerMode · 서버 랭킹 API 우선, 실패 시 로컬 fallback"
             : "localMode · LocalStorage + Mock ranking adapter"}
         </p>
+        <div className="inline-flex rounded bg-zinc-950/75 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200 ring-1 ring-emerald-700/45">
+          {gameMode === "beta" &&
+          weeklyResult?.source !== "fallback" &&
+          worldResult?.source !== "fallback"
+            ? "SERVER RANKING"
+            : "임시 랭킹 데이터"}
+        </div>
       </header>
 
       {weeklyResult?.source === "fallback" || worldResult?.source === "fallback" ? (

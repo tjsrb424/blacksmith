@@ -88,6 +88,8 @@ export function getModalToneFromPayload(m: ModalPayload): ModalTone {
     case "sell_confirm":
     case "sell_success":
       return "sale";
+    case "ad_reward_progress":
+      return "ad";
     case "sell_locked_notice":
       return "danger";
     case "transcend_confirm":

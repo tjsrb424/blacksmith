@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
-import {
-  GameActionError,
-  submitRankingCandidateServer,
-} from "@/lib/server/gameActionService";
+import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
+import { submitRankingCandidateServer } from "@/lib/server/gameActionService";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +18,6 @@ export async function POST(request: NextRequest) {
       await submitRankingCandidateServer(auth.user, payload),
     );
   } catch (error) {
-    const status = error instanceof GameActionError ? error.status : 500;
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Ranking submit failed",
-        code: error instanceof GameActionError ? error.code : "server_error",
-      },
-      { status },
-    );
+    return actionErrorResponse(error, "랭킹 제출에 실패했습니다.");
   }
 }

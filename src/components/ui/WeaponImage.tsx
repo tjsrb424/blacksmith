@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { getWeaponFallbackImagePath } from "@/data/assets";
 import { cn } from "@/lib/cn";
 
@@ -34,6 +34,6 @@ function WeaponImageInner({ src, alt, className }: WeaponImageProps) {
 /**
  * 무기 PNG가 없으면 자동으로 공용 SVG 플레이스홀더로 대체
  */
-export function WeaponImage(props: WeaponImageProps) {
+export const WeaponImage = memo(function WeaponImage(props: WeaponImageProps) {
   return <WeaponImageInner key={props.src} {...props} />;
-}
+});
