@@ -141,6 +141,48 @@ export async function upsertStrongestWeaponRanking(args: {
   return rankingValue;
 }
 
+export async function getProjectedWeeklyStrongestRank(args: {
+  seasonId: string;
+  userId: string;
+  score: number;
+}): Promise<number> {
+  const admin = getSupabaseAdminClient();
+  const { data: existing, error: existingError } = await admin
+    .from("weekly_rankings")
+    .select("created_at")
+    .eq("season_id", args.seasonId)
+    .eq("category", "weeklyStrongestWeapon")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  const candidateCreatedAt = existing?.created_at ?? new Date().toISOString();
+  const baseQuery = admin
+    .from("weekly_rankings")
+    .select("id", { count: "exact", head: true })
+    .eq("season_id", args.seasonId)
+    .eq("category", "weeklyStrongestWeapon")
+    .neq("user_id", args.userId);
+
+  const { count: higherCount, error: higherError } = await baseQuery.gt(
+    "score",
+    args.score,
+  );
+  if (higherError) throw higherError;
+
+  const { count: olderTieCount, error: olderTieError } = await admin
+    .from("weekly_rankings")
+    .select("id", { count: "exact", head: true })
+    .eq("season_id", args.seasonId)
+    .eq("category", "weeklyStrongestWeapon")
+    .neq("user_id", args.userId)
+    .eq("score", args.score)
+    .lt("created_at", candidateCreatedAt);
+  if (olderTieError) throw olderTieError;
+
+  return (higherCount ?? 0) + (olderTieCount ?? 0) + 1;
+}
+
 export async function upsertWeeklyScore(args: {
   userId: string;
   profile: ProfileRow;

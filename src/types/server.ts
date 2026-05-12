@@ -5,6 +5,7 @@ import type {
   PlayerRecords,
   RankingCategory,
   RankingRowDisplay,
+  RecordBreakInfo,
   SaleCompleteInfo,
   ScrapRewards,
   WeeklySeasonStats,
@@ -212,20 +213,14 @@ export type ServerActionDisplay =
       kind: "enhance";
       weaponName: string;
       result: EnhanceResult;
-      recordBreak?: {
-        previousBest: number;
-        newBest: number;
-      };
+      recordBreak?: RecordBreakInfo;
     }
   | {
       kind: "transcend";
       weaponName: string;
       weaponImagePath: string;
       result: TranscendAttemptResult;
-      recordBreak?: {
-        previousBest: number;
-        newBest: number;
-      };
+      recordBreak?: RecordBreakInfo;
     }
   | {
       kind: "sell";

@@ -291,7 +291,7 @@ export function scheduleEnhanceOutcomeSounds(
     }
     if (result.type === "success") {
       playSound("enhanceSuccess");
-      if (recordBreak) {
+      if (recordBreak && result.afterLevel >= 12) {
         window.setTimeout(() => {
           playSound("recordNew", { bypassThrottle: true });
         }, 480);

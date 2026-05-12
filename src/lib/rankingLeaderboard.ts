@@ -82,13 +82,42 @@ export function calculateWeeklyStrongestRank(playerValue: number): number {
 }
 
 export function enrichRecordBreakUi(rb: RecordBreakInfo): RecordBreakInfo {
-  const leader = MOCK_WEEKLY_STRONGEST_WEAPON[0]?.value ?? 0;
   return {
     ...rb,
-    delta: rb.newBest - rb.previousBest,
-    estimatedWeeklyRankStrongest: calculateWeeklyStrongestRank(rb.newBest),
-    gapToMockLeaderStrongest: leader - rb.newBest,
+    delta: rb.delta ?? rb.newBest - rb.previousBest,
+    isPersonalBest: rb.isPersonalBest ?? rb.newBest > rb.previousBest,
+    isWeeklyTop100:
+      rb.isWeeklyTop100 ??
+      (rb.estimatedWeeklyRank != null && rb.estimatedWeeklyRank <= 100),
   };
+}
+
+export function buildLocalRecordBreakInfo(args: {
+  previousBest: number;
+  newBest: number;
+  previousWeeklyBest: number;
+}): RecordBreakInfo | undefined {
+  const estimatedWeeklyRank = calculateWeeklyStrongestRank(args.newBest);
+  const previousWeeklyRank =
+    args.previousWeeklyBest > 0
+      ? calculateWeeklyStrongestRank(args.previousWeeklyBest)
+      : null;
+  const isPersonalBest = args.newBest > args.previousBest;
+  const isWeeklyTop100 =
+    estimatedWeeklyRank <= 100 &&
+    (previousWeeklyRank == null ||
+      previousWeeklyRank > 100 ||
+      args.newBest > args.previousWeeklyBest);
+
+  if (!isPersonalBest && !isWeeklyTop100) return undefined;
+
+  return enrichRecordBreakUi({
+    previousBest: args.previousBest,
+    newBest: args.newBest,
+    isPersonalBest,
+    isWeeklyTop100,
+    estimatedWeeklyRank: isWeeklyTop100 ? estimatedWeeklyRank : undefined,
+  });
 }
 
 export function mergeWorldHighestWeaponValue(localBest: number): number {

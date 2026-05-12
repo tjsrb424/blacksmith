@@ -165,10 +165,9 @@ export type RecordBreakInfo = {
   previousBest: number;
   newBest: number;
   delta?: number;
-  /** 주간 최강 무기 부문 예상 순위 (Mock 합성) */
-  estimatedWeeklyRankStrongest?: number;
-  /** 목표 Mock 1위 가치와의 차이 (랭킹 가치 기준) */
-  gapToMockLeaderStrongest?: number;
+  isPersonalBest?: boolean;
+  isWeeklyTop100?: boolean;
+  estimatedWeeklyRank?: number;
 };
 
 /** 판매 완료 모달용 */

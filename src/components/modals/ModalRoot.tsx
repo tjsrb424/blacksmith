@@ -23,38 +23,47 @@ import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 
 function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
-  const gap = rb.gapToMockLeaderStrongest;
-  const aheadOfMockLeader = gap != null && gap <= 0;
-
   return (
     <div className="rounded-xl bg-gradient-to-r from-violet-950/80 to-indigo-950/80 p-4 text-sm ring-1 ring-violet-500/40">
       <div className="font-bold text-violet-200">신기록 달성!</div>
-      <p className="mt-1 text-xs text-violet-300/90">
-        이전 최고 {formatGold(rb.previousBest)} → 새 최고{" "}
-        <span className="font-mono text-violet-100">{formatGold(rb.newBest)}</span>
-      </p>
-      {rb.delta != null && rb.delta > 0 ? (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {rb.isPersonalBest ? (
+          <span className="rounded-full bg-amber-500/18 px-2 py-0.5 text-[11px] font-bold text-amber-100 ring-1 ring-amber-400/30">
+            개인 최고 랭킹 가치 갱신
+          </span>
+        ) : null}
+        {rb.isWeeklyTop100 ? (
+          <span className="rounded-full bg-emerald-500/18 px-2 py-0.5 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-400/30">
+            주간 랭킹 100위 진입
+          </span>
+        ) : null}
+      </div>
+      {rb.isPersonalBest ? (
+        <p className="mt-1 text-xs text-violet-300/90">
+          이전 개인 최고 {formatGold(rb.previousBest)} → 현재{" "}
+          <span className="font-mono text-violet-100">{formatGold(rb.newBest)}</span>
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-violet-300/90">
+          현재 랭킹 가치{" "}
+          <span className="font-mono text-violet-100">{formatGold(rb.newBest)}</span>
+        </p>
+      )}
+      {rb.isPersonalBest && rb.delta != null && rb.delta > 0 ? (
         <p className="mt-2 font-mono text-xs text-emerald-400/95">
           +{formatGold(rb.delta)} 상승
         </p>
       ) : null}
-      {rb.estimatedWeeklyRankStrongest != null ? (
+      {rb.estimatedWeeklyRank != null && rb.isWeeklyTop100 ? (
         <p className="mt-2 text-xs text-zinc-300">
-          예상 주간 순위(최강 무기 Mock 기준):{" "}
+          예상 주간 순위:{" "}
           <span className="font-mono font-semibold text-amber-200">
-            {rb.estimatedWeeklyRankStrongest}위
+            {rb.estimatedWeeklyRank}위
           </span>
         </p>
       ) : null}
-      {gap != null ? (
-        <p className="mt-1 text-[11px] leading-relaxed text-zinc-400">
-          {aheadOfMockLeader
-            ? "Mock 주간 1위 기록보다 높거나 동일합니다."
-            : `Mock 주간 선두 대비 약 ${formatGold(gap)} 남았습니다.`}
-        </p>
-      ) : null}
       <p className="mt-2 text-[11px] text-zinc-500">
-        주간 최강 무기 후보에 등록되었습니다.
+        주간 랭킹 후보로 등록되었습니다.
       </p>
     </div>
   );

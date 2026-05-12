@@ -28,6 +28,7 @@ import {
   rowToOwnedWeapon,
 } from "@/lib/server/serverGameMath";
 import {
+  getProjectedWeeklyStrongestRank,
   upsertStrongestWeaponRanking,
   upsertWeeklyScore,
   upsertWorldRecord,
@@ -39,6 +40,7 @@ import type {
   EnhanceResult,
   OwnedWeapon,
   PlayerRecords,
+  RecordBreakInfo,
   WeaponDefinition,
   WeeklySeasonStats,
 } from "@/types/game";
@@ -409,7 +411,7 @@ export async function enhanceWeaponServer(
       };
       let result: EnhanceResult;
       let updatedWeapon: OwnedWeaponRow | null = weapon;
-      let recordBreak: { previousBest: number; newBest: number } | undefined;
+      let recordBreak: RecordBreakInfo | undefined;
       const nextEmber = Number(state.forge_ember) - cost;
       let nextState: PlayerStateRow = {
         ...state,
@@ -424,6 +426,23 @@ export async function enhanceWeaponServer(
       if (isSuccess) {
         const afterOwned = { ...owned, enhanceLevel: targetLevel };
         const afterRanking = calculateRankingValue(def, afterOwned);
+        const previousWeeklyBest = weekly.weeklyStrongestWeaponValue;
+        const estimatedWeeklyRank = await (timer
+          ? timer.time("weekly strongest rank estimate", () =>
+              getProjectedWeeklyStrongestRank({
+                seasonId: weekly.seasonId,
+                userId: user.id,
+                score: afterRanking,
+              }),
+            )
+          : getProjectedWeeklyStrongestRank({
+              seasonId: weekly.seasonId,
+              userId: user.id,
+              score: afterRanking,
+            }));
+        const isPersonalBest = afterRanking > records.personalBestRankingValue;
+        const isWeeklyTop100 =
+          estimatedWeeklyRank <= 100 && afterRanking > previousWeeklyBest;
         result = {
           type: "success",
           beforeLevel: owned.enhanceLevel,
@@ -431,10 +450,14 @@ export async function enhanceWeaponServer(
           beforeValue,
           afterValue: calculateSaleGold(def, afterOwned),
         };
-        if (afterRanking > records.personalBestRankingValue) {
+        if (isPersonalBest || isWeeklyTop100) {
           recordBreak = {
             previousBest: records.personalBestRankingValue,
             newBest: afterRanking,
+            delta: afterRanking - records.personalBestRankingValue,
+            isPersonalBest,
+            isWeeklyTop100,
+            estimatedWeeklyRank: isWeeklyTop100 ? estimatedWeeklyRank : undefined,
           };
         }
         nextRecords = {
@@ -482,7 +505,10 @@ export async function enhanceWeaponServer(
               .eq("id", weapon.id));
         if (error) throw error;
         updatedWeapon = { ...weapon, enhance_level: targetLevel };
-        if (afterRanking >= Math.max(records.personalBestRankingValue, weekly.weeklyStrongestWeaponValue)) {
+        if (
+          afterRanking > previousWeeklyBest ||
+          afterRanking > records.personalBestRankingValue
+        ) {
           await (timer
             ? timer.time("weekly_rankings/world_records update", () =>
                 upsertStrongestWeaponRanking({
@@ -735,7 +761,7 @@ export async function transcendWeaponServer(
       const nextStone = Number(state.transcend_stone) - stoneCost;
       let displayResult;
       let updatedWeapon: OwnedWeaponRow | null = weapon;
-      let recordBreak: { previousBest: number; newBest: number } | undefined;
+      let recordBreak: RecordBreakInfo | undefined;
 
       if (rollServerChance(getTranscendSuccessRate(owned.transcendLevel))) {
         const afterTranscend = owned.transcendLevel + 1;
@@ -754,6 +780,8 @@ export async function transcendWeaponServer(
           recordBreak = {
             previousBest: records.personalBestRankingValue,
             newBest: afterRankingValue,
+            delta: afterRankingValue - records.personalBestRankingValue,
+            isPersonalBest: true,
           };
         }
         nextRecords = {

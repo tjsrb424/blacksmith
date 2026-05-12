@@ -174,30 +174,8 @@ export function RankingScreen() {
       <ScreenBackground screen="ranking" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50">랭킹</h2>
-        <p className="text-sm text-zinc-400">
-          {gameMode === "beta"
-            ? "betaServerMode · 서버 랭킹 API 우선, 실패 시 로컬 fallback"
-            : "localMode · LocalStorage + Mock ranking adapter"}
-        </p>
-        <div className="inline-flex rounded bg-zinc-950/75 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200 ring-1 ring-emerald-700/45">
-          {gameMode === "beta" &&
-          weeklyResult?.source !== "fallback" &&
-          worldResult?.source !== "fallback"
-            ? "SERVER RANKING"
-            : "임시 랭킹 데이터"}
-        </div>
+        <p className="text-sm text-zinc-400">이번 시즌 기록과 월드레코드를 확인하세요.</p>
       </header>
-
-      {weeklyResult?.source === "fallback" || worldResult?.source === "fallback" ? (
-        <div className="relative z-10 rounded-lg border border-amber-700/45 bg-amber-950/25 px-3 py-2 text-xs text-amber-100">
-          서버 랭킹 API에 연결하지 못해 로컬 Mock 랭킹을 표시 중입니다.
-          {weeklyResult?.error ?? worldResult?.error ? (
-            <span className="ml-2 font-mono text-amber-200/80">
-              {weeklyResult?.error ?? worldResult?.error}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="relative z-10 flex gap-2 overflow-x-auto rounded-xl bg-[rgba(6,8,14,0.68)] p-1 ring-1 ring-amber-900/38 backdrop-blur-[1px]">
         {(
@@ -283,7 +261,7 @@ export function RankingScreen() {
               className="overflow-hidden"
             >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-3 text-xs text-zinc-500">
-                <span>{catMeta.scoreLabel} 기준 · Mock + 내 기록 합성</span>
+                <span>이번 시즌 기준 {catMeta.scoreLabel} 순위입니다.</span>
               </div>
               <ul className="space-y-2">
                 {mergedWeekly.length > 0 ? mergedWeekly.map((row) => (
@@ -364,7 +342,7 @@ export function RankingScreen() {
             <>
               <WorldCard
                 title="세계 최고가 무기"
-                subtitle="랭킹 가치 · 서버 계산 기준"
+                subtitle="랭킹 가치"
                 accent="amber"
               >
                 <div className="text-lg font-semibold text-zinc-100">
@@ -433,7 +411,7 @@ export function RankingScreen() {
 
               <WorldCard
                 title="파괴된 전설"
-                subtitle="서버 기록 · fallback 시 Mock"
+                subtitle="파괴 기록"
                 accent="red"
               >
                 <div className="text-lg font-semibold text-zinc-100">

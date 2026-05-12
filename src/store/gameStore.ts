@@ -20,7 +20,10 @@ import {
   maybeUpdateBestWeaponSnapshot,
   bumpWeeklySeasonStrongest,
 } from "@/lib/ranking";
-import { enrichRecordBreakUi } from "@/lib/rankingLeaderboard";
+import {
+  buildLocalRecordBreakInfo,
+  enrichRecordBreakUi,
+} from "@/lib/rankingLeaderboard";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import {
   clampDurability,
@@ -1445,8 +1448,14 @@ export const useGameStore = create<GameStore>()(
             enhanceLevel: result.afterLevel,
           };
           const rankingAfter = calculateRankingValue(def, projected);
-          enhanceRecordBreak =
-            rankingAfter > afterSpend.records.personalBestRankingValue;
+          enhanceRecordBreak = Boolean(
+            buildLocalRecordBreakInfo({
+              previousBest: afterSpend.records.personalBestRankingValue,
+              newBest: rankingAfter,
+              previousWeeklyBest:
+                afterSpend.weeklySeasonStats.weeklyStrongestWeaponValue,
+            }),
+          );
         }
 
         const tier: EnhanceAnimationTier = targetLevel < 8 ? "fast" : "heavy";
@@ -1510,13 +1519,12 @@ export const useGameStore = create<GameStore>()(
           };
           const rankingAfter = calculateRankingValue(def, projected);
           const prevPersonal = nextRecords.personalBestRankingValue;
-          const recordBreakRaw =
-            rankingAfter > prevPersonal
-              ? { previousBest: prevPersonal, newBest: rankingAfter }
-              : undefined;
-          const recordBreak = recordBreakRaw
-            ? enrichRecordBreakUi(recordBreakRaw)
-            : undefined;
+          const recordBreak = buildLocalRecordBreakInfo({
+            previousBest: prevPersonal,
+            newBest: rankingAfter,
+            previousWeeklyBest:
+              afterSpend.weeklySeasonStats.weeklyStrongestWeaponValue,
+          });
           nextRecords = {
             ...nextRecords,
             totalEnhanceSuccesses: nextRecords.totalEnhanceSuccesses + 1,
@@ -1759,7 +1767,14 @@ export const useGameStore = create<GameStore>()(
 
         const transcendRb =
           result.type === "success" &&
-          result.afterRankingValue > afterSpend.records.personalBestRankingValue;
+          Boolean(
+            buildLocalRecordBreakInfo({
+              previousBest: afterSpend.records.personalBestRankingValue,
+              newBest: result.afterRankingValue,
+              previousWeeklyBest:
+                afterSpend.weeklySeasonStats.weeklyStrongestWeaponValue,
+            }),
+          );
         scheduleTranscendOutcomeSounds(result, transcendRb);
 
         let nextRecords: PlayerRecords = {
@@ -1770,13 +1785,12 @@ export const useGameStore = create<GameStore>()(
         if (result.type === "success") {
           const prevPersonal = nextRecords.personalBestRankingValue;
           const prevBestTrans = nextRecords.bestTranscendedWeaponValue;
-          const recordBreakRaw =
-            result.afterRankingValue > prevPersonal
-              ? { previousBest: prevPersonal, newBest: result.afterRankingValue }
-              : undefined;
-          const recordBreak = recordBreakRaw
-            ? enrichRecordBreakUi(recordBreakRaw)
-            : undefined;
+          const recordBreak = buildLocalRecordBreakInfo({
+            previousBest: prevPersonal,
+            newBest: result.afterRankingValue,
+            previousWeeklyBest:
+              afterSpend.weeklySeasonStats.weeklyStrongestWeaponValue,
+          });
           nextRecords = {
             ...nextRecords,
             transcendSuccessCount: nextRecords.transcendSuccessCount + 1,
