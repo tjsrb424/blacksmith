@@ -435,20 +435,20 @@ export function BlacksmithScreen() {
   );
 
   return (
-    <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 pb-28 pt-4 lg:grid lg:grid-cols-3 lg:gap-5 lg:px-6 lg:pb-10 lg:pt-6 xl:gap-7">
+    <div className="relative mx-auto flex w-full flex-1 flex-col gap-4 px-3 pb-28 pt-4">
       <ScreenBackground screen="blacksmith" />
 
-      <div className="relative z-10 grid grid-cols-1 gap-4 lg:col-span-3 lg:grid-cols-3 lg:gap-5 xl:gap-7">
-        <div className="order-2 lg:order-none">{infoPanel}</div>
-        <div className="order-1 lg:order-none">{mainColumn}</div>
-        <div className="order-3 flex flex-col gap-4 lg:order-none">
+      <div className="relative z-10 grid grid-cols-1 gap-4">
+        <div className="order-2">{infoPanel}</div>
+        <div className="order-1">{mainColumn}</div>
+        <div className="order-3 flex flex-col gap-4">
           {enhancePanel}
           {transcendPanel}
         </div>
       </div>
 
       {def && equipped ? (
-        <div className="relative z-10 order-last col-span-full flex flex-col gap-2 border-t border-zinc-800/70 pt-4 lg:flex-row">
+        <div className="relative z-10 order-last flex flex-col gap-2 border-t border-zinc-800/70 pt-4">
             <FantasyButton
               variant="accent"
               className="min-h-12 flex-1 focus-visible:ring-2 focus-visible:ring-amber-400/80"

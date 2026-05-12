@@ -16,6 +16,7 @@ import {
 } from "@/components/modals/modalTone";
 import { cn } from "@/lib/cn";
 import { playSound } from "@/lib/sound";
+import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
 import { EFFECT_ASSETS } from "@/data/assets";
 import { getGameMode } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
@@ -237,6 +238,7 @@ export function ModalRoot() {
   const requestTranscend = useGameStore((s) => s.requestTranscendEquipped);
   const acknowledgeSeasonStart = useGameStore((s) => s.acknowledgeSeasonStart);
   const isBetaMode = getGameMode() === "beta";
+  const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
   const isTerminalAdState =
     modal?.kind === "ad_reward_progress" &&
     (modal.phase === "unavailable" ||
@@ -257,7 +259,7 @@ export function ModalRoot() {
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/62 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-[1px] sm:items-center sm:p-6 sm:backdrop-blur-sm"
+          className="fixed inset-y-0 left-1/2 z-50 flex w-screen -translate-x-1/2 items-end justify-center bg-black/62 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-[1px] sm:items-center sm:p-6 sm:backdrop-blur-sm xl:w-[430px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -275,8 +277,8 @@ export function ModalRoot() {
               className={cn(
                 "relative max-h-[calc(100dvh-80px)] min-w-0 w-[92vw] overflow-y-auto",
                 isResultModal(modal)
-                  ? "max-w-[390px] sm:max-w-[430px] md:max-w-[500px] lg:max-w-[540px]"
-                  : "max-w-[380px] sm:max-w-[420px] md:max-w-[460px] lg:max-w-[480px]",
+                  ? "max-w-[390px] sm:max-w-[430px]"
+                  : "max-w-[380px] sm:max-w-[420px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
               )}
               onMouseDown={(e) => e.stopPropagation()}
@@ -760,11 +762,19 @@ export function ModalRoot() {
                       variant="promo"
                       className="w-full"
                       onClick={() => collectForge(true)}
-                      disabled={modal.pendingBase <= 0}
+                      disabled={modal.pendingBase <= 0 || isRewardAdDisabled}
                     >
-                      광고 보고 2배 수령
+                      {isRewardAdDisabled
+                        ? "광고 보상 준비 중"
+                        : "광고 보고 2배 수령"}
                     </FantasyButton>
-                    <AdRewardStatusText rewardType="forgeCollectDouble" />
+                    {isRewardAdDisabled ? (
+                      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                        광고 보상은 준비 중입니다. 기본 수령은 정상 이용할 수 있습니다.
+                      </p>
+                    ) : (
+                      <AdRewardStatusText rewardType="forgeCollectDouble" />
+                    )}
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       나중에 받기
                     </FantasyButton>
@@ -937,14 +947,28 @@ export function ModalRoot() {
                       <FantasyButton variant="accent" disabled={serverActionPending} onClick={() => commitSell("normal")}>
                         {serverActionPending ? "판매 처리 중..." : "기본 판매"}
                       </FantasyButton>
-                      <FantasyButton variant="promo" disabled={serverActionPending} onClick={() => commitSell("adBonus")}>
-                        {serverActionPending ? "판매 처리 중..." : "광고 보고 +30% 판매"}
+                      <FantasyButton
+                        variant="promo"
+                        disabled={serverActionPending || isRewardAdDisabled}
+                        onClick={() => commitSell("adBonus")}
+                      >
+                        {serverActionPending
+                          ? "판매 처리 중..."
+                          : isRewardAdDisabled
+                            ? "광고 보상 준비 중"
+                            : "광고 보고 +30% 판매"}
                       </FantasyButton>
                     </div>
-                    <AdRewardStatusText
-                      rewardType="sellBonus"
-                      relatedActionId={modal.instanceId}
-                    />
+                    {isRewardAdDisabled ? (
+                      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                        현재 광고를 사용할 수 없습니다. 기본 판매는 정상 이용할 수 있습니다.
+                      </p>
+                    ) : (
+                      <AdRewardStatusText
+                        rewardType="sellBonus"
+                        relatedActionId={modal.instanceId}
+                      />
+                    )}
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       취소
                     </FantasyButton>

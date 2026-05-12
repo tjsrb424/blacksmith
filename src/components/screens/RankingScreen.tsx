@@ -170,7 +170,7 @@ export function RankingScreen() {
       : "—";
 
   return (
-    <div className="relative mx-auto w-full max-w-6xl flex-1 space-y-6 px-3 pb-28 pt-6 lg:pb-10 lg:px-6">
+    <div className="relative mx-auto w-full flex-1 space-y-6 px-3 pb-28 pt-6">
       <ScreenBackground screen="ranking" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50">랭킹</h2>
@@ -223,8 +223,8 @@ export function RankingScreen() {
       </div>
 
       {sub === "weekly" ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,220px)_1fr] lg:items-start">
-          <aside className="space-y-3 lg:sticky lg:top-4">
+        <div className="grid gap-6">
+          <aside className="space-y-3">
             <div className="rounded-xl border border-amber-800/35 bg-[rgba(6,8,14,0.7)] p-4 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[1px]">
               <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-600/90">
                 이번 주간 시즌
@@ -237,7 +237,7 @@ export function RankingScreen() {
                 {formatSeasonCountdown(season.remainingMs)}
               </div>
             </div>
-            <div className="hidden lg:block">
+            <div className="hidden">
               <div className="mb-2 text-xs font-semibold text-zinc-500">
                 카테고리
               </div>
@@ -261,7 +261,7 @@ export function RankingScreen() {
           </aside>
 
           <div className="min-w-0 space-y-4">
-            <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {CATEGORY_META.map((c) => (
                 <button
                   key={c.id}
@@ -359,7 +359,7 @@ export function RankingScreen() {
       ) : null}
 
       {sub === "world" ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4">
           {worldRecords ? (
             <>
               <WorldCard
@@ -450,7 +450,7 @@ export function RankingScreen() {
               </WorldCard>
             </>
           ) : (
-            <div className="rounded-xl bg-zinc-950/60 px-4 py-6 text-center text-sm text-zinc-500 ring-1 ring-zinc-800 sm:col-span-2 xl:col-span-3">
+            <div className="rounded-xl bg-zinc-950/60 px-4 py-6 text-center text-sm text-zinc-500 ring-1 ring-zinc-800">
               월드레코드를 불러오는 중입니다.
             </div>
           )}
@@ -458,7 +458,7 @@ export function RankingScreen() {
       ) : null}
 
       {sub === "me" ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           <FantasyPanel title="역대 최고 무기" className="space-y-3">
             {bestWeaponSnapshotView ? (
               <>
@@ -517,7 +517,7 @@ export function RankingScreen() {
             <StatRow label="초월 실패 파괴" value={formatInt(recordsView.transcendDestroyedCount)} mono accent />
           </FantasyPanel>
 
-          <FantasyPanel title="제련로 통계" className="space-y-3 text-sm lg:col-span-2">
+          <FantasyPanel title="제련로 통계" className="space-y-3 text-sm">
             <StatRow label="총 수령 제련의 불씨" value={formatInt(recordsView.totalForgeCollected)} mono />
             <StatRow
               label="광고 보너스 수령량"

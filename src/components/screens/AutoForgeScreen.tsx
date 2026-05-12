@@ -15,6 +15,7 @@ import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
+import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
@@ -84,13 +85,14 @@ export function AutoForgeScreen() {
       : snap.ratePerMinute;
   const upgradeCost = forgeUpgradeCostGold(forgeLevel);
   const canAffordUpgrade = forgeLevel < 10 && gold >= upgradeCost;
+  const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
 
   const pct = Math.round(snap.fillRatio * 100);
   const warnBand = snap.fillRatio >= 0.8 && snap.fillRatio < 1;
   const full = snap.isFull;
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl flex-1 space-y-5 px-3 pb-28 pt-6 lg:px-6 lg:pb-10">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-28 pt-6">
       <ScreenBackground screen="forge" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]">
@@ -167,7 +169,7 @@ export function AutoForgeScreen() {
             ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 pt-1">
             <FantasyButton
               className="min-h-[52px] w-full text-base shadow-[0_0_22px_rgba(245,158,11,0.18)]"
               disabled={pending <= 0}
@@ -178,13 +180,19 @@ export function AutoForgeScreen() {
             <FantasyButton
               variant="promo"
               className="min-h-[52px] w-full"
-              disabled={pending <= 0}
+              disabled={pending <= 0 || isRewardAdDisabled}
               onClick={() => collect(true)}
             >
-              광고 보고 2배 수령
+              {isRewardAdDisabled ? "광고 보상 준비 중" : "광고 보고 2배 수령"}
             </FantasyButton>
           </div>
-          <AdRewardStatusText rewardType="forgeCollectDouble" />
+          {isRewardAdDisabled ? (
+            <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+              광고 보상은 준비 중입니다. 기본 수령은 정상 이용할 수 있습니다.
+            </p>
+          ) : (
+            <AdRewardStatusText rewardType="forgeCollectDouble" />
+          )}
 
           <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
             <div className="rounded-xl bg-black/24 p-3 ring-1 ring-zinc-700/50">
@@ -199,7 +207,7 @@ export function AutoForgeScreen() {
         </div>
       </section>
 
-      <div className="relative z-10 grid gap-3 sm:grid-cols-2">
+      <div className="relative z-10 grid gap-3">
         <FantasyPanel title="생산 정보" className="space-y-2 text-sm">
           <div className="flex justify-between gap-2">
             <span className="text-zinc-500">분당 생산</span>

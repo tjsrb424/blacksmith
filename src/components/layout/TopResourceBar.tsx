@@ -72,14 +72,14 @@ export function TopResourceBar() {
             icon={<CurrencyIcon src={CURRENCY_ICONS.gold} emoji="G" label="골드" />}
             label="골드"
             value={gold}
-            onPlus={() => mockAdReward("gold")}
+            onPlus={showMockHint ? () => mockAdReward("gold") : undefined}
           />
           <ResourcePill
             icon={<CurrencyIcon src={CURRENCY_ICONS.ember} emoji="E" label="제련의 불씨" />}
             label="제련의 불씨"
             shortLabel="불씨"
             value={ember}
-            onPlus={() => mockAdReward("ember")}
+            onPlus={showMockHint ? () => mockAdReward("ember") : undefined}
           />
           <ResourcePill
             icon={
@@ -90,8 +90,9 @@ export function TopResourceBar() {
               />
             }
             label="초월석"
+            shortLabel="초월"
             value={stone}
-            onPlus={() => mockAdReward("stone")}
+            onPlus={showMockHint ? () => mockAdReward("stone") : undefined}
           />
         </div>
         <div className="flex min-h-7 items-center justify-between gap-2">

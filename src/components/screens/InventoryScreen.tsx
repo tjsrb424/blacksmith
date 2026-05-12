@@ -32,7 +32,7 @@ export function InventoryScreen() {
   const isLastWeapon = owned.length <= 1;
 
   return (
-    <div className="relative mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 pb-28 pt-6 lg:pb-10 lg:px-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-28 pt-6">
       <ScreenBackground screen="inventory" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50">보관함</h2>
@@ -41,7 +41,7 @@ export function InventoryScreen() {
         </p>
       </header>
 
-      <ul className="relative z-10 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <ul className="relative z-10 grid grid-cols-1 gap-3">
         {sorted.map((w) => {
           const def = WEAPONS_BY_ID[w.weaponId];
           if (!def) return null;

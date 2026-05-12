@@ -33,7 +33,7 @@ export function BottomTabs() {
   const isEnhancing = useGameStore((s) => s.isEnhancing);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-amber-900/30 bg-[rgba(5,5,8,0.8)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
+    <nav className="fixed bottom-0 left-1/2 right-auto z-40 w-screen -translate-x-1/2 border-t border-amber-900/30 bg-[rgba(5,5,8,0.8)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm xl:w-[430px]">
       <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-1 py-2">
         {TABS.map((t) => (
           <TabButton

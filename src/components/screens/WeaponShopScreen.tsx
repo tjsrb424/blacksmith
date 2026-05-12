@@ -62,7 +62,7 @@ export function WeaponShopScreen() {
   }, [ownedIds]);
 
   return (
-    <div className="relative mx-auto w-full max-w-6xl flex-1 space-y-4 px-3 pb-28 pt-6 lg:space-y-5 lg:pb-10 lg:px-6">
+    <div className="relative mx-auto w-full flex-1 space-y-4 px-3 pb-28 pt-6">
       <ScreenBackground screen="shop" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]">
@@ -101,7 +101,7 @@ export function WeaponShopScreen() {
         })}
       </div>
 
-      <div className="relative z-10 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <div className="relative z-10 grid grid-cols-2 gap-2 sm:gap-3">
         {filteredDefs.map((def) => {
           const affordable = gold >= def.basePrice;
           const owned = ownedIds.has(def.id);

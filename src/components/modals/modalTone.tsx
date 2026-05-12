@@ -42,7 +42,7 @@ const TONE_SHELL: Record<ModalTone, string> = {
 
 export function getModalShellClass(tone: ModalTone): string {
   return cn(
-    "rounded-2xl border px-6 py-7 sm:px-7 sm:py-8 lg:px-8 lg:py-9",
+    "rounded-2xl border px-6 py-7 sm:px-7 sm:py-8",
     TONE_SHELL[tone],
   );
 }
