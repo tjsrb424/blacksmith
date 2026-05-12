@@ -157,7 +157,7 @@ export function BlacksmithScreen() {
       : weaponMotion;
 
   const mainColumn = (
-    <div className="relative flex min-h-[260px] flex-col items-center justify-center gap-4 rounded-2xl border border-amber-900/35 bg-[rgba(0,0,0,0.14)] p-3 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[300px] sm:p-4">
+    <div className="relative flex min-h-[230px] flex-col items-center justify-center gap-3 rounded-2xl border border-amber-900/35 bg-[rgba(0,0,0,0.14)] p-2.5 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[260px] sm:p-3">
       <BlacksmithResultFx kind={stageFx} burstKey={fxSession} />
       <div className="relative flex w-full flex-col items-center justify-center">
         {!def || !equipped ? (
@@ -174,7 +174,7 @@ export function BlacksmithScreen() {
           </>
         ) : (
           <>
-            <div className="relative flex h-[min(58vw,340px)] w-full max-w-[340px] items-center justify-center">
+            <div className="relative flex h-[min(48vw,270px)] w-full max-w-[300px] items-center justify-center">
               <div className="absolute inset-0 flex items-center justify-center">
                 <ForgeGlow mode={auraMode === "idle" ? "neutral" : auraMode} />
               </div>
@@ -193,14 +193,14 @@ export function BlacksmithScreen() {
                 <WeaponImage
                   src={def.imagePath}
                   alt={def.name}
-                  className="relative z-10 max-h-[min(52vw,220px)] w-auto object-contain drop-shadow-[0_0_28px_rgba(251,146,60,0.45)] sm:max-h-[240px]"
+                  className="relative z-10 max-h-[min(43vw,180px)] w-auto object-contain drop-shadow-[0_0_24px_rgba(251,146,60,0.42)] sm:max-h-[200px]"
                 />
               </motion.div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-amber-50">{stageWeaponName}</div>
+              <div className="text-base font-bold text-amber-50">{stageWeaponName}</div>
               <motion.div
-                className="mt-1 font-mono text-sm text-amber-200/90"
+                className="mt-0.5 font-mono text-sm text-amber-200/90"
                 animate={
                   stageFx === "enhance_ok"
                     ? { scale: [1, 1.15, 1], color: ["#fde68a", "#fef08a", "#fde68a"] }
@@ -212,22 +212,22 @@ export function BlacksmithScreen() {
                 {transcendLevel >= 1 ? ` ★${transcendLevel}` : ""}
               </motion.div>
               {rankingCandidate ? (
-                <span className="mt-2 inline-block rounded-full bg-indigo-600/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-100 ring-1 ring-indigo-400/40">
+                <span className="mt-1.5 inline-block rounded-full bg-indigo-600/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-100 ring-1 ring-indigo-400/40">
                   기록 후보
                 </span>
               ) : null}
               {isMaxEnhance && transcendLevel === 0 ? (
-                <span className="mt-2 inline-block rounded-full bg-violet-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-200 ring-1 ring-violet-500/45">
+                <span className="mt-1.5 inline-block rounded-full bg-violet-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-200 ring-1 ring-violet-500/45">
                   초월 가능
                 </span>
               ) : null}
               {isMaxEnhance && transcendLevel >= 10 ? (
-                <span className="mt-2 inline-block rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-100 ring-1 ring-amber-400/55">
+                <span className="mt-1.5 inline-block rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-100 ring-1 ring-amber-400/55">
                   최종 초월 달성
                 </span>
               ) : null}
               {durability <= 1 && equipped && equipped.durability > 0 ? (
-                <p className="mt-3 rounded-lg bg-red-950/45 px-3 py-1.5 text-[11px] font-semibold text-red-200 ring-1 ring-red-500/35">
+                <p className="mt-2 rounded-lg bg-red-950/45 px-3 py-1.5 text-[11px] font-semibold text-red-200 ring-1 ring-red-500/35">
                   위험: 다음 실패 시 파괴 가능
                 </p>
               ) : null}
@@ -239,13 +239,13 @@ export function BlacksmithScreen() {
   );
 
   const infoPanel = (
-    <FantasyPanel title="무기 정보" className="h-full">
+    <FantasyPanel title="무기 정보" className="h-full p-2.5">
       {!def || !equipped ? (
         <p className="text-sm text-zinc-400">
           장착한 무기가 없습니다. 보관함에서 장착하거나 상점에서 구매하세요.
         </p>
       ) : (
-        <dl className="space-y-2 text-sm">
+        <dl className="space-y-1.5 text-sm">
           <div className="flex justify-between gap-2">
             <dt className="text-zinc-500">등급</dt>
             <dd className="text-zinc-100">{gradeLabel(def.grade)}</dd>
@@ -270,12 +270,12 @@ export function BlacksmithScreen() {
   );
 
   const enhancePanel = (
-    <FantasyPanel title="강화" className="h-full">
+    <FantasyPanel title="강화" className="h-full p-2.5">
       {def && equipped ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {!isMaxEnhance ? (
             <>
-              <dl className="space-y-2 text-sm">
+              <dl className="space-y-1.5 text-sm">
                 <div className="flex justify-between gap-2">
                   <dt className="text-zinc-500">다음 단계</dt>
                   <dd className="font-mono text-zinc-100">+{targetLevel}</dd>
@@ -435,13 +435,13 @@ export function BlacksmithScreen() {
   );
 
   return (
-    <div className="relative mx-auto flex w-full flex-1 flex-col gap-4 px-3 pb-5 pt-4">
+    <div className="relative mx-auto flex w-full flex-1 flex-col gap-3 px-3 pb-5 pt-3">
       <ScreenBackground screen="blacksmith" />
 
-      <div className="relative z-10 grid grid-cols-1 gap-4">
+      <div className="relative z-10 grid grid-cols-1 gap-3">
         <div className="order-2">{infoPanel}</div>
         <div className="order-1">{mainColumn}</div>
-        <div className="order-3 flex flex-col gap-4">
+        <div className="order-3 flex flex-col gap-3">
           {enhancePanel}
           {transcendPanel}
         </div>

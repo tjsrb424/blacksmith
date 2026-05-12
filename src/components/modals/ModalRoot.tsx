@@ -259,7 +259,7 @@ export function ModalRoot() {
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="game-fixed-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-4 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
+          className="game-fixed-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-3 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -275,10 +275,10 @@ export function ModalRoot() {
               exit={{ y: 10, opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
-                "relative max-h-[calc(100%-2rem)] min-w-0 w-full overflow-y-auto",
+                "relative max-h-[calc(100%-1.5rem)] min-w-0 w-full overflow-y-auto",
                 isResultModal(modal)
-                  ? "max-w-[390px] sm:max-w-[430px]"
-                  : "max-w-[380px] sm:max-w-[420px]",
+                  ? "max-w-[406px]"
+                  : "max-w-[398px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
               )}
               onMouseDown={(e) => e.stopPropagation()}
