@@ -176,7 +176,7 @@ function ServerActionOverlay() {
   if (!pending || !message || isEnhancing) return null;
 
   return (
-    <div className="pointer-events-auto fixed inset-y-0 left-1/2 z-[45] flex w-screen -translate-x-1/2 items-center justify-center bg-black/25 px-4 backdrop-blur-[1px] xl:w-[430px]">
+    <div className="game-fixed-overlay pointer-events-auto fixed left-1/2 top-1/2 z-[45] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-black/25 px-4 backdrop-blur-[1px]">
       <div className="rounded-lg border border-amber-500/30 bg-zinc-950/90 px-4 py-3 text-center text-sm font-semibold text-amber-100 shadow-2xl">
         {message}
       </div>

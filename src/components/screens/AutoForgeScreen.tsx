@@ -92,7 +92,7 @@ export function AutoForgeScreen() {
   const full = snap.isFull;
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-28 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-5 pt-6">
       <ScreenBackground screen="forge" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]">

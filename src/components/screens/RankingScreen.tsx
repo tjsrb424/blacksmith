@@ -170,7 +170,7 @@ export function RankingScreen() {
       : "—";
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-6 px-3 pb-28 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-6 px-3 pb-5 pt-6">
       <ScreenBackground screen="ranking" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50">랭킹</h2>

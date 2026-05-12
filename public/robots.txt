@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://blacksmith-three.vercel.app/sitemap.xml

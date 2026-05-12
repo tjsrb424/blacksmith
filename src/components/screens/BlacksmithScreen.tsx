@@ -435,7 +435,7 @@ export function BlacksmithScreen() {
   );
 
   return (
-    <div className="relative mx-auto flex w-full flex-1 flex-col gap-4 px-3 pb-28 pt-4">
+    <div className="relative mx-auto flex w-full flex-1 flex-col gap-4 px-3 pb-5 pt-4">
       <ScreenBackground screen="blacksmith" />
 
       <div className="relative z-10 grid grid-cols-1 gap-4">

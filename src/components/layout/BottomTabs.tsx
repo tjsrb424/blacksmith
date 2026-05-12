@@ -33,7 +33,7 @@ export function BottomTabs() {
   const isEnhancing = useGameStore((s) => s.isEnhancing);
 
   return (
-    <nav className="fixed bottom-0 left-1/2 right-auto z-40 w-screen -translate-x-1/2 border-t border-amber-900/30 bg-[rgba(5,5,8,0.8)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm xl:w-[430px]">
+    <nav className="relative z-40 shrink-0 border-t border-amber-900/30 bg-[rgba(5,5,8,0.8)] backdrop-blur-sm">
       <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-1 py-2">
         {TABS.map((t) => (
           <TabButton
@@ -93,7 +93,7 @@ function TabButton({
       }}
       onClick={onClick}
       className={cn(
-        "flex min-h-[44px] touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[10px] font-semibold transition sm:text-xs",
+        "flex min-h-[44px] touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[10px] font-semibold transition",
         disabled && "cursor-not-allowed opacity-35",
         active
           ? "bg-amber-600/25 text-amber-50 ring-1 ring-amber-500/40"
@@ -102,13 +102,13 @@ function TabButton({
     >
       <span
         className={cn(
-          "flex h-7 w-7 items-center justify-center sm:h-8 sm:w-8",
+          "flex h-7 w-7 items-center justify-center",
           !active && "opacity-[0.42] grayscale-[0.35] brightness-[0.85] scale-[0.94]",
         )}
         aria-hidden
       >
         {imgFailed ? (
-          <span className="text-base sm:text-lg">{emoji}</span>
+          <span className="text-base">{emoji}</span>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img

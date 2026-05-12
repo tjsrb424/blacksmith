@@ -259,7 +259,7 @@ export function ModalRoot() {
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="fixed inset-y-0 left-1/2 z-50 flex w-screen -translate-x-1/2 items-end justify-center bg-black/62 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-[1px] sm:items-center sm:p-6 sm:backdrop-blur-sm xl:w-[430px]"
+          className="game-fixed-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-4 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -275,7 +275,7 @@ export function ModalRoot() {
               exit={{ y: 10, opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
-                "relative max-h-[calc(100dvh-80px)] min-w-0 w-[92vw] overflow-y-auto",
+                "relative max-h-[calc(100%-2rem)] min-w-0 w-full overflow-y-auto",
                 isResultModal(modal)
                   ? "max-w-[390px] sm:max-w-[430px]"
                   : "max-w-[380px] sm:max-w-[420px]",

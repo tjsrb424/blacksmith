@@ -32,7 +32,7 @@ export function InventoryScreen() {
   const isLastWeapon = owned.length <= 1;
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-28 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-5 pt-6">
       <ScreenBackground screen="inventory" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50">보관함</h2>
@@ -54,15 +54,14 @@ export function InventoryScreen() {
             <li key={w.instanceId}>
               <FantasyPanel
                 className={cn(
-                  "relative p-3 transition sm:p-4",
+                  "relative max-w-full overflow-hidden p-3 transition",
                   isEquipped && "border-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.12)]",
                   isPendingSell && "opacity-70 ring-1 ring-orange-400/35",
                 )}
               >
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                      <div className="relative h-28 w-32 shrink-0 overflow-hidden rounded-xl bg-zinc-950 ring-1 ring-zinc-700/80 sm:h-32 sm:w-36">
+                <div className="flex min-w-0 flex-col gap-4">
+                  <div className="grid min-w-0 grid-cols-[104px_minmax(0,1fr)] gap-3">
+                    <div className="relative h-28 w-full min-w-0 overflow-hidden rounded-xl bg-zinc-950 ring-1 ring-zinc-700/80">
                         <WeaponImage
                           src={def.imagePath}
                           alt={def.name}
@@ -77,9 +76,9 @@ export function InventoryScreen() {
                           </div>
                         ) : null}
                       </div>
-                      <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-zinc-100">{def.name}</span>
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="min-w-0 break-words font-semibold leading-snug text-zinc-100">{def.name}</span>
                         {w.locked ? (
                           <span className="rounded-full bg-red-950/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-300 ring-1 ring-red-500/40">
                             잠금
@@ -119,19 +118,18 @@ export function InventoryScreen() {
                         </div>
                       ) : null}
                     </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col gap-2 sm:w-40">
+                    <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
                       <FantasyButton
                         variant={isEquipped ? "ghost" : "secondary"}
                         disabled={isEquipped || isActionBlocked}
-                        className="min-h-12 w-full"
+                        className="min-h-11 w-full min-w-0 px-2 text-xs"
                         onClick={() => equip(w.instanceId)}
                       >
                         {isEquipped ? "장착됨" : "장착"}
                       </FantasyButton>
                       <FantasyButton
                         variant="muted"
-                        className="min-h-11 w-full text-xs"
+                        className="min-h-11 w-full min-w-0 px-2 text-xs"
                         disabled={isActionBlocked}
                         onClick={() => toggleWeaponLock(w.instanceId)}
                       >
@@ -139,10 +137,10 @@ export function InventoryScreen() {
                       </FantasyButton>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 border-t border-zinc-800 pt-3">
+                  <div className="flex min-w-0 flex-wrap gap-2 border-t border-zinc-800 pt-3">
                     <FantasyButton
                       variant="accent"
-                      className="min-h-12 flex-1 sm:max-w-xs"
+                      className="min-h-12 w-full min-w-0"
                       disabled={w.durability <= 0 || isLastWeapon || isActionBlocked}
                       title={
                         isLastWeapon

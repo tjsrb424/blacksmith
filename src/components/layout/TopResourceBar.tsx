@@ -19,14 +19,14 @@ function CurrencyIcon({
 }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
-    return <span className="text-base sm:text-lg">{emoji}</span>;
+    return <span className="text-base">{emoji}</span>;
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt=""
-      className="h-6 w-6 object-contain sm:h-7 sm:w-7"
+      className="h-6 w-6 object-contain"
       title={label}
       onError={() => setFailed(true)}
     />
@@ -65,9 +65,9 @@ export function TopResourceBar() {
     process.env.NODE_ENV !== "production" && getConfiguredAdProvider() === "mock";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-amber-900/25 bg-[rgba(5,5,8,0.82)] backdrop-blur-sm">
-      <div className="mx-auto max-w-6xl space-y-2 px-2.5 py-2 pt-[calc(0.55rem+env(safe-area-inset-top))] sm:px-6 sm:py-3 sm:pt-[calc(0.75rem+env(safe-area-inset-top))]">
-        <div className="grid min-w-0 grid-cols-3 gap-1.5 sm:gap-3">
+    <header className="relative z-40 shrink-0 border-b border-amber-900/25 bg-[rgba(5,5,8,0.82)] backdrop-blur-sm">
+      <div className="mx-auto max-w-6xl space-y-2 px-2.5 py-2">
+        <div className="grid min-w-0 grid-cols-3 gap-1.5">
           <ResourcePill
             icon={<CurrencyIcon src={CURRENCY_ICONS.gold} emoji="G" label="골드" />}
             label="골드"
@@ -96,7 +96,7 @@ export function TopResourceBar() {
           />
         </div>
         <div className="flex min-h-7 items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-[10px] leading-none text-zinc-600 sm:text-[11px]">
+          <p className="min-w-0 truncate text-[10px] leading-none text-zinc-600">
             {showMockHint ? "+ 버튼은 광고 SDK 대신 Mock 보상입니다." : ""}
           </p>
           <SfxToggle />

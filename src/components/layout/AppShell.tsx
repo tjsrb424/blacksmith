@@ -72,10 +72,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-[#050506] text-zinc-100">
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%),linear-gradient(90deg,rgba(0,0,0,0.72),transparent_38%,transparent_62%,rgba(0,0,0,0.72))]" />
-      <div className="relative z-10 mx-auto grid min-h-dvh w-screen xl:w-full xl:grid-cols-[minmax(0,1fr)_430px_minmax(0,1fr)]">
+      <div className="relative z-10 mx-auto grid min-h-dvh w-screen place-items-center xl:w-full xl:grid-cols-[minmax(0,1fr)_430px_minmax(0,1fr)]">
         {showDesktopSideRails ? <SideRail side="left" /> : null}
-        <div className="game-viewport relative mx-auto flex min-h-dvh w-screen flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)] xl:w-[430px] xl:max-w-[430px]">
-          <div className="pointer-events-none fixed inset-y-0 left-1/2 z-0 hidden w-[430px] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)] xl:block" />
+        <div className="game-viewport relative mx-auto flex min-h-0 flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)]">
+          <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)]" />
           <TopResourceBar />
           <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto">
             {children}
