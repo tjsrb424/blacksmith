@@ -131,7 +131,7 @@ Files:
 Env:
 
 ```bash
-NEXT_PUBLIC_AD_PROVIDER=mock
+NEXT_PUBLIC_AD_PROVIDER=disabled
 NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=
 ```
 
@@ -141,12 +141,18 @@ Provider behavior:
 - `googleWeb`: loads Google Publisher Tag in the browser and uses the rewarded out-of-page slot events.
 - `disabled`: returns a clear failure and never grants rewards.
 
+Production safety:
+
+- `mock` is private local QA only. Production builds force `NEXT_PUBLIC_AD_PROVIDER=mock` to behave as `disabled`.
+- Vercel public beta should use `disabled` until a real rewarded unit is ready.
+- For real ad QA, set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=<rewarded unit id>`, then redeploy.
+
 Provider selection:
 
-- `NEXT_PUBLIC_AD_PROVIDER=mock`: force mock.
+- `NEXT_PUBLIC_AD_PROVIDER=mock`: force mock only outside production.
 - `NEXT_PUBLIC_AD_PROVIDER=googleWeb`: force Google Web when a unit id exists.
 - `NEXT_PUBLIC_AD_PROVIDER=disabled`: turn ad rewards off.
-- unset in local mode: mock.
+- unset in local mode: mock outside production, disabled in production builds.
 - unset in beta mode: Google Web first, disabled when the unit id is missing.
 
 Legacy `NEXT_PUBLIC_GOOGLE_AD_UNIT_ID` is still accepted, but new environments should use `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`.
@@ -163,6 +169,7 @@ beta mode:
 - Forge 2x and sell +30% must pass through `ad_reward_logs`.
 - Ad close/failure calls complete with a non-rewarded provider result and does not grant rewards.
 - Server snapshots are applied after completion.
+- Public production beta must not use `mock`.
 
 ## Google Web Notes
 
@@ -183,10 +190,15 @@ Development logs expose these states with `[ads.googleWeb]`: `script_loading`, `
 
 No Google ad unit, no fill, or an unapproved unit should fail safely. That is expected during beta setup.
 
+Granting rule:
+
+- The client calls the reward-granting complete path only after the provider result has `rewarded: true`.
+- Close, no fill, missing unit, and provider errors are sent as non-rewarded terminal results only to mark `ad_reward_logs` as `canceled` or `failed`; they never grant rewards.
+
 ## QA
 
 1. Set `NEXT_PUBLIC_GAME_MODE=beta`.
-2. Set `NEXT_PUBLIC_AD_PROVIDER=mock`.
+2. For private local QA only, set `NEXT_PUBLIC_AD_PROVIDER=mock`; for public beta use `disabled` until a real unit is ready.
 3. Login with Google.
 4. Try Forge 2x and choose `광고 완료`; confirm `completed` and doubled forge ember.
 5. Repeat within 3 minutes; confirm request is blocked by cooldown.
@@ -195,6 +207,39 @@ No Google ad unit, no fill, or an unapproved unit should fail safely. That is ex
 7. Try Sell +30%; confirm the weapon is removed, gold uses the ad sale value, and ranking value uses the non-ad weapon value.
 8. Set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` without a unit id; confirm the app shows the unavailable message and does not grant rewards.
 9. Add `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`; confirm the GPT script loads and provider events are attempted.
+
+## Sprint 20 Google Web QA
+
+1. Set `NEXT_PUBLIC_GAME_MODE=beta`.
+2. For private local QA only, set `NEXT_PUBLIC_AD_PROVIDER=mock`, then verify complete/close/failure paths.
+3. For public beta before ad approval, set `NEXT_PUBLIC_AD_PROVIDER=disabled`; confirm ad buttons show unavailable state and no reward is granted.
+4. For Google Web QA, set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`.
+5. Login with Google.
+6. Try Forge 2x; confirm `pending -> processing -> completed` and doubled forge ember only when a rewarded grant occurs.
+7. Repeat within 3 minutes; confirm request is blocked by cooldown.
+8. Close/no fill/failure; confirm `canceled` or `failed` and no reward.
+9. Try Sell +30%; confirm the weapon is removed, gold uses the ad sale value, and ranking value uses the non-ad weapon value only after rewarded completion.
+10. Set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` without a unit id; confirm the app shows the unavailable message and does not grant rewards.
+11. Resend the same complete payload for a completed `rewardIntentId`; confirm replay returns the stored result and does not grant a second reward.
+
+SQL checks:
+
+```sql
+SELECT id, user_id, reward_type, reward_status, action_id, provider, requested_at, completed_at, reward_result
+FROM ad_reward_logs
+ORDER BY created_at DESC
+LIMIT 20;
+
+SELECT user_id, gold, forge_ember, transcend_stone, forge_level, updated_at
+FROM player_states
+ORDER BY updated_at DESC
+LIMIT 10;
+
+SELECT id, user_id, weapon_id, enhance_level, transcend_level, durability, created_at
+FROM owned_weapons
+ORDER BY created_at DESC
+LIMIT 20;
+```
 
 ## Remaining Work
 

@@ -11,7 +11,7 @@ NEXT_PUBLIC_GAME_MODE=beta
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-NEXT_PUBLIC_AD_PROVIDER=mock
+NEXT_PUBLIC_AD_PROVIDER=disabled
 NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=
 NEXT_PUBLIC_DEV_TOOLS_ENABLED=false
 ```
@@ -21,7 +21,10 @@ Notes:
 - `NEXT_PUBLIC_*` values are visible in the browser bundle.
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never prefix it with `NEXT_PUBLIC_`.
 - Google Client Secret is not an app env var. Store it only in Supabase Dashboard > Authentication > Providers > Google.
-- For first beta traffic, use `NEXT_PUBLIC_AD_PROVIDER=mock` or `disabled` until the Google rewarded unit is approved.
+- For public beta traffic before the Google rewarded unit is approved, use `NEXT_PUBLIC_AD_PROVIDER=disabled`.
+- For real ad QA, set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=<rewarded unit id>`, then redeploy.
+- Use `NEXT_PUBLIC_AD_PROVIDER=mock` only for private local QA. Production builds force mock to `disabled`.
+- Vercel env changes require a fresh deployment before the browser bundle sees new `NEXT_PUBLIC_*` values.
 
 ## 2. Supabase
 
@@ -55,9 +58,12 @@ Then confirm Supabase Google Provider has the Google Client ID and Client Secret
 
 ## 4. Ad Provider QA
 
-- `mock`: result chooser appears only outside production.
+- `mock`: private local QA only. Result chooser appears only outside production, and production builds force this provider to `disabled`.
 - `googleWeb`: app loads GPT and handles missing unit, no fill, close without reward, and rewarded events.
 - `disabled`: app shows an unavailable message and grants nothing.
+- Missing or blank `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`: app must not crash; ad rewards stay unavailable and grant nothing.
+- No fill, load error, and close without reward: `ad_reward_logs.reward_status` should become `failed` or `canceled`; no `player_states` or `owned_weapons` reward mutation should happen.
+- Rewarded grant: `/api/ad/reward/complete` may grant only after the provider result has `rewarded: true`.
 - Forge 2x: daily 10, cooldown 3 minutes.
 - Sell +30%: daily 20, one active/completed reward per weapon instance.
 - Destruction scrap 2x: disabled for this beta.
@@ -67,6 +73,7 @@ Then confirm Supabase Google Provider has the Google Client ID and Client Secret
 - Build with `NEXT_PUBLIC_DEV_TOOLS_ENABLED=false`.
 - Confirm DEV panel and resource mutation buttons are not visible.
 - Confirm mock ad debug chooser is not visible.
+- Confirm production with `NEXT_PUBLIC_AD_PROVIDER=mock` does not expose mock rewards and behaves as `disabled`.
 - Confirm client bundle does not contain `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, or Google Client Secret.
 - Confirm beta mode actions use server route handlers, not LocalStorage, as the source of truth.
 
@@ -83,7 +90,36 @@ Then confirm Supabase Google Provider has the Google Client ID and Client Secret
 9. Confirm ranking screens load server rankings or show fallback copy.
 10. Check production/preview logs for API errors.
 
-## 7. Mobile Entry And Performance Gate
+## 7. Ad Reward SQL Checks
+
+Recent ad reward intents:
+
+```sql
+SELECT id, user_id, reward_type, reward_status, action_id, provider, requested_at, completed_at, reward_result
+FROM ad_reward_logs
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+Recent player state:
+
+```sql
+SELECT user_id, gold, forge_ember, transcend_stone, forge_level, updated_at
+FROM player_states
+ORDER BY updated_at DESC
+LIMIT 10;
+```
+
+Recent owned weapons:
+
+```sql
+SELECT id, user_id, weapon_id, enhance_level, transcend_level, durability, created_at
+FROM owned_weapons
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+## 8. Mobile Entry And Performance Gate
 
 - On iPhone Safari, clear website data, sign in with Google, and confirm the initial `loading saved data` screen never stays for more than 12 seconds.
 - On iPhone Chrome and Safari, confirm `checking_session` never stays longer than 10 seconds; failures must show retry/sign-out/server-reload actions.
@@ -96,7 +132,7 @@ Then confirm Supabase Google Provider has the Google Client ID and Client Secret
 - Switch tabs quickly on a mobile viewport and confirm background/image preloading prevents obvious spinner-like flashes.
 - Confirm production builds do not show the performance panel or dev controls.
 
-## 8. Production Local Mobile Test
+## 9. Production Local Mobile Test
 
 Use this before judging iPhone performance from `npm run dev`.
 
@@ -111,7 +147,7 @@ npx next start -H 0.0.0.0 -p 3000
 - Compare local mode and beta mode separately.
 - Treat dev-only stutter differently from production local stutter; production local is the closer pre-deploy signal.
 
-## 9. Rollback
+## 10. Rollback
 
 - Prefer promoting the last known-good preview with `vercel promote <deployment-url>`.
 - If production is already affected, use `vercel rollback` or Vercel Dashboard rollback.

@@ -128,7 +128,7 @@ function showGoogleRewardedAd(intent: AdRewardIntent): Promise<AdProviderResult>
       }
       if (slot) window.googletag?.destroySlots?.([slot]);
       if (!result.rewarded) {
-        console.warn("[ads.googleWeb] rewarded ad did not complete", result);
+        warnStatus("not_completed", result);
       }
       resolve(result);
     };

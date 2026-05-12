@@ -5,9 +5,11 @@
 1. Confirm SQL files `001_schema.sql` through `006_ad_reward_limits.sql` have been applied.
 2. Confirm `.env.local` has `NEXT_PUBLIC_GAME_MODE=beta`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
 3. Confirm ad env:
-   - QA: `NEXT_PUBLIC_AD_PROVIDER=mock`
+   - Public beta before ad approval: `NEXT_PUBLIC_AD_PROVIDER=disabled`
+   - Private local QA only: `NEXT_PUBLIC_AD_PROVIDER=mock`
    - Google Web: `NEXT_PUBLIC_AD_PROVIDER=googleWeb`
    - Real unit: `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`
+   - Production builds force `mock` to `disabled`.
 4. Restart `npm run dev` after env changes.
 5. Clear site data, sign in with Google, and confirm `POST /api/player/bootstrap` returns 200.
 
@@ -21,6 +23,25 @@
 - `weekly_rankings`
 - `world_records`
 - `ad_reward_logs`
+
+Ad reward SQL checks:
+
+```sql
+SELECT id, user_id, reward_type, reward_status, action_id, provider, requested_at, completed_at, reward_result
+FROM ad_reward_logs
+ORDER BY created_at DESC
+LIMIT 20;
+
+SELECT user_id, gold, forge_ember, transcend_stone, forge_level, updated_at
+FROM player_states
+ORDER BY updated_at DESC
+LIMIT 10;
+
+SELECT id, user_id, weapon_id, enhance_level, transcend_level, durability, created_at
+FROM owned_weapons
+ORDER BY created_at DESC
+LIMIT 20;
+```
 
 ## Game Action Checks
 
@@ -74,7 +95,9 @@ Confirm these user-facing cases:
 
 ## Ad Reward Checks
 
-- Set `NEXT_PUBLIC_AD_PROVIDER=mock` for beta web QA unless a real Google ad unit is ready.
+- Set `NEXT_PUBLIC_AD_PROVIDER=disabled` for public beta until a real Google ad unit is ready.
+- Set `NEXT_PUBLIC_AD_PROVIDER=mock` only for private local QA.
+- Set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID` for Google Web rewarded QA, then redeploy.
 - Forge 2x complete: click `광고 보고 2배 수령`, choose `광고 완료`, confirm `ad_reward_logs` goes `pending -> processing -> completed`, and confirm `player_states.forge_ember` increases by the doubled amount.
 - Forge 2x close: choose `광고 닫기`, confirm `ad_reward_logs.reward_status = canceled` and no resource changes.
 - Forge 2x failure: choose `광고 실패`, confirm `ad_reward_logs.reward_status = failed` and no resource changes.
@@ -89,6 +112,8 @@ Confirm these user-facing cases:
 - Direct sell API guard: send `/api/game/sell` with `sellMode: "adBonus"` and confirm it is rejected with `ad_reward_required`.
 - Google Web without unit: set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and blank unit id; confirm the provider fails safely instead of granting a reward.
 - Google Web with unit: set `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID`; confirm GPT script load is attempted and no reward is granted unless `rewardedSlotGranted` fires before close.
+- Google Web no fill/error/close: confirm `ad_reward_logs.reward_status` becomes `failed` or `canceled`, no resource changes occur, and the user sees the not-completed/unavailable message.
+- Production mock defense: build/start with `NEXT_PUBLIC_AD_PROVIDER=mock`; confirm the app behaves as `disabled` and no mock chooser appears.
 - Destruction scrap 2x: beta UI remains hidden until a persisted destruction `relatedActionId` flow is added.
 
 ## Deployment/Security Checks

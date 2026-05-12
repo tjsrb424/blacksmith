@@ -546,6 +546,8 @@ export async function getAdRewardStatus(
     relatedActionId?: string | null;
   },
 ): Promise<AdRewardStatusResponse> {
+  const provider = providerFromEnv();
+  const providerUnavailable = provider === "disabled";
   const { startIso, endIso } = todayUtcRange();
   const admin = getSupabaseAdminClient();
   const { data: logs, error } = await admin
@@ -588,12 +590,15 @@ export async function getAdRewardStatus(
         return false;
       });
       const available =
+        !providerUnavailable &&
         isRewardEnabledForBeta(rewardType) &&
         dailyLimit > 0 &&
         dailyUsed < dailyLimit &&
         cooldown <= 0;
       const message =
-        !isRewardEnabledForBeta(rewardType) || dailyLimit <= 0
+        providerUnavailable
+          ? "현재 광고를 사용할 수 없습니다."
+          : !isRewardEnabledForBeta(rewardType) || dailyLimit <= 0
           ? "아직 사용할 수 없는 광고 보상입니다."
           : dailyUsed >= dailyLimit
             ? "오늘 광고 보상을 모두 사용했습니다."

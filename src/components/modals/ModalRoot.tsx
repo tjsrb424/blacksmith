@@ -273,9 +273,9 @@ export function ModalRoot() {
               exit={{ y: 10, opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
-                "relative max-h-[calc(100dvh-96px)] min-w-0 w-[92vw] overflow-y-auto sm:w-full",
+                "relative max-h-[calc(100dvh-80px)] min-w-0 w-[92vw] overflow-y-auto",
                 isResultModal(modal)
-                  ? "max-w-[420px] sm:max-w-[460px] md:max-w-[520px] lg:max-w-[560px]"
+                  ? "max-w-[390px] sm:max-w-[430px] md:max-w-[500px] lg:max-w-[540px]"
                   : "max-w-[380px] sm:max-w-[420px] md:max-w-[460px] lg:max-w-[480px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
               )}
