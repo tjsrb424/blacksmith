@@ -254,12 +254,13 @@ export function ModalRoot() {
       : modal?.kind === "enhance_fail" || modal?.kind === "transcend_fail"
         ? "medium"
         : "medium";
+  const isResult = modal ? isResultModal(modal) : false;
 
   return (
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="game-fixed-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-3 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
+          className="game-modal-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-2 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -268,24 +269,28 @@ export function ModalRoot() {
             if (e.target === e.currentTarget) close();
           }}
         >
-          <ScreenShake active={shakeActive} preset={shakePreset}>
+          <ScreenShake
+            active={shakeActive}
+            preset={shakePreset}
+            className={cn("flex w-full justify-center", isResult ? "max-w-[440px]" : "max-w-[406px]")}
+          >
             <motion.div
               initial={{ y: 14, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 10, opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
-                "relative max-h-[calc(100%-1.5rem)] min-w-0 w-full overflow-y-auto",
-                isResultModal(modal)
-                  ? "max-w-[406px]"
-                  : "max-w-[398px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
+                "relative max-h-[calc(100%-1rem)] min-w-0 w-full overflow-y-auto",
+                isResult
+                  ? "max-w-[440px] px-4 py-6 sm:px-5 sm:py-7"
+                  : "max-w-[406px]",
               )}
               onMouseDown={(e) => e.stopPropagation()}
             >
               <ModalFrameBackdrop tone={getModalToneFromPayload(modal)} />
               <ModalToneEffects modal={modal} />
-              <div className="relative z-20 min-w-0">
+              <div className="relative z-20 w-full min-w-0">
               {modal.kind === "server_error" ? (
                 <div className="space-y-4">
                   <h3 className="text-lg font-bold text-red-100">
@@ -341,7 +346,7 @@ export function ModalRoot() {
               ) : null}
 
               {modal.kind === "enhance_success" ? (
-                <div className="space-y-5 text-center">
+                <div className="w-full space-y-5 text-center">
                   <motion.div
                     initial={{ scale: 0.85 }}
                     animate={{ scale: 1 }}
@@ -360,7 +365,7 @@ export function ModalRoot() {
                     가치 {formatGold(modal.result.beforeValue)} →{" "}
                     <span className="text-emerald-300">{formatGold(modal.result.afterValue)}</span>
                   </p>
-                  <div className="flex flex-col gap-2.5 pt-2">
+                  <div className="flex w-full flex-col gap-2.5 pt-2">
                     <FantasyButton
                       className="min-h-14 w-full shadow-[0_0_20px_rgba(245,158,11,0.22)]"
                       onClick={() => {

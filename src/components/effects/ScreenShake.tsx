@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/cn";
 
 export type ShakePreset = "light" | "medium" | "heavy";
 
@@ -18,14 +19,17 @@ export function ScreenShake({
   active,
   preset = "medium",
   children,
+  className,
 }: {
   active: boolean;
   preset?: ShakePreset;
   children: ReactNode;
+  className?: string;
 }) {
   const p = PRESETS[preset];
   return (
     <motion.div
+      className={cn(className)}
       animate={
         active
           ? {

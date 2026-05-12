@@ -76,10 +76,21 @@ img {
   max-height: calc(100svh - 16px);
 }
 
+.game-modal-overlay {
+  width: min(440px, 100vw);
+  height: calc(100svh - 16px);
+  max-height: calc(100svh - 16px);
+}
+
 @supports (height: 100dvh) {
   .game-viewport,
   .game-fixed-overlay {
     width: min(430px, 100vw, calc((100dvh - 16px) * 9.5 / 19.5));
+    max-height: calc(100dvh - 16px);
+  }
+
+  .game-modal-overlay {
+    height: calc(100dvh - 16px);
     max-height: calc(100dvh - 16px);
   }
 }
