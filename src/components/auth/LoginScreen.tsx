@@ -2,11 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { FantasyButton } from "@/components/ui/FantasyButton";
+import { PublicFooter } from "@/components/public/PublicFooter";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
 
 type LoginScreenProps = {
   error?: string | null;
+  authGateMode?: "required" | "optional" | "disabled";
 };
 
 const MAGIC_LINK_RATE_LIMIT_MESSAGE =
@@ -34,7 +36,7 @@ function formatAuthError(error?: string | null) {
   return error;
 }
 
-export function LoginScreen({ error }: LoginScreenProps) {
+export function LoginScreen({ error, authGateMode = "optional" }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [magicStatus, setMagicStatus] = useState<"idle" | "sending" | "sent">(
@@ -133,7 +135,7 @@ export function LoginScreen({ error }: LoginScreenProps) {
   }
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 py-10 text-zinc-100">
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#070708] px-4 py-10 text-zinc-100">
       <section className="w-full max-w-md rounded-lg border border-amber-900/45 bg-[rgba(8,8,12,0.92)] p-6 shadow-2xl ring-1 ring-amber-800/25">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase text-amber-500/90">
@@ -143,7 +145,9 @@ export function LoginScreen({ error }: LoginScreenProps) {
             세계 최강의 대장장이
           </h1>
           <p className="text-sm leading-6 text-zinc-400">
-            베타 랭킹 테스트를 위해 로그인 후 프로필을 생성합니다.
+            {authGateMode === "required"
+              ? "베타 랭킹 테스트를 위해 로그인 후 프로필을 생성합니다."
+              : "로그인 없이 공개 페이지를 먼저 둘러볼 수 있습니다. Google 로그인 시 진행 상황 저장, 랭킹 등록, 월드레코드 기록이 가능합니다."}
           </p>
         </div>
 
@@ -215,6 +219,9 @@ export function LoginScreen({ error }: LoginScreenProps) {
           </p>
         ) : null}
       </section>
+      <div className="w-full max-w-md">
+        <PublicFooter compact />
+      </div>
     </main>
   );
 }

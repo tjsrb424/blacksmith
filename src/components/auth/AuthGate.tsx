@@ -27,6 +27,8 @@ import type {
   NicknameUpdateResponse,
 } from "@/types/server";
 
+type AuthGateMode = "required" | "optional" | "disabled";
+
 type AuthStage =
   | "checking_session"
   | "bootstrap_loading"
@@ -66,6 +68,12 @@ function getUserAgentShort() {
   return ua.slice(0, 48);
 }
 
+function getAuthGateMode(): AuthGateMode {
+  const mode = process.env.NEXT_PUBLIC_AUTH_GATE_MODE;
+  if (mode === "required" || mode === "disabled") return mode;
+  return "optional";
+}
+
 export function useBetaPlayer() {
   return useContext(BetaPlayerContext);
 }
@@ -73,6 +81,7 @@ export function useBetaPlayer() {
 export function AuthGate({ children }: { children: ReactNode }) {
   useRenderDiagnostics("AuthGate");
   const mode = getGameMode();
+  const authGateMode = getAuthGateMode();
   const [session, setSession] = useState<Session | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [snapshot, setSnapshot] = useState<BetaPlayerSnapshot | null>(null);
@@ -337,7 +346,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!supabaseEnv.ok) {
-    return <LoginScreen error={supabaseEnv.message} />;
+    return <LoginScreen error={supabaseEnv.message} authGateMode={authGateMode} />;
   }
 
   if (!authChecked) {
@@ -376,7 +385,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
-    return <LoginScreen error={authError} />;
+    return <LoginScreen error={authError} authGateMode={authGateMode} />;
   }
 
   if (loadingSnapshot && !snapshot) {

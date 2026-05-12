@@ -13,6 +13,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_AD_PROVIDER=disabled
 NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=
+NEXT_PUBLIC_AUTH_GATE_MODE=optional
 NEXT_PUBLIC_DEV_TOOLS_ENABLED=false
 ```
 
@@ -24,6 +25,7 @@ Notes:
 - For public beta traffic before the Google rewarded unit is approved, use `NEXT_PUBLIC_AD_PROVIDER=disabled`.
 - For real ad QA, set `NEXT_PUBLIC_AD_PROVIDER=googleWeb` and `NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID=<rewarded unit id>`, then redeploy.
 - Use `NEXT_PUBLIC_AD_PROVIDER=mock` only for private local QA. Production builds force mock to `disabled`.
+- `NEXT_PUBLIC_AUTH_GATE_MODE=optional` keeps public review pages open while `/play` can still use Google login for server save and ranking features.
 - Vercel env changes require a fresh deployment before the browser bundle sees new `NEXT_PUBLIC_*` values.
 
 ## 2. Supabase
@@ -57,6 +59,8 @@ In Google Cloud OAuth client:
 Then confirm Supabase Google Provider has the Google Client ID and Client Secret.
 
 ## 4. Ad Provider QA
+
+Rewarded ads:
 
 - `mock`: private local QA only. Result chooser appears only outside production, and production builds force this provider to `disabled`.
 - `googleWeb`: app loads GPT and handles missing unit, no fill, close without reward, and rewarded events.
