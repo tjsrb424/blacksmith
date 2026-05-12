@@ -88,6 +88,7 @@ export function BlacksmithScreen() {
   const successRate =
     def && enhanceLevel < 15 ? getEnhanceSuccessRate(targetLevel) : 0;
   const canAffordEnhance = def && enhanceLevel < 15 ? ember >= cost : false;
+  const isLastWeapon = owned.length <= 1;
   const saleGold =
     def && equipped ? calculateSaleGold(def, equipped) : 0;
   const rankingVal =
@@ -360,7 +361,12 @@ export function BlacksmithScreen() {
             <FantasyButton
               variant="accent"
               className="min-h-12 w-full focus-visible:ring-2 focus-visible:ring-amber-400/80"
-              disabled={durability <= 0 || isEnhancing}
+              disabled={durability <= 0 || isEnhancing || isLastWeapon}
+              title={
+                isLastWeapon
+                  ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
+                  : undefined
+              }
               onClick={() => requestSellEquipped()}
             >
               판매하기
@@ -446,7 +452,12 @@ export function BlacksmithScreen() {
             <FantasyButton
               variant="accent"
               className="min-h-12 flex-1 focus-visible:ring-2 focus-visible:ring-amber-400/80"
-              disabled={!equipped || durability <= 0 || isEnhancing}
+              disabled={!equipped || durability <= 0 || isEnhancing || isLastWeapon}
+              title={
+                isLastWeapon
+                  ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
+                  : undefined
+              }
               onClick={() => requestSellEquipped()}
             >
             판매하기

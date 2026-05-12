@@ -57,18 +57,19 @@ Development mode can feel slower than the deployed bundle. Always compare agains
    - `npm run build`
    - `npx next start -H 0.0.0.0 -p 3000`
 3. Open `http://<PC-IP>:3000` on iPhone Chrome/Safari.
-4. For beta OAuth, add `http://<PC-IP>:3000/auth/callback` to Supabase Authentication > URL Configuration > Redirect URLs if Google login returns to the internal IP.
-5. Test `NEXT_PUBLIC_GAME_MODE=local` for pure rendering/tap performance.
-6. Test `NEXT_PUBLIC_GAME_MODE=beta` for auth, bootstrap, action latency, ad reward complete, ranking cache, and tab switching.
-7. Compare these readings between dev and production local:
+4. For beta OAuth, add `http://<PC-IP>:3000`, `http://<PC-IP>:3000/auth/callback`, and `http://<PC-IP>:3000/**` to Supabase Authentication > URL Configuration > Redirect URLs if Google login returns to the internal IP.
+5. In Google Cloud OAuth client, add `http://<PC-IP>:3000` to Authorized JavaScript origins. Keep the Authorized redirect URI as the Supabase provider callback: `https://<project-ref>.supabase.co/auth/v1/callback`.
+6. Test `NEXT_PUBLIC_GAME_MODE=local` for pure rendering/tap performance.
+7. Test `NEXT_PUBLIC_GAME_MODE=beta` for auth, bootstrap, action latency, ad reward complete, ranking cache, and tab switching.
+8. Compare these readings between dev and production local:
    - auth stage elapsed and last auth event
    - enhance API/modal/store sync timings
    - ad complete API/modal/store sync timings
    - tab switch timing and ranking/ad-status cache status
    - render counts for GameRoot, ModalRoot, active screen, TopResourceBar, BottomTabs, and WeaponCard
-8. Result interpretation:
+9. Result interpretation:
    - dev only slow, production local smooth: dev server/HMR overhead.
    - production local slow too: app render/store sync/image decode issue.
    - iPhone only stuck on `checking_session`: mobile origin/cookie/AuthGate effect/hydration issue.
    - `checking_session 0ms -` never changes: client JS/effects are not running or hydration is blocked before AuthGate effects.
-9. If production local still stalls on `checking_session`, capture the visible auth stage, elapsed time, origin, user agent, last auth event, last auth error, and Supabase redirect URL list.
+10. If production local still stalls on `checking_session`, capture the visible auth stage, elapsed time, origin, user agent, last auth event, last auth error, and Supabase redirect URL list.

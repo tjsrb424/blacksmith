@@ -246,6 +246,20 @@ export type ServerActionDisplay =
       costGold: number;
     };
 
+export type ServerActionPatch = {
+  currentGold?: number;
+  currentEmber?: number;
+  currentStone?: number;
+  forgeLevel?: number;
+  forgeLastCollectedAt?: string;
+  changedWeapon?: OwnedWeaponRow;
+  removedWeaponId?: string;
+  equippedWeaponId?: string | null;
+  records?: PlayerRecords;
+  weeklySeasonStats?: WeeklySeasonStats;
+  bestWeaponSnapshot?: BestWeaponSnapshot | null;
+};
+
 export type ServerGameActionResponse = {
   actionId: string;
   actionType:
@@ -258,7 +272,8 @@ export type ServerGameActionResponse = {
     | "forge_upgrade"
     | "ranking_submit";
   status: "applied" | "replayed";
-  snapshot: BetaPlayerSnapshot;
+  snapshot?: BetaPlayerSnapshot;
+  patch?: ServerActionPatch;
   display?: ServerActionDisplay;
 };
 

@@ -15,10 +15,10 @@ function toJson(value: unknown): Json {
 
 function isServerActionResponse(value: unknown): value is ServerGameActionResponse {
   return Boolean(
-    value &&
+      value &&
       typeof value === "object" &&
       "actionId" in value &&
-      "snapshot" in value,
+      ("snapshot" in value || "patch" in value),
   );
 }
 
@@ -34,7 +34,7 @@ export async function beginActionLog(args: {
   const admin = getSupabaseAdminClient();
   const { data: existing, error: selectError } = await admin
     .from("game_action_logs")
-    .select("*")
+    .select("user_id, result")
     .eq("action_id", actionId)
     .maybeSingle();
 

@@ -176,7 +176,7 @@ export async function upsertWorldRecord(args: {
   const admin = getSupabaseAdminClient();
   const { data: current, error } = await admin
     .from("world_records")
-    .select("*")
+    .select("value")
     .eq("category", args.category)
     .maybeSingle();
 

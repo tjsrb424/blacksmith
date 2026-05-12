@@ -3,7 +3,7 @@ import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { DEFAULT_DURABILITY, durabilityLossOnFail, forgeUpgradeCostGold } from "@/data/balance";
 import { WEAPONS_BY_ID } from "@/data/weapons";
-import { calculateAdSaleGold, calculateSaleGold } from "@/lib/economy";
+import { calculateSaleGold } from "@/lib/economy";
 import { clampDurability } from "@/lib/enhancement";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import {
@@ -11,8 +11,10 @@ import {
   finishActionLog,
 } from "@/lib/server/actionLogService";
 import {
+  bestWeaponSnapshotFromRecord,
   defaultPlayerRecords,
   defaultWeeklySeasonStats,
+  getOwnedWeaponsForSnapshot,
   getPlayerSnapshot,
 } from "@/lib/server/playerRepository";
 import {
@@ -32,7 +34,14 @@ import {
 } from "@/lib/server/rankingService";
 import { rollServerChance, serverRandomUnit } from "@/lib/server/serverRandom";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { EnhanceResult, PlayerRecords, WeeklySeasonStats } from "@/types/game";
+import type { ServerStepTimer } from "@/lib/server/stepLatency";
+import type {
+  EnhanceResult,
+  OwnedWeapon,
+  PlayerRecords,
+  WeaponDefinition,
+  WeeklySeasonStats,
+} from "@/types/game";
 import type {
   BuyActionRequest,
   EnhanceActionRequest,
@@ -180,20 +189,78 @@ function updateBestWeaponRecord(
   };
 }
 
+function assertCanSellOwnedWeaponCount(count: number) {
+  if (count <= 1) {
+    throw new GameActionError(
+      "Last weapon cannot be sold",
+      409,
+      "last_weapon_cannot_sell",
+    );
+  }
+}
+
+/** 일반 판매: base → bonus(0) → final → ranking(무기 점수, 광고와 무관) 순으로만 참조 */
+function computeNormalSellEconomy(
+  def: WeaponDefinition,
+  owned: OwnedWeapon,
+  record: PlayerRecordRow,
+  state: PlayerStateRow,
+): {
+  baseSaleGold: number;
+  bonusGold: number;
+  finalGold: number;
+  rankingValue: number;
+  nextRecords: PlayerRecords;
+  weekly: WeeklySeasonStats;
+} {
+  const baseSaleGold = calculateSaleGold(def, owned);
+  const bonusGold = 0;
+  const finalGold = baseSaleGold + bonusGold;
+  const rankingValue = calculateRankingValue(def, owned);
+  const records = currentRecords(record);
+  const weekly = {
+    ...defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+  };
+  weekly.salesGoldThisSeason += finalGold;
+  return {
+    baseSaleGold,
+    bonusGold,
+    finalGold,
+    rankingValue,
+    nextRecords: {
+      ...records,
+      totalSalesGold: records.totalSalesGold + finalGold,
+      bestSaleGold: Math.max(records.bestSaleGold, finalGold),
+      soldWeaponCount: records.soldWeaponCount + 1,
+    },
+    weekly,
+  };
+}
+
 async function runLoggedAction(args: {
   user: User;
   actionType: ServerGameActionResponse["actionType"];
   actionId: string;
   payload: unknown;
+  timer?: ServerStepTimer;
   run: () => Promise<Omit<ServerGameActionResponse, "status">>;
 }): Promise<ServerGameActionResponse> {
   const actionId = requireActionId(args.actionId);
-  const begin = await beginActionLog({
-    userId: args.user.id,
-    actionType: args.actionType,
-    actionId,
-    payload: args.payload,
-  });
+  const begin = await (args.timer
+    ? args.timer.time("actionId claim / replay check", () =>
+        beginActionLog({
+          userId: args.user.id,
+          actionType: args.actionType,
+          actionId,
+          payload: args.payload,
+        }),
+      )
+    : beginActionLog({
+        userId: args.user.id,
+        actionType: args.actionType,
+        actionId,
+        payload: args.payload,
+      }));
 
   if (begin.status === "replayed") return begin.response;
   if (begin.status === "conflict") {
@@ -204,7 +271,11 @@ async function runLoggedAction(args: {
     ...(await args.run()),
     status: "applied",
   };
-  await finishActionLog({ actionId, response });
+  await (args.timer
+    ? args.timer.time("action_log complete update", () =>
+        finishActionLog({ actionId, response }),
+      )
+    : finishActionLog({ actionId, response }));
   return response;
 }
 
@@ -255,42 +326,86 @@ export async function buyWeaponServer(
 export async function enhanceWeaponServer(
   user: User,
   payload: EnhanceActionRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
   return runLoggedAction({
     user,
     actionType: "enhance",
     actionId: payload.actionId,
     payload,
+    timer,
     run: async () => {
-      const profile = await getProfile(user.id);
-      const state = await getPlayerState(user.id);
-      const record = await getPlayerRecord(user.id);
-      const weapon = await getOwnedWeapon(user.id, payload.weaponInstanceId);
+      const [profile, state, record, weapon] = await Promise.all([
+        timer
+          ? timer.time("profile 조회", () => getProfile(user.id))
+          : getProfile(user.id),
+        timer
+          ? timer.time("player_state 조회", () => getPlayerState(user.id))
+          : getPlayerState(user.id),
+        timer
+          ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+          : getPlayerRecord(user.id),
+        timer
+          ? timer.time("owned_weapon 조회", () =>
+              getOwnedWeapon(user.id, payload.weaponInstanceId),
+            )
+          : getOwnedWeapon(user.id, payload.weaponInstanceId),
+      ]);
       const def = WEAPONS_BY_ID[weapon.weapon_id];
       if (!def) throw new GameActionError("Weapon definition not found", 404, "weapon_def_not_found");
       const owned = rowToOwnedWeapon(weapon);
       if (owned.enhanceLevel >= 15) throw new GameActionError("Already max enhance", 409, "max_enhance");
       if (owned.durability <= 0) throw new GameActionError("Weapon is destroyed", 409, "destroyed_weapon");
 
-      const targetLevel = owned.enhanceLevel + 1;
-      const cost = getEnhanceCostEmber(def, targetLevel);
+      const calculation = timer
+        ? timer.timeSync("비용/확률 계산", () => {
+            const targetLevel = owned.enhanceLevel + 1;
+            return {
+              targetLevel,
+              cost: getEnhanceCostEmber(def, targetLevel),
+              successRate: getEnhanceSuccessRate(targetLevel),
+              records: currentRecords(record),
+              weekly: defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+              beforeValue: calculateSaleGold(def, owned),
+            };
+          })
+        : (() => {
+            const targetLevel = owned.enhanceLevel + 1;
+            return {
+              targetLevel,
+              cost: getEnhanceCostEmber(def, targetLevel),
+              successRate: getEnhanceSuccessRate(targetLevel),
+              records: currentRecords(record),
+              weekly: defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+              beforeValue: calculateSaleGold(def, owned),
+            };
+          })();
+      const { targetLevel, cost, successRate, records, beforeValue } = calculation;
+      let weekly = calculation.weekly;
       if (Number(state.forge_ember) < cost) {
         throw new GameActionError("Not enough forge ember", 409, "insufficient_ember");
       }
 
-      const records = currentRecords(record);
       let nextRecords: PlayerRecords = {
         ...records,
         totalEnhanceAttempts: records.totalEnhanceAttempts + 1,
       };
-      let weekly = defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state);
-      const beforeValue = calculateSaleGold(def, owned);
       let result: EnhanceResult;
       let updatedWeapon: OwnedWeaponRow | null = weapon;
       let recordBreak: { previousBest: number; newBest: number } | undefined;
       const nextEmber = Number(state.forge_ember) - cost;
+      let nextState: PlayerStateRow = {
+        ...state,
+        forge_ember: nextEmber,
+        stats: weeklyStatsJson(weekly),
+      };
 
-      if (rollServerChance(getEnhanceSuccessRate(targetLevel))) {
+      const isSuccess = timer
+        ? timer.timeSync("RNG", () => rollServerChance(successRate))
+        : rollServerChance(successRate);
+
+      if (isSuccess) {
         const afterOwned = { ...owned, enhanceLevel: targetLevel };
         const afterRanking = calculateRankingValue(def, afterOwned);
         result = {
@@ -338,15 +453,34 @@ export async function enhanceWeaponServer(
         };
 
         const admin = getSupabaseAdminClient();
-        const { data, error } = await admin
-          .from("owned_weapons")
-          .update({ enhance_level: targetLevel })
-          .eq("id", weapon.id)
-          .select("*")
-          .single();
+        const { error } = await (timer
+          ? timer.time("owned_weapon update/delete", async () =>
+              await admin
+                .from("owned_weapons")
+                .update({ enhance_level: targetLevel })
+                .eq("id", weapon.id),
+            )
+          : admin
+              .from("owned_weapons")
+              .update({ enhance_level: targetLevel })
+              .eq("id", weapon.id));
         if (error) throw error;
-        updatedWeapon = data;
-        await upsertStrongestWeaponRanking({ userId: user.id, profile, weapon: data });
+        updatedWeapon = { ...weapon, enhance_level: targetLevel };
+        if (afterRanking >= Math.max(records.personalBestRankingValue, weekly.weeklyStrongestWeaponValue)) {
+          await (timer
+            ? timer.time("weekly_rankings/world_records update", () =>
+                upsertStrongestWeaponRanking({
+                  userId: user.id,
+                  profile,
+                  weapon: updatedWeapon as OwnedWeaponRow,
+                }),
+              )
+            : upsertStrongestWeaponRanking({
+                userId: user.id,
+                profile,
+                weapon: updatedWeapon,
+              }));
+        }
       } else {
         const loseDur = durabilityLossOnFail(targetLevel);
         const nextDurability = loseDur ? owned.durability - 1 : owned.durability;
@@ -364,25 +498,58 @@ export async function enhanceWeaponServer(
             destroyedWeaponCount: nextRecords.destroyedWeaponCount + 1,
           };
           const admin = getSupabaseAdminClient();
-          const { error } = await admin.from("owned_weapons").delete().eq("id", weapon.id);
+          const { error } = await (timer
+            ? timer.time("owned_weapon update/delete", async () =>
+                await admin.from("owned_weapons").delete().eq("id", weapon.id),
+              )
+            : admin.from("owned_weapons").delete().eq("id", weapon.id));
           if (error) throw error;
-          await upsertWorldRecord({
-            category: "worldRecordDestroyedWeapon",
-            userId: user.id,
-            nickname: profile.nickname,
-            weaponName: def.name,
-            weaponId: def.id,
-            enhanceLevel: owned.enhanceLevel,
-            transcendLevel: owned.transcendLevel,
-            value: calculateRankingValue(def, owned),
-          });
+          await (timer
+            ? timer.time("world_records update", () =>
+                upsertWorldRecord({
+                  category: "worldRecordDestroyedWeapon",
+                  userId: user.id,
+                  nickname: profile.nickname,
+                  weaponName: def.name,
+                  weaponId: def.id,
+                  enhanceLevel: owned.enhanceLevel,
+                  transcendLevel: owned.transcendLevel,
+                  value: calculateRankingValue(def, owned),
+                }),
+              )
+            : upsertWorldRecord({
+                category: "worldRecordDestroyedWeapon",
+                userId: user.id,
+                nickname: profile.nickname,
+                weaponName: def.name,
+                weaponId: def.id,
+                enhanceLevel: owned.enhanceLevel,
+                transcendLevel: owned.transcendLevel,
+                value: calculateRankingValue(def, owned),
+              }));
           updatedWeapon = null;
-          await updatePlayerState(state.id, {
+          nextState = {
+            ...state,
             forge_ember: nextEmber + scrap.ember,
             gold: Number(state.gold) + scrap.gold,
             transcend_stone: Number(state.transcend_stone) + scrap.transcendStone,
             stats: weeklyStatsJson(weekly),
-          });
+          };
+          await (timer
+            ? timer.time("player_state update", () =>
+                updatePlayerState(state.id, {
+                  forge_ember: nextState.forge_ember,
+                  gold: nextState.gold,
+                  transcend_stone: nextState.transcend_stone,
+                  stats: nextState.stats,
+                }),
+              )
+            : updatePlayerState(state.id, {
+                forge_ember: nextState.forge_ember,
+                gold: nextState.gold,
+                transcend_stone: nextState.transcend_stone,
+                stats: nextState.stats,
+              }));
         } else {
           result = {
             type: "fail",
@@ -396,46 +563,114 @@ export async function enhanceWeaponServer(
             enhanceFailCount: nextRecords.enhanceFailCount + 1,
           };
           const admin = getSupabaseAdminClient();
-          const { data, error } = await admin
-            .from("owned_weapons")
-            .update({ durability: clampDurability(nextDurability) })
-            .eq("id", weapon.id)
-            .select("*")
-            .single();
+          const nextWeaponDurability = clampDurability(nextDurability);
+          const { error } = await (timer
+            ? timer.time("owned_weapon update/delete", async () =>
+                await admin
+                  .from("owned_weapons")
+                  .update({ durability: nextWeaponDurability })
+                  .eq("id", weapon.id),
+              )
+            : admin
+                .from("owned_weapons")
+                .update({ durability: nextWeaponDurability })
+                .eq("id", weapon.id));
           if (error) throw error;
-          updatedWeapon = data;
+          updatedWeapon = { ...weapon, durability: nextWeaponDurability };
         }
       }
 
       if (updatedWeapon) {
-        await updatePlayerState(state.id, {
+        nextState = {
+          ...state,
           forge_ember: nextEmber,
           stats: weeklyStatsJson(weekly),
-        });
+        };
+        await (timer
+          ? timer.time("player_state update", () =>
+              updatePlayerState(state.id, {
+                forge_ember: nextState.forge_ember,
+                stats: nextState.stats,
+              }),
+            )
+          : updatePlayerState(state.id, {
+              forge_ember: nextState.forge_ember,
+              stats: nextState.stats,
+            }));
       }
 
       const recordPatch = updatedWeapon
         ? updateBestWeaponRecord(record, nextRecords, updatedWeapon)
         : { stats: toJson(nextRecords) };
-      await updatePlayerRecord(record.id, recordPatch);
-      await upsertWeeklyScore({
-        userId: user.id,
-        profile,
-        seasonId: weekly.seasonId,
-        category: "weeklyEnhancementKing",
-        score: nextRecords.totalEnhanceSuccesses,
-      });
-      await upsertWorldRecord({
-        category: "worldRecordEnhanceAttempts",
-        userId: user.id,
-        nickname: profile.nickname,
-        value: nextRecords.totalEnhanceAttempts,
-      });
+      const nextRecord: PlayerRecordRow = { ...record, ...recordPatch };
+      await (timer
+        ? timer.time("player_records update", () =>
+            updatePlayerRecord(record.id, recordPatch),
+          )
+        : updatePlayerRecord(record.id, recordPatch));
+
+      await (timer
+        ? timer.time("ranking counters update", () =>
+            Promise.all([
+              isSuccess
+                ? upsertWeeklyScore({
+                    userId: user.id,
+                    profile,
+                    seasonId: weekly.seasonId,
+                    category: "weeklyEnhancementKing",
+                    score: nextRecords.totalEnhanceSuccesses,
+                  })
+                : Promise.resolve(),
+              upsertWorldRecord({
+                category: "worldRecordEnhanceAttempts",
+                userId: user.id,
+                nickname: profile.nickname,
+                value: nextRecords.totalEnhanceAttempts,
+              }),
+            ]).then(() => undefined),
+          )
+        : Promise.all([
+            isSuccess
+              ? upsertWeeklyScore({
+                  userId: user.id,
+                  profile,
+                  seasonId: weekly.seasonId,
+                  category: "weeklyEnhancementKing",
+                  score: nextRecords.totalEnhanceSuccesses,
+                })
+              : Promise.resolve(),
+            upsertWorldRecord({
+              category: "worldRecordEnhanceAttempts",
+              userId: user.id,
+              nickname: profile.nickname,
+              value: nextRecords.totalEnhanceAttempts,
+            }),
+          ]).then(() => undefined));
 
       return {
         actionId: payload.actionId,
         actionType: "enhance",
-        snapshot: await getPlayerSnapshot(user),
+        patch: timer
+          ? timer.timeSync("response result/patch 생성", () => ({
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              changedWeapon: updatedWeapon ?? undefined,
+              removedWeaponId: updatedWeapon ? undefined : weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+            }))
+          : {
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              changedWeapon: updatedWeapon ?? undefined,
+              removedWeaponId: updatedWeapon ? undefined : weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+            },
         display: {
           kind: "enhance",
           weaponName: def.name,
@@ -668,24 +903,44 @@ export async function transcendWeaponServer(
 export async function sellWeaponServer(
   user: User,
   payload: SellActionRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
   return runLoggedAction({
     user,
     actionType: "sell",
     actionId: payload.actionId,
     payload,
+    timer,
     run: async () => {
-      const profile = await getProfile(user.id);
-      const state = await getPlayerState(user.id);
-      const record = await getPlayerRecord(user.id);
-      const weapon = await getOwnedWeapon(user.id, payload.weaponInstanceId);
+      const [profile, state, record, weapon, ownedWeaponsBefore] = await Promise.all([
+        timer
+          ? timer.time("profile 조회", () => getProfile(user.id))
+          : getProfile(user.id),
+        timer
+          ? timer.time("player_state 조회", () => getPlayerState(user.id))
+          : getPlayerState(user.id),
+        timer
+          ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+          : getPlayerRecord(user.id),
+        timer
+          ? timer.time("owned_weapon 조회", () =>
+              getOwnedWeapon(user.id, payload.weaponInstanceId),
+            )
+          : getOwnedWeapon(user.id, payload.weaponInstanceId),
+        timer
+          ? timer.time("마지막 무기 여부 확인", () =>
+              getOwnedWeaponsForSnapshot(user.id),
+            )
+          : getOwnedWeaponsForSnapshot(user.id),
+      ]);
+      assertCanSellOwnedWeaponCount(ownedWeaponsBefore.length);
       const def = WEAPONS_BY_ID[weapon.weapon_id];
       if (!def) throw new GameActionError("Weapon definition not found", 404, "weapon_def_not_found");
       const owned = rowToOwnedWeapon(weapon);
       if (owned.locked) throw new GameActionError("Locked weapon cannot be sold", 409, "locked_weapon");
       if (owned.durability <= 0) throw new GameActionError("Destroyed weapon cannot be sold", 409, "destroyed_weapon");
 
-      const saleGold = calculateSaleGold(def, owned);
       const usedAdBonus =
         payload.sellMode === "adBonus" || payload.adBonusRequested === true;
       if (usedAdBonus) {
@@ -695,66 +950,125 @@ export async function sellWeaponServer(
           "ad_reward_required",
         );
       }
-      const finalGold = usedAdBonus ? calculateAdSaleGold(saleGold) : saleGold;
-      const rankingValue = calculateRankingValue(def, owned);
-      const records = currentRecords(record);
-      const nextRecords: PlayerRecords = {
-        ...records,
-        totalSalesGold: records.totalSalesGold + finalGold,
-        bestSaleGold: Math.max(records.bestSaleGold, finalGold),
-        soldWeaponCount: records.soldWeaponCount + 1,
-      };
-      const weekly = {
-        ...defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
-      };
-      weekly.salesGoldThisSeason += finalGold;
+      const calculation = timer
+        ? timer.timeSync("판매가 계산", () =>
+            computeNormalSellEconomy(def, owned, record, state),
+          )
+        : computeNormalSellEconomy(def, owned, record, state);
+      const { baseSaleGold, bonusGold, finalGold, rankingValue, nextRecords, weekly } =
+        calculation;
 
       const admin = getSupabaseAdminClient();
-      const { error: deleteError } = await admin
-        .from("owned_weapons")
-        .delete()
-        .eq("id", weapon.id);
+      const { error: deleteError } = await (timer
+        ? timer.time("owned_weapon delete", async () =>
+            await admin.from("owned_weapons").delete().eq("id", weapon.id),
+          )
+        : admin.from("owned_weapons").delete().eq("id", weapon.id));
       if (deleteError) throw deleteError;
-      await updatePlayerState(state.id, {
+      const nextState: PlayerStateRow = {
+        ...state,
         gold: Number(state.gold) + finalGold,
         stats: weeklyStatsJson(weekly),
-      });
-      await updatePlayerRecord(record.id, {
+      };
+      await (timer
+        ? timer.time("player_state gold update", () =>
+            updatePlayerState(state.id, {
+              gold: nextState.gold,
+              stats: nextState.stats,
+            }),
+          )
+        : updatePlayerState(state.id, {
+            gold: nextState.gold,
+            stats: nextState.stats,
+          }));
+      const recordPatch = {
         ...updateBestWeaponRecord(record, nextRecords, weapon),
         best_sale_gold: Math.max(Number(record.best_sale_gold ?? 0), finalGold),
         total_sales_gold: Number(record.total_sales_gold ?? 0) + finalGold,
-      });
-      await upsertWeeklyScore({
-        userId: user.id,
-        profile,
-        seasonId: weekly.seasonId,
-        category: "weeklySalesKing",
-        score: weekly.salesGoldThisSeason,
-      });
-      await upsertWorldRecord({
-        category: "worldRecordSale",
-        userId: user.id,
-        nickname: profile.nickname,
-        weaponName: def.name,
-        weaponId: def.id,
-        enhanceLevel: owned.enhanceLevel,
-        transcendLevel: owned.transcendLevel,
-        value: finalGold,
-      });
-
+      };
+      const nextRecord: PlayerRecordRow = { ...record, ...recordPatch };
+      await (timer
+        ? timer.time("player_records update", () =>
+            updatePlayerRecord(record.id, recordPatch),
+          )
+        : updatePlayerRecord(record.id, recordPatch));
+      await (timer
+        ? timer.time("ranking/world record update", () =>
+            Promise.all([
+              upsertWeeklyScore({
+                userId: user.id,
+                profile,
+                seasonId: weekly.seasonId,
+                category: "weeklySalesKing",
+                score: weekly.salesGoldThisSeason,
+              }),
+              upsertWorldRecord({
+                category: "worldRecordSale",
+                userId: user.id,
+                nickname: profile.nickname,
+                weaponName: def.name,
+                weaponId: def.id,
+                enhanceLevel: owned.enhanceLevel,
+                transcendLevel: owned.transcendLevel,
+                value: baseSaleGold,
+              }),
+            ]).then(() => undefined),
+          )
+        : Promise.all([
+            upsertWeeklyScore({
+              userId: user.id,
+              profile,
+              seasonId: weekly.seasonId,
+              category: "weeklySalesKing",
+              score: weekly.salesGoldThisSeason,
+            }),
+            upsertWorldRecord({
+              category: "worldRecordSale",
+              userId: user.id,
+              nickname: profile.nickname,
+              weaponName: def.name,
+              weaponId: def.id,
+              enhanceLevel: owned.enhanceLevel,
+              transcendLevel: owned.transcendLevel,
+              value: baseSaleGold,
+            }),
+          ]).then(() => undefined));
       return {
         actionId: payload.actionId,
         actionType: "sell",
-        snapshot: await getPlayerSnapshot(user),
+        patch: timer
+          ? timer.timeSync("response result/patch 생성", () => ({
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              removedWeaponId: weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+            }))
+          : {
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              removedWeaponId: weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+            },
         display: {
           kind: "sell",
           rankingValue,
           info: {
+            saleType: "normal",
+            soldWeaponId: weapon.id,
+            weaponId: def.id,
             weaponName: def.name,
             enhanceLevel: owned.enhanceLevel,
             transcendLevel: owned.transcendLevel,
-            baseSaleGold: saleGold,
+            baseSaleGold,
+            bonusGold,
             finalSaleGold: finalGold,
+            rankingValue,
             usedAdBonus,
             wasEquipped: false,
           },

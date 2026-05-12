@@ -20,10 +20,16 @@ export type ClientPerfMetric = {
   adStatusCacheHit?: boolean;
   adStatusFetchMs?: number;
   adRewardCompleteElapsedMs?: number;
+  adRewardEventToCompleteApiStartMs?: number;
   adCompleteApiMs?: number;
+  adCompleteResponseToModalOpenMs?: number;
   adRewardModalOpenMs?: number;
+  adRewardPatchApplyMs?: number;
+  adRewardDeferredSyncMs?: number;
   adRewardStoreSyncMs?: number;
+  adCompleteTotalMs?: number;
   adStatusRefreshMs?: number;
+  adStatusRefreshAfterRewardMs?: number;
   renderCountDuringAdReward?: number;
   rankingCacheStatus?: "hit" | "miss";
   enhanceTotalMs?: number;

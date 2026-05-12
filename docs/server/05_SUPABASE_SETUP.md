@@ -49,6 +49,7 @@ In Supabase Dashboard, also check **Authentication > URL Configuration**:
 
 - Site URL for local development: `http://localhost:3000`
 - Redirect URLs for local development: `http://localhost:3000/auth/callback`
+- Redirect URLs for iPhone/internal IP QA: `http://<PC-IP>:3000`, `http://<PC-IP>:3000/auth/callback`, `http://<PC-IP>:3000/**`
 - Redirect URLs for deployment: add every production and preview callback URL, for example `https://your-domain.example/auth/callback`
 
 Do not add secrets to this document or to client-side env variables.
@@ -65,6 +66,7 @@ Create the Google OAuth client in Google Cloud:
 4. Create an **OAuth client ID** with application type **Web application**.
 5. Add Authorized JavaScript origins:
    - `http://localhost:3000`
+   - `http://<PC-IP>:3000` for same-Wi-Fi iPhone QA
    - production origin, for example `https://your-domain.example`
    - preview origins if the beta build uses them
 6. Add Authorized redirect URIs:

@@ -28,6 +28,8 @@
 - Enhance: `POST /api/game/enhance` spends `forge_ember`, uses server RNG, updates `owned_weapons`, updates records/rankings, and returns modal display data.
 - Transcend: `POST /api/game/transcend` only accepts eligible +15 weapons, spends `transcend_stone`, uses server RNG, updates records/rankings, and handles destruction.
 - Sell: `POST /api/game/sell` removes the weapon, adds gold, updates sale records/rankings, and keeps ad bonus out of weapon ranking value.
+- Starter weapon sale: with only the starter weapon owned, sell must fail with `last_weapon_cannot_sell`; after buying another weapon, the starter can be sold and must not be recreated by bootstrap/player sync/buy snapshots.
+- Ad sell: `sellBonus` must use the same last-weapon guard and must delete the target weapon on the server before returning the reward result.
 - Forge collect: `POST /api/game/forge/collect` computes pending reward from server time, updates `forge_ember`, and advances `forge_last_collected_at`.
 - Forge upgrade: `POST /api/game/forge/upgrade` computes cost from server `forge_level`, subtracts gold, increments `forge_level`, and replays safely for the same `actionId`.
 

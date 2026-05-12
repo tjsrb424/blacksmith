@@ -79,7 +79,11 @@ import type {
   SellMode,
   WeeklySeasonStats,
 } from "@/types/game";
-import type { BetaPlayerSnapshot, ServerGameActionResponse } from "@/types/server";
+import type {
+  BetaPlayerSnapshot,
+  ServerActionPatch,
+  ServerGameActionResponse,
+} from "@/types/server";
 import type { AdRewardFlowStatus } from "@/types/ads";
 
 /** 세션당 오프라인 제련 보상 모달 1회 */
@@ -174,7 +178,11 @@ function patchFromServerAction(
   response: ServerGameActionResponse,
   prev: GameStore,
 ): Partial<GameStore> {
-  const base = mapServerSnapshot(response.snapshot, prev);
+  const base = response.patch
+    ? mapServerPatch(response.patch, prev)
+    : response.snapshot
+      ? mapServerSnapshot(response.snapshot, prev)
+      : {};
   const display = response.display;
   if (!display) return base;
 
@@ -323,6 +331,84 @@ function modalFromEnhanceResponse(response: ServerGameActionResponse): ModalStat
   };
 }
 
+function rowToStoreWeapon(row: ServerActionPatch["changedWeapon"]): OwnedWeapon | null {
+  if (!row) return null;
+  const def = WEAPONS_BY_ID[row.weapon_id];
+  const owned: OwnedWeapon = {
+    instanceId: row.id,
+    weaponId: row.weapon_id,
+    enhanceLevel: Number(row.enhance_level),
+    transcendLevel: Number(row.transcend_level),
+    durability: Number(row.durability),
+    locked: Boolean(row.is_locked),
+    createdAt: new Date(row.created_at).getTime(),
+    bestValue: 0,
+  };
+  return {
+    ...owned,
+    bestValue: def ? calculateRankingValue(def, owned) : 0,
+  };
+}
+
+function mapServerPatch(
+  patch: ServerActionPatch,
+  prev: GameStore,
+): Partial<GameStore> {
+  let ownedWeapons = prev.ownedWeapons;
+  if (patch.removedWeaponId) {
+    ownedWeapons = ownedWeapons.filter(
+      (weapon) => weapon.instanceId !== patch.removedWeaponId,
+    );
+  }
+
+  const changedWeapon = rowToStoreWeapon(patch.changedWeapon);
+  if (changedWeapon) {
+    const exists = ownedWeapons.some(
+      (weapon) => weapon.instanceId === changedWeapon.instanceId,
+    );
+    ownedWeapons = exists
+      ? ownedWeapons.map((weapon) =>
+          weapon.instanceId === changedWeapon.instanceId ? changedWeapon : weapon,
+        )
+      : [...ownedWeapons, changedWeapon];
+  }
+
+  let equippedWeaponId =
+    patch.equippedWeaponId !== undefined
+      ? patch.equippedWeaponId
+      : prev.equippedWeaponId;
+  if (
+    equippedWeaponId &&
+    !ownedWeapons.some((weapon) => weapon.instanceId === equippedWeaponId)
+  ) {
+    equippedWeaponId =
+      getBestWeaponForRanking(ownedWeapons, (wid) => WEAPONS_BY_ID[wid]) ??
+      ownedWeapons[0]?.instanceId ??
+      null;
+  }
+
+  return {
+    ...(patch.currentGold !== undefined ? { gold: patch.currentGold } : {}),
+    ...(patch.currentEmber !== undefined ? { ember: patch.currentEmber } : {}),
+    ...(patch.currentStone !== undefined
+      ? { transcendStone: patch.currentStone }
+      : {}),
+    ...(patch.forgeLevel !== undefined ? { forgeLevel: patch.forgeLevel } : {}),
+    ...(patch.forgeLastCollectedAt
+      ? { forgeLastCollectAt: new Date(patch.forgeLastCollectedAt).getTime() }
+      : {}),
+    ownedWeapons,
+    equippedWeaponId,
+    ...(patch.records ? { records: patch.records } : {}),
+    ...(patch.weeklySeasonStats
+      ? { weeklySeasonStats: patch.weeklySeasonStats }
+      : {}),
+    ...(patch.bestWeaponSnapshot !== undefined
+      ? { bestWeaponSnapshot: patch.bestWeaponSnapshot }
+      : {}),
+  };
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -341,11 +427,12 @@ function runWhenIdle(callback: () => void): void {
 }
 
 function syncServerSnapshotDeferred(
-  snapshot: BetaPlayerSnapshot,
+  snapshot: BetaPlayerSnapshot | undefined,
   get: () => GameStore,
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
   source?: "enhance" | "adReward",
 ): void {
+  if (!snapshot) return;
   runWhenIdle(() => {
     const startedAt = Date.now();
     set({
@@ -355,9 +442,44 @@ function syncServerSnapshotDeferred(
     updatePerformanceMetric({
       lastStoreSyncElapsedMs: Date.now() - startedAt,
       ...(source === "enhance" ? { enhanceStoreSyncMs: elapsedMs } : {}),
-      ...(source === "adReward" ? { adRewardStoreSyncMs: elapsedMs } : {}),
+      ...(source === "adReward"
+        ? {
+            adRewardStoreSyncMs: elapsedMs,
+            adRewardDeferredSyncMs: elapsedMs,
+          }
+        : {}),
     });
     diagnosticLog("store", "server snapshot sync complete", {
+      source,
+      elapsedMs,
+    });
+  });
+}
+
+function syncServerPatchDeferred(
+  patch: ServerActionPatch | undefined,
+  get: () => GameStore,
+  set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
+  source?: "enhance" | "adReward",
+): void {
+  if (!patch) return;
+  runWhenIdle(() => {
+    const startedAt = Date.now();
+    set({
+      ...mapServerPatch(patch, get()),
+    });
+    const elapsedMs = Date.now() - startedAt;
+    updatePerformanceMetric({
+      lastStoreSyncElapsedMs: elapsedMs,
+      ...(source === "enhance" ? { enhanceStoreSyncMs: elapsedMs } : {}),
+      ...(source === "adReward"
+        ? {
+            adRewardStoreSyncMs: elapsedMs,
+            adRewardDeferredSyncMs: elapsedMs,
+          }
+        : {}),
+    });
+    diagnosticLog("store", "server patch sync complete", {
       source,
       elapsedMs,
     });
@@ -384,6 +506,9 @@ async function runAdRewardAction(params: {
   try {
     const intent = await requestAdReward(params.request);
     const completeStartedAt = Date.now();
+    let rewardedAt: number | null = null;
+    let completeApiStartedAt: number | null = null;
+    let completeApiResponseAt: number | null = null;
     const response = await completeAdReward(intent, {
       onStatus: (status) =>
         params.set({
@@ -393,19 +518,48 @@ async function runAdRewardAction(params: {
               ? "보상 확인 중..."
               : status.message,
         }),
+      onTiming: (event) => {
+        const now = Date.now();
+        diagnosticLog("adReward", event, { elapsedMs: now - completeStartedAt });
+        if (event === "rewarded_event") rewardedAt = now;
+        if (event === "complete_api_start") {
+          completeApiStartedAt = now;
+          updatePerformanceMetric({
+            adRewardEventToCompleteApiStartMs: rewardedAt
+              ? now - rewardedAt
+              : undefined,
+          });
+        }
+        if (event === "complete_api_response") {
+          completeApiResponseAt = now;
+          updatePerformanceMetric({
+            adCompleteApiMs: completeApiStartedAt
+              ? now - completeApiStartedAt
+              : undefined,
+          });
+        }
+      },
     });
+    const responseReceivedAt = completeApiResponseAt ?? Date.now();
     updatePerformanceMetric({
       adRewardCompleteElapsedMs: Date.now() - completeStartedAt,
-      adCompleteApiMs: Date.now() - completeStartedAt,
+      adCompleteTotalMs: Date.now() - completeStartedAt,
     });
     params.onApplied?.();
+    const patchStartedAt = Date.now();
     const nextPatch = patchFromServerAction(response, params.get());
+    updatePerformanceMetric({
+      adRewardPatchApplyMs: Date.now() - patchStartedAt,
+    });
     const nextModal = nextPatch.modal;
     const modalStartedAt = Date.now();
     params.set({
       modal: nextModal,
       serverActionPending: false,
       serverActionMessage: null,
+    });
+    updatePerformanceMetric({
+      adCompleteResponseToModalOpenMs: modalStartedAt - responseReceivedAt,
     });
     requestAnimationFrame(() => {
       updatePerformanceMetric({
@@ -414,12 +568,16 @@ async function runAdRewardAction(params: {
           getRenderCount("ModalRoot") - renderStart,
       });
     });
-    syncServerSnapshotDeferred(
-      response.snapshot,
-      params.get,
-      params.set,
-      "adReward",
-    );
+    if (response.patch) {
+      syncServerPatchDeferred(response.patch, params.get, params.set, "adReward");
+    } else {
+      syncServerSnapshotDeferred(
+        response.snapshot,
+        params.get,
+        params.set,
+        "adReward",
+      );
+    }
   } catch (error) {
     playUiError();
     const message = serverErrorMessage(error);
@@ -785,6 +943,17 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         const w = state.ownedWeapons.find((x) => x.instanceId === instanceId);
         if (!w) return;
+        if (state.ownedWeapons.length <= 1) {
+          playUiError();
+          set({
+            modal: {
+              kind: "server_error",
+              message:
+                "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요.",
+            },
+          });
+          return;
+        }
         if (w.locked) {
           playUiError();
           set({ modal: { kind: "sell_locked_notice" } });
@@ -1084,7 +1253,11 @@ export const useGameStore = create<GameStore>()(
                   100,
                 );
               }
-              syncServerSnapshotDeferred(response.snapshot, get, set, "enhance");
+              if (response.patch) {
+                syncServerPatchDeferred(response.patch, get, set, "enhance");
+              } else {
+                syncServerSnapshotDeferred(response.snapshot, get, set, "enhance");
+              }
             } catch (error) {
               await animationPromise.catch(() => undefined);
               playUiError();

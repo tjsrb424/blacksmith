@@ -173,11 +173,16 @@ export type RecordBreakInfo = {
 
 /** 판매 완료 모달용 */
 export type SaleCompleteInfo = {
+  saleType?: "normal" | "adBonus";
+  soldWeaponId?: string;
+  weaponId?: string;
   weaponName: string;
   enhanceLevel: number;
   transcendLevel: number;
   baseSaleGold: number;
+  bonusGold?: number;
   finalSaleGold: number;
+  rankingValue?: number;
   usedAdBonus: boolean;
   wasEquipped: boolean;
 };

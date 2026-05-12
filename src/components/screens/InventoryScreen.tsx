@@ -27,6 +27,7 @@ export function InventoryScreen() {
       calculateRankingValue(WEAPONS_BY_ID[b.weaponId], b) -
       calculateRankingValue(WEAPONS_BY_ID[a.weaponId], a),
   );
+  const isLastWeapon = owned.length <= 1;
 
   return (
     <div className="relative mx-auto w-full max-w-6xl flex-1 space-y-5 px-3 pb-28 pt-6 lg:pb-10 lg:px-6">
@@ -123,7 +124,12 @@ export function InventoryScreen() {
                     <FantasyButton
                       variant="accent"
                       className="min-h-12 flex-1 sm:max-w-xs"
-                      disabled={w.durability <= 0}
+                      disabled={w.durability <= 0 || isLastWeapon}
+                      title={
+                        isLastWeapon
+                          ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
+                          : undefined
+                      }
                       onClick={() => requestSellWeapon(w.instanceId)}
                     >
                       판매

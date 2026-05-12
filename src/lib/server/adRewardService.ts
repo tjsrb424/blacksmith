@@ -14,11 +14,13 @@ import { calculateAdSaleGold, calculateSaleGold } from "@/lib/economy";
 import { computePendingForgeEmber } from "@/lib/forge";
 import { calculateRankingValue } from "@/lib/ranking";
 import {
+  bestWeaponSnapshotFromRecord,
   defaultPlayerRecords,
   defaultWeeklySeasonStats,
-  getPlayerSnapshot,
+  getOwnedWeaponsForSnapshot,
 } from "@/lib/server/playerRepository";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { ServerStepTimer } from "@/lib/server/stepLatency";
 import { WEAPONS_BY_ID } from "@/data/weapons";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import { upsertWeeklyScore, upsertWorldRecord } from "@/lib/server/rankingService";
@@ -285,6 +287,16 @@ async function getOwnedWeapon(userId: string, weaponInstanceId: string): Promise
   return data;
 }
 
+function assertCanSellOwnedWeaponCount(count: number) {
+  if (count <= 1) {
+    throw new AdRewardError(
+      "Last weapon cannot be sold",
+      409,
+      "last_weapon_cannot_sell",
+    );
+  }
+}
+
 function currentRecords(record: PlayerRecordRow): PlayerRecords {
   return defaultPlayerRecords(record);
 }
@@ -330,7 +342,11 @@ async function buildPayload(
     if (!request.targetWeaponInstanceId) {
       throw new AdRewardError("Missing target weapon", 400, "missing_target_weapon");
     }
-    const weapon = await getOwnedWeapon(user.id, request.targetWeaponInstanceId);
+    const [weapon, ownedWeapons] = await Promise.all([
+      getOwnedWeapon(user.id, request.targetWeaponInstanceId),
+      getOwnedWeaponsForSnapshot(user.id),
+    ]);
+    assertCanSellOwnedWeaponCount(ownedWeapons.length);
     const def = WEAPONS_BY_ID[weapon.weapon_id];
     if (!def) throw new AdRewardError("Weapon definition not found", 404, "weapon_def_not_found");
     if (weapon.is_locked) throw new AdRewardError("Locked weapon cannot be sold", 409, "locked_weapon");
@@ -488,7 +504,7 @@ function logToIntent(log: AdRewardLogRow): AdRewardIntent {
     clientAdConfig: {
       provider,
       adUnitId: getGoogleRewardedAdUnitId(),
-      mockDelayMs: 700,
+      mockDelayMs: 150,
     },
   };
 }
@@ -499,20 +515,48 @@ export async function getAdRewardStatus(
     relatedActionId?: string | null;
   },
 ): Promise<AdRewardStatusResponse> {
-  await expireStalePendingIntents(user.id);
-  const entries = await Promise.all(
-    AD_REWARD_TYPES.map(async (rewardType) => {
+  const { startIso, endIso } = todayUtcRange();
+  const admin = getSupabaseAdminClient();
+  const { data: logs, error } = await admin
+    .from("ad_reward_logs")
+    .select(
+      "id,user_id,reward_type,reward_status,provider,provider_reward_id,action_id,related_action_id,payload,reward_result,requested_at,completed_at,expires_at,created_at,updated_at",
+    )
+    .eq("user_id", user.id)
+    .gte("requested_at", startIso)
+    .order("requested_at", { ascending: false })
+    .limit(80);
+
+  if (error) throw error;
+
+  const now = Date.now();
+  const recentLogs = logs ?? [];
+  const entries = AD_REWARD_TYPES.map((rewardType) => {
       const dailyLimit = AD_REWARD_DAILY_LIMITS[rewardType] ?? 0;
-      const dailyUsed = await countCompletedToday(user.id, rewardType);
-      const latest = await getLatestAttempt(user.id, rewardType);
+      const rewardLogs = recentLogs.filter(
+        (log) => log.reward_type === rewardType,
+      );
+      const dailyUsed = rewardLogs.filter((log) => {
+        const completedAt = log.completed_at;
+        return (
+          log.reward_status === "completed" &&
+          Boolean(completedAt) &&
+          completedAt! >= startIso &&
+          completedAt! < endIso
+        );
+      }).length;
+      const latest = rewardLogs[0] ?? null;
       const cooldown = cooldownRemainingMs(latest, rewardType);
-      const activePending = await findActivePendingIntent({
-        userId: user.id,
-        rewardType,
-        relatedActionId:
-          rewardType === "sellBonus" || rewardType === "destructionScrapDouble"
-            ? (params?.relatedActionId ?? null)
-            : null,
+      const relatedActionId =
+        rewardType === "sellBonus" || rewardType === "destructionScrapDouble"
+          ? (params?.relatedActionId ?? null)
+          : null;
+      const activePending = rewardLogs.find((log) => {
+        if (log.reward_status !== "pending") return false;
+        if (new Date(log.expires_at).getTime() < now) return false;
+        if (relatedActionId) return log.related_action_id === relatedActionId;
+        if (rewardType === "forgeCollectDouble") return !log.related_action_id;
+        return false;
       });
       const available =
         isRewardEnabledForBeta(rewardType) &&
@@ -539,8 +583,7 @@ export async function getAdRewardStatus(
         message,
         activePendingIntent: activePending ? logToIntent(activePending) : undefined,
       };
-    }),
-  );
+    });
 
   return {
     serverTime: new Date().toISOString(),
@@ -553,48 +596,136 @@ export async function getAdRewardStatus(
 async function completeForgeCollect(
   user: User,
   log: AdRewardLogRow,
+  timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
   const payload = log.payload as Record<string, unknown>;
-  const state = await getPlayerState(user.id);
-  const record = await getPlayerRecord(user.id);
+  const [state, record] = await Promise.all([
+    timer
+      ? timer.time("player_state 조회", () => getPlayerState(user.id))
+      : getPlayerState(user.id),
+    timer
+      ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+      : getPlayerRecord(user.id),
+  ]);
   if (state.forge_last_collected_at !== payload.forgeLastCollectedAt) {
     throw new AdRewardError("Forge reward already changed", 409, "stale_reward_intent");
   }
-  const basePending = Number(payload.expectedBaseAmount ?? 0);
-  const gained = Number(payload.finalAmount ?? basePending * 2);
-  const bonusAmount = Number(payload.bonusAmount ?? basePending);
-  const records = currentRecords(record);
-  const nextRecords = {
-    ...records,
-    totalForgeCollected: records.totalForgeCollected + gained,
-    totalForgeAdBonusCollected:
-      records.totalForgeAdBonusCollected + bonusAmount,
-    forgeCollectCount: records.forgeCollectCount + 1,
-    forgeAdCollectCount: records.forgeAdCollectCount + 1,
+  const { basePending, gained, bonusAmount, nextRecords, collectAt } = timer
+    ? timer.timeSync("reward 지급 계산", () => {
+        const basePending = Number(payload.expectedBaseAmount ?? 0);
+        const gained = Number(payload.finalAmount ?? basePending * 2);
+        const bonusAmount = Number(payload.bonusAmount ?? basePending);
+        const records = currentRecords(record);
+        return {
+          basePending,
+          gained,
+          bonusAmount,
+          nextRecords: {
+            ...records,
+            totalForgeCollected: records.totalForgeCollected + gained,
+            totalForgeAdBonusCollected:
+              records.totalForgeAdBonusCollected + bonusAmount,
+            forgeCollectCount: records.forgeCollectCount + 1,
+            forgeAdCollectCount: records.forgeAdCollectCount + 1,
+          },
+          collectAt: new Date(Number(payload.requestedAtMs ?? Date.now())).toISOString(),
+        };
+      })
+    : (() => {
+        const basePending = Number(payload.expectedBaseAmount ?? 0);
+        const gained = Number(payload.finalAmount ?? basePending * 2);
+        const bonusAmount = Number(payload.bonusAmount ?? basePending);
+        const records = currentRecords(record);
+        return {
+          basePending,
+          gained,
+          bonusAmount,
+          nextRecords: {
+            ...records,
+            totalForgeCollected: records.totalForgeCollected + gained,
+            totalForgeAdBonusCollected:
+              records.totalForgeAdBonusCollected + bonusAmount,
+            forgeCollectCount: records.forgeCollectCount + 1,
+            forgeAdCollectCount: records.forgeAdCollectCount + 1,
+          },
+          collectAt: new Date(Number(payload.requestedAtMs ?? Date.now())).toISOString(),
+        };
+      })();
+  const nextState: PlayerStateRow = {
+    ...state,
+    forge_ember: Number(state.forge_ember) + gained,
+    forge_last_collected_at: collectAt,
   };
-  const collectAt = new Date(Number(payload.requestedAtMs ?? Date.now())).toISOString();
+  const nextRecord: PlayerRecordRow = {
+    ...record,
+    stats: toJson(nextRecords),
+  };
   const admin = getSupabaseAdminClient();
-  const { error: stateError } = await admin
-    .from("player_states")
-    .update({
-      forge_ember: Number(state.forge_ember) + gained,
-      forge_last_collected_at: collectAt,
-    })
-    .eq("id", state.id);
-  if (stateError) throw stateError;
-  const { error: recordError } = await admin
-    .from("player_records")
-    .update({ stats: toJson(nextRecords) })
-    .eq("id", record.id);
-  if (recordError) throw recordError;
-
+  await (timer
+    ? timer.time("player_state/player_records update", async () => {
+        const [stateResult, recordResult] = await Promise.all([
+          admin
+            .from("player_states")
+            .update({
+              forge_ember: nextState.forge_ember,
+              forge_last_collected_at: nextState.forge_last_collected_at,
+            })
+            .eq("id", state.id),
+          admin
+            .from("player_records")
+            .update({ stats: nextRecord.stats })
+            .eq("id", record.id),
+        ]);
+        if (stateResult.error) throw stateResult.error;
+        if (recordResult.error) throw recordResult.error;
+      })
+    : Promise.all([
+        admin
+          .from("player_states")
+          .update({
+            forge_ember: nextState.forge_ember,
+            forge_last_collected_at: nextState.forge_last_collected_at,
+          })
+          .eq("id", state.id),
+        admin
+          .from("player_records")
+          .update({ stats: nextRecord.stats })
+          .eq("id", record.id),
+      ]).then(([stateResult, recordResult]) => {
+        if (stateResult.error) throw stateResult.error;
+        if (recordResult.error) throw recordResult.error;
+      }));
   return {
     actionId: log.action_id,
     actionType: "ad_reward",
     status: "applied",
     rewardIntentId: log.id,
     rewardType: "forgeCollectDouble",
-    snapshot: await getPlayerSnapshot(user),
+    patch: timer
+      ? timer.timeSync("server result/patch 생성", () => ({
+          currentGold: Number(nextState.gold),
+          currentEmber: Number(nextState.forge_ember),
+          currentStone: Number(nextState.transcend_stone),
+          forgeLastCollectedAt: nextState.forge_last_collected_at,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(
+            getCurrentSeasonInfo().seasonId,
+            nextState,
+          ),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+        }))
+      : {
+          currentGold: Number(nextState.gold),
+          currentEmber: Number(nextState.forge_ember),
+          currentStone: Number(nextState.transcend_stone),
+          forgeLastCollectedAt: nextState.forge_last_collected_at,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(
+            getCurrentSeasonInfo().seasonId,
+            nextState,
+          ),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+        },
     display: {
       kind: "forgeCollect",
       gained,
@@ -608,12 +739,27 @@ async function completeForgeCollect(
 async function completeSellBonus(
   user: User,
   log: AdRewardLogRow,
+  timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
   const payload = log.payload as Record<string, unknown>;
-  const profile = await getProfile(user.id);
-  const state = await getPlayerState(user.id);
-  const record = await getPlayerRecord(user.id);
-  const weapon = await getOwnedWeapon(user.id, String(payload.weaponInstanceId));
+  const [profile, state, record, weapon, ownedWeaponsBefore] = await Promise.all([
+    timer ? timer.time("profile 조회", () => getProfile(user.id)) : getProfile(user.id),
+    timer
+      ? timer.time("player_state 조회", () => getPlayerState(user.id))
+      : getPlayerState(user.id),
+    timer
+      ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+      : getPlayerRecord(user.id),
+    timer
+      ? timer.time("owned_weapon 조회", () =>
+          getOwnedWeapon(user.id, String(payload.weaponInstanceId)),
+        )
+      : getOwnedWeapon(user.id, String(payload.weaponInstanceId)),
+    timer
+      ? timer.time("마지막 무기 여부 확인", () => getOwnedWeaponsForSnapshot(user.id))
+      : getOwnedWeaponsForSnapshot(user.id),
+  ]);
+  assertCanSellOwnedWeaponCount(ownedWeaponsBefore.length);
   if (
     weapon.weapon_id !== payload.weaponId ||
     Number(weapon.enhance_level) !== Number(payload.enhanceLevel) ||
@@ -623,79 +769,178 @@ async function completeSellBonus(
     throw new AdRewardError("Weapon changed after ad request", 409, "stale_reward_intent");
   }
 
-  const baseSaleGold = Number(payload.baseSaleGold ?? 0);
-  const finalGold = Number(payload.finalGold ?? 0);
-  const rankingValue = Number(payload.rankingValue ?? 0);
-  const records = currentRecords(record);
-  const nextRecords = {
-    ...records,
-    totalSalesGold: records.totalSalesGold + finalGold,
-    bestSaleGold: Math.max(records.bestSaleGold, finalGold),
-    soldWeaponCount: records.soldWeaponCount + 1,
+  const calculation = timer
+    ? timer.timeSync("reward 지급 계산", () => {
+        const baseSaleGold = Number(payload.baseSaleGold ?? 0);
+        const finalGold = Number(payload.finalGold ?? 0);
+        const rankingValue = Number(payload.rankingValue ?? 0);
+        const records = currentRecords(record);
+        const weekly = {
+          ...defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+        };
+        weekly.salesGoldThisSeason += finalGold;
+        return {
+          baseSaleGold,
+          finalGold,
+          rankingValue,
+          nextRecords: {
+            ...records,
+            totalSalesGold: records.totalSalesGold + finalGold,
+            bestSaleGold: Math.max(records.bestSaleGold, finalGold),
+            soldWeaponCount: records.soldWeaponCount + 1,
+          },
+          weekly,
+        };
+      })
+    : (() => {
+        const baseSaleGold = Number(payload.baseSaleGold ?? 0);
+        const finalGold = Number(payload.finalGold ?? 0);
+        const rankingValue = Number(payload.rankingValue ?? 0);
+        const records = currentRecords(record);
+        const weekly = {
+          ...defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+        };
+        weekly.salesGoldThisSeason += finalGold;
+        return {
+          baseSaleGold,
+          finalGold,
+          rankingValue,
+          nextRecords: {
+            ...records,
+            totalSalesGold: records.totalSalesGold + finalGold,
+            bestSaleGold: Math.max(records.bestSaleGold, finalGold),
+            soldWeaponCount: records.soldWeaponCount + 1,
+          },
+          weekly,
+        };
+      })();
+  const { baseSaleGold, finalGold, rankingValue, nextRecords, weekly } = calculation;
+  const nextState: PlayerStateRow = {
+    ...state,
+    gold: Number(state.gold) + finalGold,
+    stats: toJson({ weeklySeasonStats: weekly }),
   };
-  const weekly = {
-    ...defaultWeeklySeasonStats(getCurrentSeasonInfo().seasonId, state),
+  const nextRecord: PlayerRecordRow = {
+    ...record,
+    ...(rankingValue > Number(record.best_weapon_value ?? 0)
+      ? {
+          best_weapon_name: payload.weaponName as string,
+          best_weapon_id: payload.weaponId as string,
+          best_weapon_value: rankingValue,
+          best_weapon_enhance_level: Number(payload.enhanceLevel ?? 0),
+          best_weapon_transcend_level: Number(payload.transcendLevel ?? 0),
+          max_transcend_level: Math.max(
+            Number(record.max_transcend_level ?? 0),
+            Number(payload.transcendLevel ?? 0),
+          ),
+        }
+      : {}),
+    best_sale_gold: Math.max(Number(record.best_sale_gold ?? 0), finalGold),
+    total_sales_gold: Number(record.total_sales_gold ?? 0) + finalGold,
+    stats: toJson(nextRecords),
   };
-  weekly.salesGoldThisSeason += finalGold;
   const admin = getSupabaseAdminClient();
-  const { error: deleteError } = await admin
-    .from("owned_weapons")
-    .delete()
-    .eq("id", weapon.id);
+  const { error: deleteError } = await (timer
+    ? timer.time("owned_weapon delete", async () =>
+        await admin.from("owned_weapons").delete().eq("id", weapon.id),
+      )
+    : admin.from("owned_weapons").delete().eq("id", weapon.id));
   if (deleteError) throw deleteError;
-  const { error: stateError } = await admin
-    .from("player_states")
-    .update({
-      gold: Number(state.gold) + finalGold,
-      stats: toJson({ weeklySeasonStats: weekly }),
-    })
-    .eq("id", state.id);
-  if (stateError) throw stateError;
-  const { error: recordError } = await admin
-    .from("player_records")
-    .update({
-      ...(rankingValue > Number(record.best_weapon_value ?? 0)
-        ? {
-            best_weapon_name: payload.weaponName as string,
-            best_weapon_id: payload.weaponId as string,
-            best_weapon_value: rankingValue,
-            best_weapon_enhance_level: Number(payload.enhanceLevel ?? 0),
-            best_weapon_transcend_level: Number(payload.transcendLevel ?? 0),
-            max_transcend_level: Math.max(
-              Number(record.max_transcend_level ?? 0),
-              Number(payload.transcendLevel ?? 0),
-            ),
-          }
-        : {}),
-      best_sale_gold: Math.max(Number(record.best_sale_gold ?? 0), finalGold),
-      total_sales_gold: Number(record.total_sales_gold ?? 0) + finalGold,
-      stats: toJson(nextRecords),
-    })
-    .eq("id", record.id);
-  if (recordError) throw recordError;
-  await upsertWeeklyScore({
-    userId: user.id,
-    profile,
-    seasonId: weekly.seasonId,
-    category: "weeklySalesKing",
-    score: weekly.salesGoldThisSeason,
-  });
-  await upsertWorldRecord({
-    category: "worldRecordSale",
-    userId: user.id,
-    nickname: profile.nickname,
-    weaponName: String(payload.weaponName ?? "-"),
-    weaponId: String(payload.weaponId ?? ""),
-    enhanceLevel: Number(payload.enhanceLevel ?? 0),
-    transcendLevel: Number(payload.transcendLevel ?? 0),
-    value: finalGold,
-  });
+  const recordUpdate = {
+    ...(rankingValue > Number(record.best_weapon_value ?? 0)
+      ? {
+          best_weapon_name: nextRecord.best_weapon_name,
+          best_weapon_id: nextRecord.best_weapon_id,
+          best_weapon_value: nextRecord.best_weapon_value,
+          best_weapon_enhance_level: nextRecord.best_weapon_enhance_level,
+          best_weapon_transcend_level: nextRecord.best_weapon_transcend_level,
+          max_transcend_level: nextRecord.max_transcend_level,
+        }
+      : {}),
+    best_sale_gold: nextRecord.best_sale_gold,
+    total_sales_gold: nextRecord.total_sales_gold,
+    stats: nextRecord.stats,
+  };
+  const shouldCheckWorldSale = baseSaleGold > Number(record.best_sale_gold ?? 0);
+  await (timer
+    ? timer.time("state/record/ranking update", async () => {
+        const results = await Promise.all([
+          admin
+            .from("player_states")
+            .update({
+              gold: nextState.gold,
+              stats: nextState.stats,
+            })
+            .eq("id", state.id),
+          admin.from("player_records").update(recordUpdate).eq("id", record.id),
+          upsertWeeklyScore({
+            userId: user.id,
+            profile,
+            seasonId: weekly.seasonId,
+            category: "weeklySalesKing",
+            score: weekly.salesGoldThisSeason,
+          }).then(() => ({ error: null })),
+          shouldCheckWorldSale
+            ? upsertWorldRecord({
+                category: "worldRecordSale",
+                userId: user.id,
+                nickname: profile.nickname,
+                weaponName: String(payload.weaponName ?? "-"),
+                weaponId: String(payload.weaponId ?? ""),
+                enhanceLevel: Number(payload.enhanceLevel ?? 0),
+                transcendLevel: Number(payload.transcendLevel ?? 0),
+                value: baseSaleGold,
+              }).then(() => ({ error: null }))
+            : Promise.resolve({ error: null }),
+        ]);
+        for (const result of results) {
+          if (result.error) throw result.error;
+        }
+      })
+    : Promise.all([
+        admin
+          .from("player_states")
+          .update({
+            gold: nextState.gold,
+            stats: nextState.stats,
+          })
+          .eq("id", state.id),
+        admin.from("player_records").update(recordUpdate).eq("id", record.id),
+        upsertWeeklyScore({
+          userId: user.id,
+          profile,
+          seasonId: weekly.seasonId,
+          category: "weeklySalesKing",
+          score: weekly.salesGoldThisSeason,
+        }).then(() => ({ error: null })),
+        shouldCheckWorldSale
+          ? upsertWorldRecord({
+              category: "worldRecordSale",
+              userId: user.id,
+              nickname: profile.nickname,
+              weaponName: String(payload.weaponName ?? "-"),
+              weaponId: String(payload.weaponId ?? ""),
+              enhanceLevel: Number(payload.enhanceLevel ?? 0),
+              transcendLevel: Number(payload.transcendLevel ?? 0),
+              value: baseSaleGold,
+            }).then(() => ({ error: null }))
+          : Promise.resolve({ error: null }),
+      ]).then((results) => {
+        for (const result of results) {
+          if (result.error) throw result.error;
+        }
+      }));
   const info: SaleCompleteInfo = {
+    saleType: "adBonus",
+    soldWeaponId: weapon.id,
+    weaponId: String(payload.weaponId ?? ""),
     weaponName: String(payload.weaponName ?? "-"),
     enhanceLevel: Number(payload.enhanceLevel ?? 0),
     transcendLevel: Number(payload.transcendLevel ?? 0),
     baseSaleGold,
+    bonusGold: finalGold - baseSaleGold,
     finalSaleGold: finalGold,
+    rankingValue,
     usedAdBonus: true,
     wasEquipped: false,
   };
@@ -706,7 +951,25 @@ async function completeSellBonus(
     status: "applied",
     rewardIntentId: log.id,
     rewardType: "sellBonus",
-    snapshot: await getPlayerSnapshot(user),
+    patch: timer
+      ? timer.timeSync("server result/patch 생성", () => ({
+          currentGold: Number(nextState.gold),
+          currentEmber: Number(nextState.forge_ember),
+          currentStone: Number(nextState.transcend_stone),
+          removedWeaponId: weapon.id,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+        }))
+      : {
+          currentGold: Number(nextState.gold),
+          currentEmber: Number(nextState.forge_ember),
+          currentStone: Number(nextState.transcend_stone),
+          removedWeaponId: weapon.id,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
+        },
     display: {
       kind: "sell",
       rankingValue,
@@ -718,13 +981,27 @@ async function completeSellBonus(
 export async function completeAdReward(
   user: User,
   request: AdRewardCompleteRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<AdRewardCompleteResponse> {
+  const timer = options.timer;
   const admin = getSupabaseAdminClient();
-  const { data: log, error } = await admin
-    .from("ad_reward_logs")
-    .select("*")
-    .eq("id", request.rewardIntentId)
-    .maybeSingle();
+  const { data: log, error } = await (timer
+    ? timer.time("reward intent 조회", async () =>
+        await admin
+          .from("ad_reward_logs")
+          .select(
+            "id,user_id,reward_type,reward_status,provider,provider_reward_id,action_id,related_action_id,payload,reward_result,requested_at,completed_at,expires_at,created_at,updated_at",
+          )
+          .eq("id", request.rewardIntentId)
+          .maybeSingle(),
+      )
+    : admin
+        .from("ad_reward_logs")
+        .select(
+          "id,user_id,reward_type,reward_status,provider,provider_reward_id,action_id,related_action_id,payload,reward_result,requested_at,completed_at,expires_at,created_at,updated_at",
+        )
+        .eq("id", request.rewardIntentId)
+        .maybeSingle());
   if (error) throw error;
   if (!log || log.user_id !== user.id) {
     throw new AdRewardError("Reward intent not found", 404, "reward_intent_not_found");
@@ -771,13 +1048,23 @@ export async function completeAdReward(
     throw new AdRewardError("Ad was not completed", 409, "ad_not_completed");
   }
 
-  const { data: claimed, error: claimError } = await admin
-    .from("ad_reward_logs")
-    .update({ reward_status: "processing" })
-    .eq("id", log.id)
-    .eq("reward_status", "pending")
-    .select("id")
-    .maybeSingle();
+  const { data: claimed, error: claimError } = await (timer
+    ? timer.time("pending/processing/completed 상태 claim", async () =>
+        await admin
+          .from("ad_reward_logs")
+          .update({ reward_status: "processing" })
+          .eq("id", log.id)
+          .eq("reward_status", "pending")
+          .select("id")
+          .maybeSingle(),
+      )
+    : admin
+        .from("ad_reward_logs")
+        .update({ reward_status: "processing" })
+        .eq("id", log.id)
+        .eq("reward_status", "pending")
+        .select("id")
+        .maybeSingle());
   if (claimError) throw claimError;
   if (!claimed) {
     throw new AdRewardError("Reward intent is already being completed", 409, "reward_not_pending");
@@ -785,9 +1072,9 @@ export async function completeAdReward(
 
   const response =
     log.reward_type === "forgeCollectDouble"
-      ? await completeForgeCollect(user, log)
+      ? await completeForgeCollect(user, log, timer)
       : log.reward_type === "sellBonus"
-        ? await completeSellBonus(user, log)
+        ? await completeSellBonus(user, log, timer)
         : (() => {
             throw new AdRewardError(
               "Reward type is not implemented yet",
@@ -796,16 +1083,29 @@ export async function completeAdReward(
             );
           })();
 
-  const { error: updateError } = await admin
-    .from("ad_reward_logs")
-    .update({
-      reward_status: "completed",
-      provider_reward_id: request.providerResult.providerRewardId ?? null,
-      reward_result: toJson(response),
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", log.id)
-    .eq("reward_status", "processing");
+  const { error: updateError } = await (timer
+    ? timer.time("ad_reward_logs completed update", async () =>
+        await admin
+          .from("ad_reward_logs")
+          .update({
+            reward_status: "completed",
+            provider_reward_id: request.providerResult.providerRewardId ?? null,
+            reward_result: toJson(response),
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", log.id)
+          .eq("reward_status", "processing"),
+      )
+    : admin
+        .from("ad_reward_logs")
+        .update({
+          reward_status: "completed",
+          provider_reward_id: request.providerResult.providerRewardId ?? null,
+          reward_result: toJson(response),
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", log.id)
+        .eq("reward_status", "processing"));
 
   if (updateError) throw updateError;
   return response;

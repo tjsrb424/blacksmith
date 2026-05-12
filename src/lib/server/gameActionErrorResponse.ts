@@ -19,6 +19,8 @@ const USER_MESSAGES: Record<string, string> = {
   insufficient_stone: "초월석이 부족합니다.",
   destroyed_weapon: "이미 파괴된 무기입니다. 서버 데이터를 다시 불러와주세요.",
   locked_weapon: "잠긴 무기는 판매할 수 없습니다.",
+  last_weapon_cannot_sell:
+    "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요.",
   ad_reward_required: "광고 보너스 판매는 광고 보상 절차로만 처리할 수 있습니다.",
   max_enhance: "이미 최대 강화 단계입니다.",
   max_transcend: "이미 최대 초월 단계입니다.",

@@ -39,6 +39,7 @@ In Supabase Dashboard > Authentication > URL Configuration:
   - `https://<production-domain>/auth/callback`
   - preview URLs used for beta QA
   - `http://localhost:3000/auth/callback` for local QA
+  - `http://<PC-IP>:3000`, `http://<PC-IP>:3000/auth/callback`, and `http://<PC-IP>:3000/**` when testing beta OAuth from an iPhone on the same Wi-Fi
 
 In Google Cloud OAuth client:
 
@@ -46,6 +47,7 @@ In Google Cloud OAuth client:
   - `https://<production-domain>`
   - preview origins used for beta QA
   - `http://localhost:3000`
+  - `http://<PC-IP>:3000` for internal IP mobile QA
 - Authorized redirect URI:
   - Supabase provider callback, usually `https://<project-ref>.supabase.co/auth/v1/callback`
 
@@ -105,7 +107,7 @@ npx next start -H 0.0.0.0 -p 3000
 
 - Find the PC IPv4 address with `ipconfig` on Windows.
 - Open `http://<PC-IP>:3000` on the iPhone while both devices are on the same Wi-Fi.
-- If testing beta OAuth on the internal IP, add `http://<PC-IP>:3000/auth/callback` to Supabase Redirect URLs.
+- If testing beta OAuth on the internal IP, add `http://<PC-IP>:3000`, `http://<PC-IP>:3000/auth/callback`, and `http://<PC-IP>:3000/**` to Supabase Redirect URLs, and add `http://<PC-IP>:3000` to Google Authorized JavaScript origins.
 - Compare local mode and beta mode separately.
 - Treat dev-only stutter differently from production local stutter; production local is the closer pre-deploy signal.
 

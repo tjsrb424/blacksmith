@@ -233,7 +233,7 @@ export function defaultWeeklySeasonStats(
   };
 }
 
-function bestWeaponSnapshotFromRecord(
+export function bestWeaponSnapshotFromRecord(
   record: PlayerRecordRow,
 ): BestWeaponSnapshot | null {
   if (!record.best_weapon_id || !record.best_weapon_name) return null;
@@ -329,7 +329,7 @@ async function ensureOwnedWeapons(user: User): Promise<OwnedWeaponRow[]> {
     }
 
     const existing = await selectOwnedWeapons(user.id);
-    if (existing.some((weapon) => weapon.weapon_id === STARTER_WEAPON_ID)) {
+    if (existing.length > 0) {
       return existing;
     }
 
@@ -424,11 +424,54 @@ function snapshotForUser(params: {
   };
 }
 
+export function snapshotFromRows(params: {
+  user: User;
+  profile: ProfileRow;
+  playerState: PlayerStateRow;
+  ownedWeapons: OwnedWeaponRow[];
+  playerRecord: PlayerRecordRow;
+}): BetaPlayerSnapshot {
+  return snapshotForUser(params);
+}
+
+export async function getOwnedWeaponsForSnapshot(
+  userId: string,
+): Promise<OwnedWeaponRow[]> {
+  return selectOwnedWeapons(userId);
+}
+
 export async function bootstrapPlayer(user: User): Promise<BetaPlayerSnapshot> {
-  const profile = await ensureProfile(user);
-  const playerState = await ensurePlayerState(user);
-  const ownedWeapons = await ensureOwnedWeapons(user);
-  const playerRecord = await ensurePlayerRecord(user);
+  const [existingProfile, existingPlayerState, existingOwnedWeapons, existingPlayerRecord] =
+    await Promise.all([
+      selectProfile(user.id),
+      selectPlayerState(user.id),
+      selectOwnedWeapons(user.id),
+      selectPlayerRecord(user.id),
+    ]);
+
+  if (
+    existingProfile &&
+    existingPlayerState &&
+    existingOwnedWeapons.length > 0 &&
+    existingPlayerRecord
+  ) {
+    return snapshotForUser({
+      user,
+      profile: existingProfile,
+      playerState: existingPlayerState,
+      ownedWeapons: existingOwnedWeapons,
+      playerRecord: existingPlayerRecord,
+    });
+  }
+
+  const [profile, playerState, ownedWeapons, playerRecord] = await Promise.all([
+    existingProfile ?? ensureProfile(user),
+    existingPlayerState ?? ensurePlayerState(user),
+    existingOwnedWeapons.length > 0
+      ? existingOwnedWeapons
+      : ensureOwnedWeapons(user),
+    existingPlayerRecord ?? ensurePlayerRecord(user),
+  ]);
 
   return snapshotForUser({
     user,

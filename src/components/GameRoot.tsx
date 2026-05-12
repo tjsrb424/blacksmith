@@ -124,6 +124,11 @@ function BetaPerformancePanel({ screen }: { screen: string }) {
       <div>ad status: {metrics.adStatusCacheHit == null ? "-" : metrics.adStatusCacheHit ? "hit" : "miss"}</div>
       <div>ad status fetch: {metrics.adStatusFetchMs ?? "-"}ms</div>
       <div>ad complete: {metrics.adRewardCompleteElapsedMs ?? "-"}ms</div>
+      <div>ad total: {metrics.adCompleteTotalMs ?? "-"}ms</div>
+      <div>ad event-api: {metrics.adRewardEventToCompleteApiStartMs ?? "-"}ms</div>
+      <div>ad api: {metrics.adCompleteApiMs ?? "-"}ms</div>
+      <div>ad resp-modal: {metrics.adCompleteResponseToModalOpenMs ?? "-"}ms</div>
+      <div>ad patch: {metrics.adRewardPatchApplyMs ?? "-"}ms</div>
       <div>ad modal: {metrics.adRewardModalOpenMs ?? "-"}ms</div>
       <div>ad sync: {metrics.adRewardStoreSyncMs ?? "-"}ms</div>
       <div>enhance total: {metrics.enhanceTotalMs ?? "-"}ms</div>

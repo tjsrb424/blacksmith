@@ -1,4 +1,4 @@
-import type { BetaPlayerSnapshot, ServerActionDisplay } from "@/types/server";
+import type { BetaPlayerSnapshot, ServerActionDisplay, ServerActionPatch } from "@/types/server";
 
 export type AdRewardType =
   | "forgeCollectDouble"
@@ -70,7 +70,8 @@ export type AdRewardCompleteResponse = {
   status: "applied" | "replayed";
   rewardIntentId: string;
   rewardType: AdRewardType;
-  snapshot: BetaPlayerSnapshot;
+  snapshot?: BetaPlayerSnapshot;
+  patch?: ServerActionPatch;
   display?: ServerActionDisplay;
 };
 
