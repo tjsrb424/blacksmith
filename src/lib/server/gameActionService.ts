@@ -59,6 +59,14 @@ import type {
   ProfileRow,
 } from "@/types/supabase";
 
+const PROFILE_SELECT = "id,nickname,created_at,updated_at";
+const PLAYER_STATE_SELECT =
+  "id,user_id,gold,forge_ember,transcend_stone,forge_level,forge_last_collected_at,current_season_id,stats,created_at,updated_at";
+const PLAYER_RECORD_SELECT =
+  "id,user_id,best_weapon_name,best_weapon_id,best_weapon_value,best_weapon_enhance_level,best_weapon_transcend_level,best_sale_gold,total_sales_gold,max_transcend_level,stats,created_at,updated_at";
+const OWNED_WEAPON_SELECT =
+  "id,user_id,weapon_id,enhance_level,transcend_level,durability,is_locked,created_at,updated_at";
+
 export class GameActionError extends Error {
   constructor(
     message: string,
@@ -83,7 +91,7 @@ async function getProfile(userId: string): Promise<ProfileRow> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("profiles")
-    .select("*")
+    .select(PROFILE_SELECT)
     .eq("id", userId)
     .single();
   if (error) throw error;
@@ -94,7 +102,7 @@ async function getPlayerState(userId: string): Promise<PlayerStateRow> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("player_states")
-    .select("*")
+    .select(PLAYER_STATE_SELECT)
     .eq("user_id", userId)
     .single();
   if (error) throw error;
@@ -105,7 +113,7 @@ async function getPlayerRecord(userId: string): Promise<PlayerRecordRow> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("player_records")
-    .select("*")
+    .select(PLAYER_RECORD_SELECT)
     .eq("user_id", userId)
     .single();
   if (error) throw error;
@@ -119,15 +127,23 @@ async function getOwnedWeapon(
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("owned_weapons")
-    .select("*")
+    .select(OWNED_WEAPON_SELECT)
     .eq("id", weaponInstanceId)
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new GameActionError("Weapon not found", 404, "weapon_not_found");
-  if (data.user_id !== userId) {
-    throw new GameActionError("Weapon does not belong to the current user", 403, "forbidden");
-  }
   return data;
+}
+
+async function countOwnedWeapons(userId: string): Promise<number> {
+  const admin = getSupabaseAdminClient();
+  const { count, error } = await admin
+    .from("owned_weapons")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 async function updatePlayerState(
@@ -901,6 +917,229 @@ export async function transcendWeaponServer(
 }
 
 export async function sellWeaponServer(
+  user: User,
+  payload: SellActionRequest,
+  options: { timer?: ServerStepTimer } = {},
+): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
+  return runLoggedAction({
+    user,
+    actionType: "sell",
+    actionId: payload.actionId,
+    payload,
+    timer,
+    run: async () => {
+      const [state, record, weapon, ownedWeaponCount] = await Promise.all([
+        timer
+          ? timer.time("player_state lookup", () => getPlayerState(user.id))
+          : getPlayerState(user.id),
+        timer
+          ? timer.time("player_records lookup", () => getPlayerRecord(user.id))
+          : getPlayerRecord(user.id),
+        timer
+          ? timer.time("owned_weapon lookup", () =>
+              getOwnedWeapon(user.id, payload.weaponInstanceId),
+            )
+          : getOwnedWeapon(user.id, payload.weaponInstanceId),
+        timer
+          ? timer.time("owned weapon count lookup", () =>
+              countOwnedWeapons(user.id),
+            )
+          : countOwnedWeapons(user.id),
+      ]);
+
+      if (timer) {
+        timer.timeSync("last weapon validation", () =>
+          assertCanSellOwnedWeaponCount(ownedWeaponCount),
+        );
+      } else {
+        assertCanSellOwnedWeaponCount(ownedWeaponCount);
+      }
+
+      const def = WEAPONS_BY_ID[weapon.weapon_id];
+      if (!def) {
+        throw new GameActionError(
+          "Weapon definition not found",
+          404,
+          "weapon_def_not_found",
+        );
+      }
+      const owned = rowToOwnedWeapon(weapon);
+      if (owned.locked) {
+        throw new GameActionError(
+          "Locked weapon cannot be sold",
+          409,
+          "locked_weapon",
+        );
+      }
+      if (owned.durability <= 0) {
+        throw new GameActionError(
+          "Destroyed weapon cannot be sold",
+          409,
+          "destroyed_weapon",
+        );
+      }
+
+      const usedAdBonus =
+        payload.sellMode === "adBonus" || payload.adBonusRequested === true;
+      if (usedAdBonus) {
+        throw new GameActionError(
+          "Ad bonus sale must use the ad reward flow",
+          400,
+          "ad_reward_required",
+        );
+      }
+
+      const calculation = timer
+        ? timer.timeSync("sale price calculation", () =>
+            computeNormalSellEconomy(def, owned, record, state),
+          )
+        : computeNormalSellEconomy(def, owned, record, state);
+      const { baseSaleGold, bonusGold, finalGold, rankingValue, nextRecords, weekly } =
+        calculation;
+
+      const nextState: PlayerStateRow = {
+        ...state,
+        gold: Number(state.gold) + finalGold,
+        stats: weeklyStatsJson(weekly),
+      };
+      const recordPatch = {
+        ...updateBestWeaponRecord(record, nextRecords, weapon),
+        best_sale_gold: Math.max(Number(record.best_sale_gold ?? 0), finalGold),
+        total_sales_gold: Number(record.total_sales_gold ?? 0) + finalGold,
+      };
+
+      const admin = getSupabaseAdminClient();
+      await (timer
+        ? timer.time("gold/weapon/record update", async () => {
+            const results = await Promise.all([
+              admin
+                .from("player_states")
+                .update({
+                  gold: nextState.gold,
+                  stats: nextState.stats,
+                })
+                .eq("id", state.id),
+              admin.from("owned_weapons").delete().eq("id", weapon.id),
+              admin.from("player_records").update(recordPatch).eq("id", record.id),
+            ]);
+            for (const result of results) {
+              if (result.error) throw result.error;
+            }
+          })
+        : Promise.all([
+            admin
+              .from("player_states")
+              .update({
+                gold: nextState.gold,
+                stats: nextState.stats,
+              })
+              .eq("id", state.id),
+            admin.from("owned_weapons").delete().eq("id", weapon.id),
+            admin.from("player_records").update(recordPatch).eq("id", record.id),
+          ]).then((results) => {
+            for (const result of results) {
+              if (result.error) throw result.error;
+            }
+          }));
+
+      const shouldCheckWorldSale = timer
+        ? timer.timeSync(
+            "ranking/world record update need check",
+            () => baseSaleGold > Number(record.best_sale_gold ?? 0),
+          )
+        : baseSaleGold > Number(record.best_sale_gold ?? 0);
+      const profile = await (timer
+        ? timer.time("profile lookup for rankings", () => getProfile(user.id))
+        : getProfile(user.id));
+      await (timer
+        ? timer.time("ranking/world record update", () =>
+            Promise.all([
+              upsertWeeklyScore({
+                userId: user.id,
+                profile,
+                seasonId: weekly.seasonId,
+                category: "weeklySalesKing",
+                score: weekly.salesGoldThisSeason,
+              }),
+              shouldCheckWorldSale
+                ? upsertWorldRecord({
+                    category: "worldRecordSale",
+                    userId: user.id,
+                    nickname: profile.nickname,
+                    weaponName: def.name,
+                    weaponId: def.id,
+                    enhanceLevel: owned.enhanceLevel,
+                    transcendLevel: owned.transcendLevel,
+                    value: baseSaleGold,
+                  })
+                : Promise.resolve(),
+            ]).then(() => undefined),
+          )
+        : Promise.all([
+            upsertWeeklyScore({
+              userId: user.id,
+              profile,
+              seasonId: weekly.seasonId,
+              category: "weeklySalesKing",
+              score: weekly.salesGoldThisSeason,
+            }),
+            shouldCheckWorldSale
+              ? upsertWorldRecord({
+                  category: "worldRecordSale",
+                  userId: user.id,
+                  nickname: profile.nickname,
+                  weaponName: def.name,
+                  weaponId: def.id,
+                  enhanceLevel: owned.enhanceLevel,
+                  transcendLevel: owned.transcendLevel,
+                  value: baseSaleGold,
+                })
+              : Promise.resolve(),
+          ]).then(() => undefined));
+
+      return {
+        actionId: payload.actionId,
+        actionType: "sell",
+        patch: timer
+          ? timer.timeSync("response result/patch create", () => ({
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              removedWeaponId: weapon.id,
+            }))
+          : {
+              currentGold: Number(nextState.gold),
+              currentEmber: Number(nextState.forge_ember),
+              currentStone: Number(nextState.transcend_stone),
+              removedWeaponId: weapon.id,
+            },
+        display: {
+          kind: "sell",
+          rankingValue,
+          info: {
+            saleType: "normal",
+            soldWeaponId: weapon.id,
+            weaponId: def.id,
+            weaponName: def.name,
+            enhanceLevel: owned.enhanceLevel,
+            transcendLevel: owned.transcendLevel,
+            baseSaleGold,
+            bonusGold,
+            finalSaleGold: finalGold,
+            rankingValue,
+            usedAdBonus,
+            wasEquipped: false,
+          },
+        },
+      };
+    },
+  });
+}
+
+// Retained temporarily as a parity reference while the optimized sell path is validated.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function sellWeaponServerLegacy(
   user: User,
   payload: SellActionRequest,
   options: { timer?: ServerStepTimer } = {},

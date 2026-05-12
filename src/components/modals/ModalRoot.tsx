@@ -70,13 +70,28 @@ function ModalFrameBackdrop({ tone }: { tone: ModalTone }) {
       <img
         src={src}
         alt=""
-        className="h-full w-full max-h-full object-cover object-center opacity-[0.2]"
+        className="h-full w-full max-h-full object-fill object-center opacity-[0.2]"
         onError={(e) => {
           e.currentTarget.style.display = "none";
         }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/15 to-black/40" />
     </div>
+  );
+}
+
+function isResultModal(modal: ModalPayload): boolean {
+  return (
+    modal.kind === "enhance_success" ||
+    modal.kind === "enhance_fail" ||
+    modal.kind === "weapon_destroyed" ||
+    modal.kind === "transcend_success" ||
+    modal.kind === "transcend_fail" ||
+    modal.kind === "sell_success" ||
+    modal.kind === "forge_collect_complete" ||
+    modal.kind === "forge_upgrade_success" ||
+    modal.kind === "offline_forge_reward" ||
+    modal.kind === "season_started"
   );
 }
 
@@ -196,6 +211,7 @@ function ModalToneEffects({ modal }: { modal: ModalPayload }) {
 export function ModalRoot() {
   useRenderDiagnostics("ModalRoot");
   const modal = useGameStore((s) => s.modal);
+  const serverActionPending = useGameStore((s) => s.serverActionPending);
   const prevModalRef = useRef(modal);
   useEffect(() => {
     const prev = prevModalRef.current;
@@ -257,7 +273,10 @@ export function ModalRoot() {
               exit={{ y: 10, opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
-                "relative max-h-[85vh] min-w-0 w-[min(92vw,380px)] max-w-[380px] overflow-y-auto sm:w-full sm:max-w-[420px] md:max-w-[460px] lg:max-w-[480px]",
+                "relative max-h-[calc(100dvh-96px)] min-w-0 w-[92vw] overflow-y-auto sm:w-full",
+                isResultModal(modal)
+                  ? "max-w-[420px] sm:max-w-[460px] md:max-w-[520px] lg:max-w-[560px]"
+                  : "max-w-[380px] sm:max-w-[420px] md:max-w-[460px] lg:max-w-[480px]",
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
               )}
               onMouseDown={(e) => e.stopPropagation()}
@@ -915,11 +934,11 @@ export function ModalRoot() {
                   </p>
                   <div className="flex flex-col gap-2 pt-1">
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <FantasyButton variant="accent" onClick={() => commitSell("normal")}>
-                        기본 판매
+                      <FantasyButton variant="accent" disabled={serverActionPending} onClick={() => commitSell("normal")}>
+                        {serverActionPending ? "판매 처리 중..." : "기본 판매"}
                       </FantasyButton>
-                      <FantasyButton variant="promo" onClick={() => commitSell("adBonus")}>
-                        광고 보고 +30% 판매
+                      <FantasyButton variant="promo" disabled={serverActionPending} onClick={() => commitSell("adBonus")}>
+                        {serverActionPending ? "판매 처리 중..." : "광고 보고 +30% 판매"}
                       </FantasyButton>
                     </div>
                     <AdRewardStatusText

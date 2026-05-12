@@ -60,6 +60,7 @@ import {
   completeAdReward,
   requestAdReward,
 } from "@/lib/ads/adRewardApi";
+import { scheduleAdRewardStatusRefreshAfterReward } from "@/lib/ads/adRewardStatusCache";
 import { ApiRequestError } from "@/lib/server/http";
 import { getCurrentPlayerSnapshot } from "@/lib/server/playerApi";
 import {
@@ -157,6 +158,24 @@ function serverErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "서버 요청에 실패했습니다. 잠시 후 다시 시도해주세요.";
+}
+
+function sellErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    if (error.code === "last_weapon_cannot_sell") {
+      return "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요.";
+    }
+    if (error.code === "weapon_not_found") {
+      return "판매할 무기를 찾을 수 없습니다. 서버 데이터를 다시 불러와주세요.";
+    }
+    if (error.code === "weapon_already_sold") {
+      return "이미 판매된 무기입니다. 서버 데이터를 다시 불러와주세요.";
+    }
+    if (error.code === "request_timeout") {
+      return "서버 응답이 지연되고 있습니다. 다시 시도해주세요.";
+    }
+  }
+  return "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
 }
 
 function isAdRewardUserError(error: unknown): boolean {
@@ -444,6 +463,7 @@ function syncServerSnapshotDeferred(
       ...(source === "enhance" ? { enhanceStoreSyncMs: elapsedMs } : {}),
       ...(source === "adReward"
         ? {
+            adRewardPatchApplyMs: elapsedMs,
             adRewardStoreSyncMs: elapsedMs,
             adRewardDeferredSyncMs: elapsedMs,
           }
@@ -461,6 +481,7 @@ function syncServerPatchDeferred(
   get: () => GameStore,
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
   source?: "enhance" | "adReward",
+  onComplete?: () => void,
 ): void {
   if (!patch) return;
   runWhenIdle(() => {
@@ -483,7 +504,52 @@ function syncServerPatchDeferred(
       source,
       elapsedMs,
     });
+    onComplete?.();
   });
+}
+
+function syncLatestServerSnapshotDeferred(
+  get: () => GameStore,
+  set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
+): void {
+  runWhenIdle(() => {
+    const startedAt = Date.now();
+    diagnosticLog("adReward", "deferred snapshot sync start");
+    void getCurrentPlayerSnapshot()
+      .then((snapshot) => {
+        set((state) => mapServerSnapshot(snapshot, state));
+        updatePerformanceMetric({
+          adRewardDeferredSyncMs: Date.now() - startedAt,
+        });
+        diagnosticLog("adReward", "deferred snapshot sync finished", {
+          elapsedMs: Date.now() - startedAt,
+        });
+      })
+      .catch((error) => {
+        diagnosticLog("adReward", "deferred snapshot sync failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+  });
+}
+
+function modalFromAdRewardResponse(response: ServerGameActionResponse): ModalState {
+  const display = response.display;
+  if (display?.kind === "forgeCollect") {
+    return {
+      kind: "forge_collect_complete",
+      gained: display.gained,
+      basePending: display.basePending,
+      usedAd: display.usedAd,
+    };
+  }
+  if (display?.kind === "sell") {
+    return {
+      kind: "sell_success",
+      info: display.info,
+    };
+  }
+  return null;
 }
 
 async function runAdRewardAction(params: {
@@ -491,6 +557,8 @@ async function runAdRewardAction(params: {
   get: () => GameStore;
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void;
   onApplied?: () => void;
+  onPatchSynced?: () => void;
+  onFailure?: () => void;
 }) {
   const renderStart = getRenderCount("ModalRoot");
   params.set({
@@ -521,7 +589,12 @@ async function runAdRewardAction(params: {
       onTiming: (event) => {
         const now = Date.now();
         diagnosticLog("adReward", event, { elapsedMs: now - completeStartedAt });
-        if (event === "rewarded_event") rewardedAt = now;
+        if (event === "rewarded_event") {
+          rewardedAt = now;
+          updatePerformanceMetric({
+            adRewardProviderRewardedEventMs: now - completeStartedAt,
+          });
+        }
         if (event === "complete_api_start") {
           completeApiStartedAt = now;
           updatePerformanceMetric({
@@ -546,12 +619,11 @@ async function runAdRewardAction(params: {
       adCompleteTotalMs: Date.now() - completeStartedAt,
     });
     params.onApplied?.();
-    const patchStartedAt = Date.now();
-    const nextPatch = patchFromServerAction(response, params.get());
+    const resultStartedAt = Date.now();
+    const nextModal = modalFromAdRewardResponse(response);
     updatePerformanceMetric({
-      adRewardPatchApplyMs: Date.now() - patchStartedAt,
+      adRewardResultDataCreateMs: Date.now() - resultStartedAt,
     });
-    const nextModal = nextPatch.modal;
     const modalStartedAt = Date.now();
     params.set({
       modal: nextModal,
@@ -560,25 +632,47 @@ async function runAdRewardAction(params: {
     });
     updatePerformanceMetric({
       adCompleteResponseToModalOpenMs: modalStartedAt - responseReceivedAt,
+      adRewardModalOpenRequestMs: modalStartedAt - responseReceivedAt,
     });
     requestAnimationFrame(() => {
       updatePerformanceMetric({
         adRewardModalOpenMs: Date.now() - modalStartedAt,
+        adCompleteTotalMs: Date.now() - completeStartedAt,
         renderCountDuringAdReward:
           getRenderCount("ModalRoot") - renderStart,
       });
     });
     if (response.patch) {
-      syncServerPatchDeferred(response.patch, params.get, params.set, "adReward");
+      updatePerformanceMetric({
+        adRewardDeferredSyncScheduledMs: Date.now() - responseReceivedAt,
+      });
+      syncServerPatchDeferred(
+        response.patch,
+        params.get,
+        params.set,
+        "adReward",
+        params.onPatchSynced,
+      );
     } else {
+      updatePerformanceMetric({
+        adRewardDeferredSyncScheduledMs: Date.now() - responseReceivedAt,
+      });
       syncServerSnapshotDeferred(
         response.snapshot,
         params.get,
         params.set,
         "adReward",
       );
+      params.onPatchSynced?.();
     }
+    syncLatestServerSnapshotDeferred(params.get, params.set);
+    scheduleAdRewardStatusRefreshAfterReward({
+      rewardType: params.request.rewardType,
+      relatedActionId:
+        params.request.targetWeaponInstanceId ?? params.request.relatedActionId,
+    });
   } catch (error) {
+    params.onFailure?.();
     playUiError();
     const message = serverErrorMessage(error);
     params.set({
@@ -610,6 +704,7 @@ export interface GameStore extends SaveDataV1 {
   /** beta mode 서버 액션 중복 클릭 방지 */
   serverActionPending: boolean;
   serverActionMessage: string | null;
+  pendingSellWeaponIds: string[];
   /** 개발 전용 — persist 제외 */
   devForceSuccess: boolean;
   syncFromServerPlayerMe: (snapshot: BetaPlayerSnapshot) => void;
@@ -794,6 +889,7 @@ export const useGameStore = create<GameStore>()(
       enhanceHammerPhase: 0 as 0 | 1 | 2 | 3,
       serverActionPending: false,
       serverActionMessage: null,
+      pendingSellWeaponIds: [] as string[],
       devForceSuccess: false,
 
       syncFromServerPlayerMe: (snapshot: BetaPlayerSnapshot) => {
@@ -927,6 +1023,7 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         const exists = state.ownedWeapons.some((w) => w.instanceId === instanceId);
         if (!exists) return;
+        if (state.pendingSellWeaponIds.includes(instanceId)) return;
         set({
           equippedWeaponId: instanceId,
           activeTab: "blacksmith",
@@ -941,6 +1038,9 @@ export const useGameStore = create<GameStore>()(
 
       requestSellWeapon: (instanceId: string) => {
         const state = get();
+        if (state.serverActionPending || state.pendingSellWeaponIds.includes(instanceId)) {
+          return;
+        }
         const w = state.ownedWeapons.find((x) => x.instanceId === instanceId);
         if (!w) return;
         if (state.ownedWeapons.length <= 1) {
@@ -984,8 +1084,19 @@ export const useGameStore = create<GameStore>()(
         const { instanceId } = modal;
         if (isBetaMode()) {
           const state = get();
-          if (state.serverActionPending) return;
+          if (
+            state.serverActionPending ||
+            state.pendingSellWeaponIds.includes(instanceId)
+          ) {
+            return;
+          }
           const actionMeta = newActionMeta();
+          set({
+            pendingSellWeaponIds: [...state.pendingSellWeaponIds, instanceId],
+            serverActionPending: true,
+            serverActionMessage:
+              mode === "adBonus" ? "광고 판매 처리 중..." : "판매 처리 중...",
+          });
           const action =
             mode === "adBonus"
               ? runAdRewardAction({
@@ -997,6 +1108,18 @@ export const useGameStore = create<GameStore>()(
                   get,
                   set,
                   onApplied: () => playSound("weaponSell"),
+                  onPatchSynced: () =>
+                    set((s) => ({
+                      pendingSellWeaponIds: s.pendingSellWeaponIds.filter(
+                        (id) => id !== instanceId,
+                      ),
+                    })),
+                  onFailure: () =>
+                    set((s) => ({
+                      pendingSellWeaponIds: s.pendingSellWeaponIds.filter(
+                        (id) => id !== instanceId,
+                      ),
+                    })),
                 })
               : sellWeaponApi({
                   ...actionMeta,
@@ -1007,9 +1130,13 @@ export const useGameStore = create<GameStore>()(
                   set({
                     ...patchFromServerAction(response, get()),
                     serverActionPending: false,
+                    serverActionMessage: null,
+                    pendingSellWeaponIds: get().pendingSellWeaponIds.filter(
+                      (id) => id !== instanceId,
+                    ),
                   });
+                  syncLatestServerSnapshotDeferred(get, set);
                 });
-          if (mode !== "adBonus") set({ serverActionPending: true });
           void action
             .then((response) => {
               void response;
@@ -1018,9 +1145,13 @@ export const useGameStore = create<GameStore>()(
               playUiError();
               set({
                 serverActionPending: false,
+                serverActionMessage: null,
+                pendingSellWeaponIds: get().pendingSellWeaponIds.filter(
+                  (id) => id !== instanceId,
+                ),
                 modal: {
                   kind: "server_error",
-                  message: serverErrorMessage(error),
+                  message: sellErrorMessage(error),
                 },
               });
             });
@@ -1098,6 +1229,13 @@ export const useGameStore = create<GameStore>()(
       },
 
       toggleWeaponLock: (instanceId: string) => {
+        const state = get();
+        if (
+          state.serverActionPending ||
+          state.pendingSellWeaponIds.includes(instanceId)
+        ) {
+          return;
+        }
         set((s) => ({
           ownedWeapons: s.ownedWeapons.map((w) =>
             w.instanceId === instanceId ? { ...w, locked: !w.locked } : w,
@@ -1109,6 +1247,7 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         const id = state.equippedWeaponId;
         if (!id) return;
+        if (state.pendingSellWeaponIds.includes(id)) return;
         const owned = state.ownedWeapons.find((w) => w.instanceId === id);
         if (!owned) return;
         const def = WEAPONS_BY_ID[owned.weaponId];
@@ -1158,6 +1297,7 @@ export const useGameStore = create<GameStore>()(
 
         const id = state.equippedWeaponId;
         if (!id) return false;
+        if (state.pendingSellWeaponIds.includes(id)) return false;
         const owned = state.ownedWeapons.find((w) => w.instanceId === id);
         if (!owned) return false;
         const def = WEAPONS_BY_ID[owned.weaponId];
@@ -1507,6 +1647,7 @@ export const useGameStore = create<GameStore>()(
         const state = get();
         const id = state.equippedWeaponId;
         if (!id) return;
+        if (state.pendingSellWeaponIds.includes(id)) return;
         const owned = state.ownedWeapons.find((w) => w.instanceId === id);
         if (!owned) return;
         const def = WEAPONS_BY_ID[owned.weaponId];
@@ -2053,6 +2194,7 @@ export const useGameStore = create<GameStore>()(
           enhanceHammerPhase: 0,
           serverActionPending: false,
           serverActionMessage: null,
+          pendingSellWeaponIds: [],
           devForceSuccess: false,
         });
       },
@@ -2117,6 +2259,9 @@ export const useGameStore = create<GameStore>()(
           isEnhancing: false,
           enhancePending: null,
           enhanceHammerPhase: 0,
+          serverActionPending: false,
+          serverActionMessage: null,
+          pendingSellWeaponIds: [],
         };
       },
       onRehydrateStorage: () => () => {},

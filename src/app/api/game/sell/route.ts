@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   return withApiLatency("api/game/sell", async () => {
-    const timer = createServerStepTimer("sell");
+    const timer = createServerStepTimer("sell", { slowStepMs: 700 });
 
     try {
       const auth = await timer.time("auth user 조회", () => requireSupabaseUser());

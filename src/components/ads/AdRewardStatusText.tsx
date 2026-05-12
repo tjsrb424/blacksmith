@@ -1,23 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAdRewardStatus } from "@/lib/ads/adRewardApi";
-import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import {
+  adRewardStatusCacheKey,
+  getCachedAdRewardStatusEntry,
+  refreshAdRewardStatusEntry,
+} from "@/lib/ads/adRewardStatusCache";
 import { getGameMode } from "@/lib/supabase/env";
 import type { AdRewardStatusEntry, AdRewardType } from "@/types/ads";
-
-const AD_STATUS_CACHE_TTL_MS = 60_000;
-
-type CacheEntry = {
-  expiresAt: number;
-  entry: AdRewardStatusEntry | null;
-};
-
-const statusCache = new Map<string, CacheEntry>();
-
-function cacheKey(rewardType: AdRewardType, relatedActionId?: string) {
-  return `${rewardType}:${relatedActionId ?? "none"}`;
-}
 
 function runWhenIdle(callback: () => void) {
   const requestIdle = window.requestIdleCallback;
@@ -32,10 +22,9 @@ export function AdRewardStatusText({
   rewardType: AdRewardType;
   relatedActionId?: string;
 }) {
-  const key = cacheKey(rewardType, relatedActionId);
+  const key = adRewardStatusCacheKey(rewardType, relatedActionId);
   const [entry, setEntry] = useState<AdRewardStatusEntry | null>(() => {
-    const cached = statusCache.get(key);
-    return cached && cached.expiresAt > Date.now() ? cached.entry : null;
+    return getCachedAdRewardStatusEntry(rewardType, relatedActionId);
   });
 
   useEffect(() => {
@@ -43,30 +32,10 @@ export function AdRewardStatusText({
     let active = true;
 
     const load = async () => {
-      const cached = statusCache.get(key);
-      if (cached && cached.expiresAt > Date.now()) {
-        updatePerformanceMetric({
-          adStatusCacheHit: true,
-        });
-        if (active) setEntry(cached.entry);
-        return;
-      }
-
       try {
-        const startedAt = Date.now();
-        updatePerformanceMetric({
-          adStatusCacheHit: false,
-        });
-        const status = await getAdRewardStatus({ relatedActionId });
-        const elapsedMs = Date.now() - startedAt;
-        updatePerformanceMetric({
-          adStatusFetchMs: elapsedMs,
-          adStatusRefreshMs: elapsedMs,
-        });
-        const nextEntry = status.rewards[rewardType] ?? null;
-        statusCache.set(key, {
-          entry: nextEntry,
-          expiresAt: Date.now() + AD_STATUS_CACHE_TTL_MS,
+        const nextEntry = await refreshAdRewardStatusEntry({
+          rewardType,
+          relatedActionId,
         });
         if (active) setEntry(nextEntry);
       } catch {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ModalRoot } from "@/components/modals/ModalRoot";
 import { BlacksmithScreen } from "@/components/screens/BlacksmithScreen";
@@ -21,7 +21,7 @@ import { getGameMode } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
-function DevTools() {
+function DevToolsPanel({ screen }: { screen: string }) {
   const addGold = useGameStore((s) => s.devAddGold);
   const addEmber = useGameStore((s) => s.devAddEmber);
   const addStone = useGameStore((s) => s.devAddStone);
@@ -31,112 +31,139 @@ function DevTools() {
   const forceSuccess = useGameStore((s) => s.devForceSuccess);
   const setForceSuccess = useGameStore((s) => s.devSetForceSuccess);
   const reset = useGameStore((s) => s.resetProgress);
-
-  const enabled =
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
-
-  if (!enabled) return null;
-  return (
-    <div className="fixed bottom-20 right-3 z-30 max-w-[260px] rounded-xl border border-dashed border-zinc-700 bg-black/80 p-3 text-[10px] text-zinc-400 backdrop-blur-sm">
-      <div className="mb-2 font-bold text-amber-600/90">DEV</div>
-      <button
-        type="button"
-        className={`mb-2 w-full rounded px-2 py-1 font-semibold ${
-          forceSuccess
-            ? "bg-emerald-900/70 text-emerald-200"
-            : "bg-zinc-800 text-zinc-400"
-        }`}
-        onClick={() => setForceSuccess(!forceSuccess)}
-      >
-        강화/초월 100% {forceSuccess ? "ON" : "OFF"}
-      </button>
-      <div className="flex flex-wrap gap-1">
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => addGold(100_000)}>
-          G+100k
-        </button>
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => addEmber(10_000)}>
-          E+10k
-        </button>
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => addStone(10)}>
-          S+10
-        </button>
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => addStone(100)}>
-          S+100
-        </button>
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => maxEnh()}>
-          +15
-        </button>
-        <button type="button" className="rounded bg-zinc-800 px-2 py-1" onClick={() => restoreDur()}>
-          내구
-        </button>
-        <button type="button" className="rounded bg-violet-950/50 px-2 py-1 text-violet-200" onClick={() => setTranscend(9)}>
-          ★9
-        </button>
-        <button type="button" className="rounded bg-violet-950/50 px-2 py-1 text-violet-200" onClick={() => setTranscend(10)}>
-          ★10
-        </button>
-        <button type="button" className="rounded bg-red-950/60 px-2 py-1 text-red-300" onClick={() => reset()}>
-          초기화
-        </button>
-      </div>
-    </div>
+  const [open, setOpen] = useState(() =>
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("blacksmith.devtools.open") === "true"
+      : false,
   );
-}
-
-function BetaPerformancePanel({ screen }: { screen: string }) {
-  const enabled =
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
+  const [tab, setTab] = useState<"metrics" | "cheats">("metrics");
   const metrics = useSyncExternalStore(
     subscribePerformanceMetrics,
     getPerformanceMetricSnapshot,
     getPerformanceMetricSnapshot,
   );
+  const enabled =
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
 
   if (!enabled) return null;
+
+  const setOpenPersisted = (next: boolean) => {
+    setOpen(next);
+    window.localStorage.setItem("blacksmith.devtools.open", String(next));
+  };
   const renderSummary = Object.entries(metrics.renderCounts ?? {})
     .slice(-8)
     .map(([name, count]) => `${name}:${count}`)
     .join(" ");
+  const metricRows = [
+    ["mode", getGameMode()],
+    ["screen", metrics.currentScreen ?? screen],
+    ["origin", metrics.origin ?? "-"],
+    ["auth", metrics.authStage ?? "-"],
+    ["auth elapsed", `${metrics.authStageElapsedMs ?? "-"}ms`],
+    ["api", metrics.apiName ?? "-"],
+    ["elapsed", `${metrics.elapsedMs ?? "-"}ms`],
+    ["error", metrics.errorCode ?? "-"],
+    ["bootstrap", `${metrics.bootstrapElapsedMs ?? "-"}ms`],
+    ["player sync", `${metrics.playerSyncElapsedMs ?? "-"}ms`],
+    ["store sync", `${metrics.lastStoreSyncElapsedMs ?? "-"}ms`],
+    ["tab", `${metrics.tabSwitchElapsedMs ?? "-"}ms`],
+    ["ranking", metrics.rankingCacheStatus ?? "-"],
+    [
+      "ad status",
+      metrics.adStatusCacheHit == null
+        ? "-"
+        : metrics.adStatusCacheHit
+          ? "hit"
+          : "miss",
+    ],
+    ["ad fetch", `${metrics.adStatusFetchMs ?? "-"}ms`],
+    ["ad complete", `${metrics.adRewardCompleteElapsedMs ?? "-"}ms`],
+    ["ad api", `${metrics.adCompleteApiMs ?? "-"}ms`],
+    ["ad modal", `${metrics.adRewardModalOpenMs ?? "-"}ms`],
+    ["enhance api", `${metrics.enhanceApiMs ?? "-"}ms`],
+    ["enhance modal", `${metrics.enhanceModalOpenMs ?? "-"}ms`],
+    ["renders", renderSummary || "-"],
+  ];
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 z-40 min-h-10 rounded-full border border-amber-500/35 bg-black/82 px-3 font-mono text-xs font-bold text-amber-200 shadow-xl backdrop-blur sm:bottom-5"
+        onClick={() => setOpenPersisted(true)}
+      >
+        DEV {metrics.elapsedMs ? `${metrics.elapsedMs}ms` : ""}
+      </button>
+    );
+  }
 
   return (
-    <div className="pointer-events-none fixed left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-40 max-h-[48vh] max-w-[280px] overflow-hidden rounded-lg border border-zinc-700/70 bg-black/75 p-2 font-mono text-[10px] leading-4 text-zinc-300 shadow-xl backdrop-blur">
-      <div>mode: {getGameMode()}</div>
-      <div>screen: {metrics.currentScreen ?? screen}</div>
-      <div>origin: {metrics.origin ?? "-"}</div>
-      <div>ua: {metrics.userAgentShort ?? "-"}</div>
-      <div>auth: {metrics.authStage ?? "-"}</div>
-      <div>auth elapsed: {metrics.authStageElapsedMs ?? "-"}ms</div>
-      <div>auth attempt: {metrics.authAttempt ?? "-"}</div>
-      <div>auth event: {metrics.lastAuthEvent ?? "-"}</div>
-      <div>auth error: {metrics.lastAuthError ?? "-"}</div>
-      <div>api: {metrics.apiName ?? "-"}</div>
-      <div>elapsed: {metrics.elapsedMs ?? "-"}ms</div>
-      <div>error: {metrics.errorCode ?? "-"}</div>
-      <div>bootstrap: {metrics.bootstrapElapsedMs ?? "-"}ms</div>
-      <div>player sync: {metrics.playerSyncElapsedMs ?? "-"}ms</div>
-      <div>store sync: {metrics.lastStoreSyncElapsedMs ?? "-"}ms</div>
-      <div>tab: {metrics.tabSwitchElapsedMs ?? "-"}ms</div>
-      <div>tab target: {metrics.tabTarget ?? "-"}</div>
-      <div>ranking cache: {metrics.rankingCacheStatus ?? "-"}</div>
-      <div>ranking fetch: {metrics.rankingFetchMs ?? "-"}ms</div>
-      <div>ad status: {metrics.adStatusCacheHit == null ? "-" : metrics.adStatusCacheHit ? "hit" : "miss"}</div>
-      <div>ad status fetch: {metrics.adStatusFetchMs ?? "-"}ms</div>
-      <div>ad complete: {metrics.adRewardCompleteElapsedMs ?? "-"}ms</div>
-      <div>ad total: {metrics.adCompleteTotalMs ?? "-"}ms</div>
-      <div>ad event-api: {metrics.adRewardEventToCompleteApiStartMs ?? "-"}ms</div>
-      <div>ad api: {metrics.adCompleteApiMs ?? "-"}ms</div>
-      <div>ad resp-modal: {metrics.adCompleteResponseToModalOpenMs ?? "-"}ms</div>
-      <div>ad patch: {metrics.adRewardPatchApplyMs ?? "-"}ms</div>
-      <div>ad modal: {metrics.adRewardModalOpenMs ?? "-"}ms</div>
-      <div>ad sync: {metrics.adRewardStoreSyncMs ?? "-"}ms</div>
-      <div>enhance total: {metrics.enhanceTotalMs ?? "-"}ms</div>
-      <div>enhance api: {metrics.enhanceApiMs ?? "-"}ms</div>
-      <div>enhance modal: {metrics.enhanceModalOpenMs ?? "-"}ms</div>
-      <div>enhance sync: {metrics.enhanceStoreSyncMs ?? "-"}ms</div>
-      <div>render tick: {metrics.renderTick ?? "-"}</div>
-      <div>renders: {renderSummary || "-"}</div>
+    <div className="fixed inset-x-2 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 max-h-[60dvh] overflow-hidden rounded-xl border border-zinc-700/70 bg-black/88 text-zinc-300 shadow-2xl backdrop-blur sm:inset-auto sm:bottom-5 sm:right-5 sm:w-[360px] sm:max-h-[70vh]">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
+        <div className="font-mono text-xs font-bold text-amber-200">DEV</div>
+        <button
+          type="button"
+          className="rounded-md bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-200"
+          onClick={() => setOpenPersisted(false)}
+        >
+          닫기
+        </button>
+      </div>
+      <div className="grid grid-cols-2 border-b border-zinc-800 text-xs font-semibold">
+        <button
+          type="button"
+          className={`py-2 ${tab === "metrics" ? "bg-zinc-800 text-amber-100" : "text-zinc-500"}`}
+          onClick={() => setTab("metrics")}
+        >
+          Metrics
+        </button>
+        <button
+          type="button"
+          className={`py-2 ${tab === "cheats" ? "bg-zinc-800 text-amber-100" : "text-zinc-500"}`}
+          onClick={() => setTab("cheats")}
+        >
+          Cheats
+        </button>
+      </div>
+      <div className="max-h-[calc(60dvh-5.5rem)] overflow-y-auto p-3 sm:max-h-[calc(70vh-5.5rem)]">
+        {tab === "metrics" ? (
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-[11px] leading-4">
+            {metricRows.map(([label, value]) => (
+              <div key={label} className="contents">
+                <span className="text-zinc-500">{label}</span>
+                <span className="truncate text-zinc-200">{value}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2 text-xs">
+            <button
+              type="button"
+              className={`w-full rounded px-2 py-2 font-semibold ${
+                forceSuccess
+                  ? "bg-emerald-900/70 text-emerald-200"
+                  : "bg-zinc-800 text-zinc-400"
+              }`}
+              onClick={() => setForceSuccess(!forceSuccess)}
+            >
+              강화/초월 100% {forceSuccess ? "ON" : "OFF"}
+            </button>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => addGold(100_000)}>G+100K</button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => addEmber(10_000)}>E+10K</button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => addStone(10)}>S+10</button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => addStone(100)}>S+100</button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => maxEnh()}>+15</button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={() => restoreDur()}>내구</button>
+              <button type="button" className="rounded bg-violet-950/50 px-2 py-2 text-violet-200" onClick={() => setTranscend(9)}>★9</button>
+              <button type="button" className="rounded bg-violet-950/50 px-2 py-2 text-violet-200" onClick={() => setTranscend(10)}>★10</button>
+              <button type="button" className="rounded bg-red-950/60 px-2 py-2 text-red-300" onClick={() => reset()}>초기화</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -167,10 +194,6 @@ export function GameRoot() {
     return row?.weaponId ?? null;
   });
 
-  /**
-   * persist 리하이드가 effect 구독보다 먼저 끝나면 onFinishHydration이 안 불릴 수 있음.
-   * hasHydrated는 queueMicrotask에서 확인해 레이스와 ESLint(set-state-in-effect) 모두 피함.
-   */
   useEffect(() => {
     const unlock = () => setHydrated(true);
     const unsub = useGameStore.persist.onFinishHydration(unlock);
@@ -257,7 +280,7 @@ export function GameRoot() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-center text-sm text-zinc-500">
         <div>
-          <p>저장 데이터 불러오는 중...</p>
+          <p>저장 데이터를 불러오는 중...</p>
           {hydrateSlow ? (
             <button
               type="button"
@@ -284,8 +307,7 @@ export function GameRoot() {
       <ModalRoot />
       <EnhanceAnimationOrchestrator />
       <ServerActionOverlay />
-      <DevTools />
-      <BetaPerformancePanel screen={tab} />
+      <DevToolsPanel screen={tab} />
     </>
   );
 }

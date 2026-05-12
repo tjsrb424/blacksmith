@@ -18,6 +18,8 @@ export function InventoryScreen() {
   useRenderDiagnostics("InventoryScreen");
   const owned = useGameStore((s) => s.ownedWeapons);
   const equippedId = useGameStore((s) => s.equippedWeaponId);
+  const serverActionPending = useGameStore((s) => s.serverActionPending);
+  const pendingSellWeaponIds = useGameStore((s) => s.pendingSellWeaponIds);
   const equip = useGameStore((s) => s.equipWeapon);
   const requestSellWeapon = useGameStore((s) => s.requestSellWeapon);
   const toggleWeaponLock = useGameStore((s) => s.toggleWeaponLock);
@@ -46,12 +48,15 @@ export function InventoryScreen() {
           const sell = calculateSaleGold(def, w);
           const rankVal = calculateRankingValue(def, w);
           const isEquipped = w.instanceId === equippedId;
+          const isPendingSell = pendingSellWeaponIds.includes(w.instanceId);
+          const isActionBlocked = serverActionPending || isPendingSell;
           return (
             <li key={w.instanceId}>
               <FantasyPanel
                 className={cn(
-                  "p-3 transition sm:p-4",
+                  "relative p-3 transition sm:p-4",
                   isEquipped && "border-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.12)]",
+                  isPendingSell && "opacity-70 ring-1 ring-orange-400/35",
                 )}
               >
                 <div className="flex flex-col gap-4">
@@ -61,8 +66,16 @@ export function InventoryScreen() {
                         <WeaponImage
                           src={def.imagePath}
                           alt={def.name}
-                          className="h-full w-full object-contain p-2"
+                          className={cn(
+                            "h-full w-full object-contain p-2 transition",
+                            isPendingSell && "scale-95 opacity-55",
+                          )}
                         />
+                        {isPendingSell ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+                            <div className="h-7 w-7 animate-spin rounded-full border-2 border-orange-200/25 border-t-orange-200" />
+                          </div>
+                        ) : null}
                       </div>
                       <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -100,12 +113,17 @@ export function InventoryScreen() {
                       <div className="text-[11px] text-zinc-600">
                         랭킹 가치 {formatGold(rankVal)}
                       </div>
+                      {isPendingSell ? (
+                        <div className="rounded-md bg-orange-950/35 px-2 py-1 text-xs font-semibold text-orange-200 ring-1 ring-orange-500/25">
+                          판매 처리 중...
+                        </div>
+                      ) : null}
                     </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2 sm:w-40">
                       <FantasyButton
                         variant={isEquipped ? "ghost" : "secondary"}
-                        disabled={isEquipped}
+                        disabled={isEquipped || isActionBlocked}
                         className="min-h-12 w-full"
                         onClick={() => equip(w.instanceId)}
                       >
@@ -114,6 +132,7 @@ export function InventoryScreen() {
                       <FantasyButton
                         variant="muted"
                         className="min-h-11 w-full text-xs"
+                        disabled={isActionBlocked}
                         onClick={() => toggleWeaponLock(w.instanceId)}
                       >
                         {w.locked ? "잠금 해제" : "잠금"}
@@ -124,7 +143,7 @@ export function InventoryScreen() {
                     <FantasyButton
                       variant="accent"
                       className="min-h-12 flex-1 sm:max-w-xs"
-                      disabled={w.durability <= 0 || isLastWeapon}
+                      disabled={w.durability <= 0 || isLastWeapon || isActionBlocked}
                       title={
                         isLastWeapon
                           ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
@@ -132,7 +151,7 @@ export function InventoryScreen() {
                       }
                       onClick={() => requestSellWeapon(w.instanceId)}
                     >
-                      판매
+                      {isPendingSell ? "판매 중..." : "판매"}
                     </FantasyButton>
                   </div>
                 </div>
