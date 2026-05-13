@@ -25,7 +25,7 @@ export function ResourcePill({
   return (
     <div
       className={cn(
-        "grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-lg border border-amber-700/30 bg-black/32 px-1.5 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.16)]",
+        "grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-lg border border-amber-700/28 bg-[rgba(8,6,4,0.62)] px-1.5 py-1.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.06),0_8px_24px_rgba(0,0,0,0.18)] ring-1 ring-black/20 backdrop-blur-[1px]",
       )}
       title={`${label} ${fullValue}`}
       aria-label={`${label} ${fullValue}`}
@@ -37,7 +37,7 @@ export function ResourcePill({
         <div className="truncate text-[10px] font-semibold leading-none text-zinc-500">
           {displayLabel}
         </div>
-        <div className="numeric-value mt-1 truncate font-mono text-[13px] font-bold leading-none text-amber-100">
+        <div className="numeric-value mt-1 truncate font-mono text-[13px] font-black leading-none text-amber-100">
           {displayValue}
         </div>
       </div>
@@ -48,7 +48,7 @@ export function ResourcePill({
             if (e.button === 0) playUiClick();
           }}
           onClick={onPlus}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-600/20 text-sm font-bold text-amber-200 ring-1 ring-amber-500/40 hover:bg-amber-500/30"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-amber-500/24 bg-amber-600/18 text-sm font-black text-amber-100 shadow-[inset_0_1px_0_rgba(251,191,36,0.14)] ring-1 ring-black/20 hover:bg-amber-500/28"
           aria-label={`${label} mock reward`}
         >
           +

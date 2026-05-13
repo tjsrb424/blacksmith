@@ -7,6 +7,7 @@ import { FantasyPanel } from "@/components/ui/FantasyPanel";
 import { FantasyButton } from "@/components/ui/FantasyButton";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { WeaponImage } from "@/components/ui/WeaponImage";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { BlacksmithResultFx } from "@/components/effects/BlacksmithResultFx";
 import type { BlacksmithFxKind } from "@/components/effects/BlacksmithResultFx";
 import { ForgeGlow, type ForgeAuraMode } from "@/components/effects/ForgeGlow";
@@ -224,22 +225,22 @@ export function BlacksmithScreen() {
                 {transcendLevel >= 1 ? ` ★${transcendLevel}` : ""}
               </motion.div>
               {rankingCandidate ? (
-                <span className="mt-1 inline-block rounded-full bg-indigo-600/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-100 ring-1 ring-indigo-400/40">
+                <StatusBadge tone="ranking" className="mt-1 px-1.5 text-[9px]">
                   기록 후보
-                </span>
+                </StatusBadge>
               ) : null}
               {isMaxEnhance && transcendLevel === 0 ? (
-                <span className="mt-1.5 inline-block rounded-full bg-violet-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-200 ring-1 ring-violet-500/45">
+                <StatusBadge tone="transcend" className="mt-1.5">
                   초월 가능
-                </span>
+                </StatusBadge>
               ) : null}
               {isMaxEnhance && transcendLevel >= 10 ? (
-                <span className="mt-1.5 inline-block rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-100 ring-1 ring-amber-400/55">
+                <StatusBadge tone="recommended" className="mt-1.5">
                   최종 초월 달성
-                </span>
+                </StatusBadge>
               ) : null}
               {durability <= 1 && equipped && equipped.durability > 0 ? (
-                <p className="mt-1 rounded-lg bg-red-950/45 px-2.5 py-1 text-[10px] font-semibold text-red-200 ring-1 ring-red-500/35">
+                <p className="mt-1 rounded-lg border border-red-500/24 bg-red-950/42 px-2.5 py-1 text-[10px] font-semibold text-red-200 ring-1 ring-red-500/18">
                   위험: 다음 실패 시 파괴 가능
                 </p>
               ) : null}
@@ -385,7 +386,7 @@ export function BlacksmithScreen() {
             <p className="font-semibold text-amber-100/90">최종 초월 달성</p>
             <p className="text-xs">★10 — 더 이상 초월할 수 없습니다.</p>
             <FantasyButton
-              variant="accent"
+              variant="danger"
               className="min-h-12 w-full focus-visible:ring-2 focus-visible:ring-amber-400/80"
               disabled={durability <= 0 || isEnhancing || isLastWeapon || serverActionPending}
               title={
@@ -401,35 +402,35 @@ export function BlacksmithScreen() {
         ) : (
           <div className="space-y-4">
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between gap-2">
+              <div className="stat-row">
                 <dt className="text-zinc-500">현재</dt>
-                <dd className="font-mono text-violet-200">
+                <dd className="numeric-value font-mono text-violet-200">
                   ★{transcendLevel}
                 </dd>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="stat-row">
                 <dt className="text-zinc-500">다음</dt>
-                <dd className="font-mono text-fuchsia-200">★{nextStar}</dd>
+                <dd className="numeric-value font-mono text-fuchsia-200">★{nextStar}</dd>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="stat-row">
                 <dt className="text-zinc-500">성공률</dt>
-                <dd className="font-mono text-emerald-300">
+                <dd className="numeric-value font-mono text-emerald-300">
                   {formatPercent(nextTranscendRate)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="stat-row">
                 <dt className="text-zinc-500">필요 초월석</dt>
-                <dd className="font-mono text-violet-200">
+                <dd className="numeric-value font-mono text-violet-200">
                   {formatInt(nextTranscendCost)}개 (보유 {formatInt(transcendStone)})
                 </dd>
               </div>
-              <div className="flex justify-between gap-2">
+              <div className="stat-row">
                 <dt className="text-zinc-500">실패 시</dt>
-                <dd className="text-xs text-zinc-400">내구도 -1 · 단계 유지</dd>
+                <dd className="whitespace-nowrap text-right text-xs text-zinc-400">내구도 -1 · 단계 유지</dd>
               </div>
-              <div className="flex justify-between gap-2 border-t border-zinc-800 pt-2">
+              <div className="stat-row border-t border-zinc-800 pt-2">
                 <dt className="text-zinc-500">예상 랭킹 가치</dt>
-                <dd className="font-mono text-xs text-emerald-300/95">
+                <dd className="numeric-value font-mono text-xs text-emerald-300/95">
                   {formatGold(previewNext)}
                 </dd>
               </div>
@@ -440,7 +441,7 @@ export function BlacksmithScreen() {
               </p>
             ) : null}
             <FantasyButton
-              className="min-h-14 w-full bg-gradient-to-b from-violet-600 to-indigo-950 text-amber-50 shadow-[0_0_20px_rgba(139,92,246,0.35)] ring-1 ring-violet-400/40 hover:from-violet-500 hover:to-indigo-900 focus-visible:ring-2 focus-visible:ring-violet-300/90"
+              className="min-h-14 w-full border-violet-400/35 bg-gradient-to-b from-violet-600 to-indigo-950 text-amber-50 shadow-[0_0_20px_rgba(139,92,246,0.35)] ring-1 ring-violet-400/40 hover:from-violet-500 hover:to-indigo-900 focus-visible:ring-2 focus-visible:ring-violet-300/90"
               disabled={!canTranscend || durability <= 0 || isEnhancing || serverActionPending}
               onClick={() => requestTranscend()}
             >
@@ -461,7 +462,7 @@ export function BlacksmithScreen() {
   );
 
   return (
-    <div className="relative mx-auto flex w-full flex-1 flex-col gap-3 px-3 pb-5 pt-3">
+    <div className="relative mx-auto flex w-full flex-1 flex-col gap-3 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+16px)] pt-3">
       <ScreenBackground screen="blacksmith" />
 
       <div className="relative z-10 grid grid-cols-1 gap-3">
@@ -476,7 +477,7 @@ export function BlacksmithScreen() {
       {def && equipped ? (
         <div className="relative z-10 order-last flex flex-col gap-2 border-t border-zinc-800/70 pt-4">
             <FantasyButton
-              variant="accent"
+              variant="danger"
               className="min-h-12 flex-1 focus-visible:ring-2 focus-visible:ring-amber-400/80"
               disabled={
                 !equipped ||

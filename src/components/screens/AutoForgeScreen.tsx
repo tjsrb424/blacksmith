@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FantasyPanel } from "@/components/ui/FantasyPanel";
 import { FantasyButton } from "@/components/ui/FantasyButton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ForgeEmberParticles } from "@/components/effects/ForgeEmberParticles";
 import { CURRENCY_ICONS } from "@/data/assets";
 import { forgeUpgradeCostGold } from "@/data/balance";
@@ -93,7 +94,7 @@ export function AutoForgeScreen() {
   const full = snap.isFull;
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-5 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+16px)] pt-6">
       <ScreenBackground screen="forge" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]">
@@ -140,7 +141,7 @@ export function AutoForgeScreen() {
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/65">
               미수령 불씨
             </div>
-            <div className="mx-auto mt-1 max-w-full overflow-hidden text-center font-mono text-5xl font-black tabular-nums text-orange-200 drop-shadow-[0_0_24px_rgba(251,146,60,0.42)]">
+            <div className="numeric-value mx-auto mt-1 max-w-full text-center font-mono text-5xl font-black text-orange-200 drop-shadow-[0_0_24px_rgba(251,146,60,0.42)]">
               {formatInt(pending)}
             </div>
           </div>
@@ -182,8 +183,8 @@ export function AutoForgeScreen() {
             </FantasyButton>
             {isRewardAdDisabled ? (
               <div className="rounded-xl border border-zinc-800/80 bg-black/24 px-3 py-3 text-center ring-1 ring-zinc-900/60">
-                <div className="text-xs font-semibold text-zinc-400">
-                  광고 보상은 아직 이용할 수 없습니다
+                <div className="flex justify-center">
+                  <StatusBadge tone="pending">광고 준비 중</StatusBadge>
                 </div>
                 <div className="mt-1 text-[11px] text-zinc-600">
                   기본 수령은 정상 이용 가능합니다.
@@ -275,7 +276,9 @@ export function AutoForgeScreen() {
             {forgeLevel >= 10 ? "최대 레벨" : "업그레이드"}
           </FantasyButton>
           {!canAffordUpgrade && forgeLevel < 10 ? (
-            <p className="text-center text-xs text-red-400/95">골드가 부족합니다</p>
+            <div className="flex justify-center">
+              <StatusBadge tone="shortage">골드 부족</StatusBadge>
+            </div>
           ) : null}
         </FantasyPanel>
       </div>

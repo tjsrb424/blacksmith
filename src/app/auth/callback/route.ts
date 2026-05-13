@@ -1,28 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+function safeNext(value: string | null) {
+  if (value && value.startsWith("/") && !value.startsWith("//")) return value;
+  return "/play";
+}
+
+function loginUrl(requestUrl: string, authError: string) {
+  const url = new URL("/play", requestUrl);
+  url.searchParams.set("auth_error", authError);
+  return url;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const oauthError =
     requestUrl.searchParams.get("error_description") ??
     requestUrl.searchParams.get("error");
-  const nextParam = requestUrl.searchParams.get("next");
-  const next =
-    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
-      ? nextParam
-      : "/";
+  const next = safeNext(requestUrl.searchParams.get("next"));
 
   if (oauthError) {
-    const url = new URL("/", request.url);
-    url.searchParams.set("auth_error", "oauth_failed");
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(loginUrl(request.url, "oauth_failed"));
   }
 
   if (!code) {
-    return NextResponse.redirect(
-      new URL("/?auth_error=missing_code", request.url),
-    );
+    return NextResponse.redirect(loginUrl(request.url, "missing_code"));
   }
 
   try {
@@ -30,18 +33,19 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
-      const url = new URL("/", request.url);
-      url.searchParams.set("auth_error", error.message);
-      return NextResponse.redirect(url);
+      const message = error.message.toLowerCase().includes("code verifier")
+        ? "missing_code"
+        : error.message;
+      return NextResponse.redirect(loginUrl(request.url, message));
     }
 
     return NextResponse.redirect(new URL(next, request.url));
   } catch (error) {
-    const url = new URL("/", request.url);
-    url.searchParams.set(
-      "auth_error",
-      error instanceof Error ? error.message : "auth_callback_failed",
+    return NextResponse.redirect(
+      loginUrl(
+        request.url,
+        error instanceof Error ? error.message : "auth_callback_failed",
+      ),
     );
-    return NextResponse.redirect(url);
   }
 }

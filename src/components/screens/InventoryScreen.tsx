@@ -2,6 +2,7 @@
 
 import { FantasyButton } from "@/components/ui/FantasyButton";
 import { FantasyPanel } from "@/components/ui/FantasyPanel";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DurabilityIcons } from "@/components/ui/DurabilityIcons";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { WeaponImage } from "@/components/ui/WeaponImage";
@@ -32,11 +33,11 @@ export function InventoryScreen() {
   const isLastWeapon = owned.length <= 1;
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-5 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+16px)] pt-6">
       <ScreenBackground screen="inventory" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50">보관함</h2>
-        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-700/24 bg-black/24 px-3 py-1 text-xs text-zinc-400 ring-1 ring-zinc-900/60">
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-700/24 bg-[rgba(8,6,4,0.56)] px-3 py-1 text-xs text-zinc-400 ring-1 ring-black/20">
           <span className="text-zinc-500">정렬</span>
           <span className="font-semibold text-amber-100/90">가치 높은 순</span>
         </div>
@@ -95,14 +96,14 @@ export function InventoryScreen() {
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span className="min-w-0 break-words font-semibold leading-snug text-zinc-100">{def.name}</span>
                         {w.locked ? (
-                          <span className="rounded-full bg-red-950/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-300 ring-1 ring-red-500/40">
+                          <StatusBadge tone="locked">
                             잠금됨
-                          </span>
+                          </StatusBadge>
                         ) : null}
                         {isEquipped ? (
-                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200 ring-1 ring-amber-500/40">
+                          <StatusBadge tone="equipped">
                             장착중
-                          </span>
+                          </StatusBadge>
                         ) : null}
                       </div>
                       <div className="text-xs text-zinc-500">
@@ -115,9 +116,9 @@ export function InventoryScreen() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {w.enhanceLevel >= 15 && w.transcendLevel === 0 && w.durability > 0 ? (
-                          <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-200 ring-1 ring-violet-500/40">
+                          <StatusBadge tone="transcend">
                             초월 가능
-                          </span>
+                          </StatusBadge>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -128,14 +129,12 @@ export function InventoryScreen() {
                         랭킹 가치 {formatGold(rankVal)}
                       </div>
                       {cannotSellReason && !isPendingSell ? (
-                        <div className="rounded-md bg-zinc-950/60 px-2 py-1 text-xs font-semibold text-zinc-400 ring-1 ring-zinc-700/60">
+                        <div className="rounded-md border border-zinc-700/45 bg-zinc-950/60 px-2 py-1 text-xs font-semibold text-zinc-400 ring-1 ring-black/20">
                           {cannotSellReason}
                         </div>
                       ) : null}
                       {isPendingSell ? (
-                        <div className="rounded-md bg-orange-950/35 px-2 py-1 text-xs font-semibold text-orange-200 ring-1 ring-orange-500/25">
-                          판매 처리 중...
-                        </div>
+                        <StatusBadge tone="pending">판매 처리 중...</StatusBadge>
                       ) : null}
                     </div>
                     <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
@@ -159,7 +158,7 @@ export function InventoryScreen() {
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-2 border-t border-zinc-800 pt-3">
                     <FantasyButton
-                      variant={cannotSellReason ? "muted" : "accent"}
+                      variant={cannotSellReason ? "muted" : "danger"}
                       className="min-h-12 w-full min-w-0"
                       disabled={!!cannotSellReason || isActionBlocked}
                       title={cannotSellReason ?? undefined}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { buyWeaponServer } from "@/lib/server/gameActionService";
+import { buyWeaponRpc } from "@/lib/server/hotMutationRpc";
+import { attachMutationDebugHeaders } from "@/lib/server/mutationResponse";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -24,9 +26,14 @@ export async function POST(request: NextRequest) {
       const payload = (await timer.time("request parse", () =>
         request.json(),
       )) as BuyActionRequest;
-      const result = await buyWeaponServer(auth.user, payload, { timer });
+      const result = await buyWeaponRpc(
+        auth.user,
+        payload,
+        () => buyWeaponServer(auth.user, payload, { timer }),
+        timer,
+      );
       const response = timer.timeSync("response serialize", () =>
-        NextResponse.json(result),
+        attachMutationDebugHeaders(NextResponse.json(result), result),
       );
 
       return attachServerTiming(response, timer.finish());

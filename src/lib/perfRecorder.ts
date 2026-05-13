@@ -43,9 +43,19 @@ export type PerfEvent = {
   adProvider?: string;
   displayAdProvider?: string;
   sideBannerAdsEnabled?: boolean;
+  sideAdProvider?: string;
+  adfitSideAdsEnabled?: boolean;
+  adfitScriptLoaded?: boolean;
+  adfitMountedLeft?: boolean;
+  adfitMountedRight?: boolean;
+  sideRailMounted?: boolean;
   adStatusApiCalled?: boolean;
   adSdkLoaded?: boolean;
   adFetchSkippedReason?: string;
+  mutationPath?: string;
+  rpcName?: string;
+  rpcApplied?: boolean;
+  fallbackAllowed?: boolean;
 };
 
 export type PerfSummaryRow = {
@@ -229,6 +239,29 @@ function adSkippedReason(actionName?: string) {
   return undefined;
 }
 
+function isAdFitScriptLoaded() {
+  if (typeof document === "undefined") return false;
+  return Boolean(
+    document.querySelector(
+      'script[src*="kakaocdn.net/kas/static/ba.min.js"],script[data-adfit-side-rail="true"]',
+    ),
+  );
+}
+
+function isAdFitSlotMounted(slotName: "side-banner-left" | "side-banner-right") {
+  if (typeof document === "undefined") return false;
+  return Boolean(
+    document.querySelector(
+      `[data-adfit-slot="${slotName}"] ins.kakao_ad_area[data-ad-unit]`,
+    ),
+  );
+}
+
+function isSideRailMounted() {
+  if (typeof document === "undefined") return false;
+  return Boolean(document.querySelector("[data-side-rail]"));
+}
+
 export function recordPerfEvent(
   event: Omit<
     PerfEvent,
@@ -247,6 +280,7 @@ export function recordPerfEvent(
   const list = getEventsMutable();
   const size = viewport();
   const configuredAdProvider = getConfiguredAdProvider();
+  const sideAdProvider = process.env.NEXT_PUBLIC_SIDE_AD_PROVIDER ?? "disabled";
   const actionName = event.actionName;
   const next: PerfEvent = {
     ...event,
@@ -264,7 +298,15 @@ export function recordPerfEvent(
     displayAdProvider: process.env.NEXT_PUBLIC_DISPLAY_AD_PROVIDER ?? "disabled",
     sideBannerAdsEnabled:
       process.env.NEXT_PUBLIC_SIDE_BANNER_ADS_ENABLED === "true",
-    adSdkLoaded: typeof window !== "undefined" ? Boolean(window.googletag) : false,
+    sideAdProvider,
+    adfitSideAdsEnabled:
+      process.env.NEXT_PUBLIC_ADFIT_SIDE_ADS_ENABLED === "true",
+    adfitScriptLoaded: isAdFitScriptLoaded(),
+    adfitMountedLeft: isAdFitSlotMounted("side-banner-left"),
+    adfitMountedRight: isAdFitSlotMounted("side-banner-right"),
+    sideRailMounted: isSideRailMounted(),
+    adSdkLoaded:
+      typeof window !== "undefined" ? "googletag" in window : false,
     adFetchSkippedReason:
       event.adFetchSkippedReason ?? adSkippedReason(actionName),
   };
@@ -364,6 +406,15 @@ export function perfEventsToCsv(sourceEvents: readonly PerfEvent[]) {
     "error",
     "adStatus",
     "adProvider",
+    "sideAdProvider",
+    "adfitSideAdsEnabled",
+    "adfitScriptLoaded",
+    "adfitMountedLeft",
+    "adfitMountedRight",
+    "sideRailMounted",
+    "mutationPath",
+    "rpcName",
+    "rpcApplied",
     "adStatusApiCalled",
     "adFetchSkippedReason",
     "viewportWidth",

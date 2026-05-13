@@ -1,5 +1,4 @@
 import {
-  getPlayerRecord as fetchPlayerRecord,
   getWeeklyRanking as fetchWeeklyRanking,
   getWorldRecords as fetchWorldRecords,
   submitRankingCandidate as postRankingCandidate,
@@ -136,22 +135,17 @@ export class ServerRankingAdapter implements RankingAdapter {
     seasonId: string,
     context: RankingAdapterContext,
   ): Promise<PlayerRecordAdapterResult> {
-    try {
-      return {
-        source: this.id,
-        record: await cached(
-          `record:${seasonId}:${playerId}`,
-          () => fetchPlayerRecord(playerId, seasonId),
-        ),
-      };
-    } catch (error) {
-      const fallback = await this.fallback.getPlayerRecord(
+    return {
+      source: this.id,
+      record: {
         playerId,
         seasonId,
-        context,
-      );
-      return withFallbackSource(fallback, error);
-    }
+        records: context.records,
+        weeklySeasonStats: context.weeklySeasonStats,
+        bestWeaponSnapshot: context.bestWeaponSnapshot,
+        serverCalculatedAt: new Date().toISOString(),
+      },
+    };
   }
 
   async submitRankingCandidate(

@@ -80,7 +80,7 @@ export function LoginScreen({ error, authGateMode = "optional" }: LoginScreenPro
     }
 
     setGoogleLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=/play`;
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
@@ -115,7 +115,7 @@ export function LoginScreen({ error, authGateMode = "optional" }: LoginScreenPro
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: normalizedEmail,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/play`,
       },
     });
 

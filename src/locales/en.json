@@ -1,0 +1,36 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "close": "Close",
+    "settings": "Settings",
+    "language": "Language"
+  },
+  "nav": {
+    "blacksmith": "Blacksmith",
+    "shop": "Shop",
+    "forge": "Forge",
+    "inventory": "Inventory",
+    "ranking": "Ranking"
+  },
+  "blacksmith": {
+    "enhance": "Enhance",
+    "enhanceCost": "Enhancement Cost",
+    "success": "Success",
+    "fail": "Fail",
+    "destroyed": "Destroyed"
+  },
+  "shop": {
+    "buy": "Buy",
+    "notEnoughGold": "Not enough gold"
+  },
+  "inventory": {
+    "sell": "Sell",
+    "empty": "Inventory is empty"
+  },
+  "ranking": {
+    "weekly": "Weekly",
+    "world": "World",
+    "myRank": "My Rank"
+  }
+}

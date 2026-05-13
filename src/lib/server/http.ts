@@ -18,6 +18,20 @@ type ErrorBody = {
   details?: string;
 };
 
+type MutationDiagnostics = {
+  mutationPath?: string;
+  rpcName?: string;
+  rpcApplied?: boolean;
+  fallbackAllowed?: boolean;
+};
+
+type BodyWithDebug = {
+  debug?: MutationDiagnostics;
+  data?: {
+    debug?: MutationDiagnostics;
+  };
+};
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -33,6 +47,39 @@ export function getServerApiBase(): string {
   return process.env.NEXT_PUBLIC_SERVER_API_BASE_URL ?? DEFAULT_API_BASE;
 }
 
+function parseBooleanHeader(value: string | null): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+function getBodyMutationDiagnostics(body: unknown): MutationDiagnostics {
+  if (!body || typeof body !== "object") return {};
+  const candidate = body as BodyWithDebug;
+  return candidate.debug ?? candidate.data?.debug ?? {};
+}
+
+function getMutationDiagnostics(
+  response: Response | undefined,
+  body?: unknown,
+): MutationDiagnostics {
+  const fromBody = getBodyMutationDiagnostics(body);
+  return {
+    mutationPath:
+      response?.headers.get("x-blacksmith-mutation-path") ??
+      fromBody.mutationPath,
+    rpcName:
+      response?.headers.get("x-blacksmith-rpc-name") ?? fromBody.rpcName,
+    rpcApplied:
+      parseBooleanHeader(response?.headers.get("x-blacksmith-rpc-applied") ?? null) ??
+      fromBody.rpcApplied,
+    fallbackAllowed:
+      parseBooleanHeader(
+        response?.headers.get("x-blacksmith-rpc-fallback-allowed") ?? null,
+      ) ?? fromBody.fallbackAllowed,
+  };
+}
+
 export async function requestJson<T>(
   path: string,
   init?: RequestInit & { timeoutMs?: number; apiName?: string },
@@ -45,7 +92,11 @@ export async function requestJson<T>(
   const startedAt = Date.now();
   const timeoutId = setTimeout(() => controller.abort("timeout"), timeoutMs);
 
-  const recordApiEvent = (elapsedMs: number, error?: string) => {
+  const recordApiEvent = (
+    elapsedMs: number,
+    error?: string,
+    diagnostics: MutationDiagnostics = {},
+  ) => {
     const actionName = perfActionNameFromApi(apiName);
     recordPerfEvent({
       screen: getPerformanceMetricSnapshot().currentScreen ?? "unknown",
@@ -57,6 +108,10 @@ export async function requestJson<T>(
       enhanceApiMs: actionName === "enhance" ? elapsedMs : undefined,
       error: error ?? "",
       adStatusApiCalled: actionName === "ad_status",
+      mutationPath: diagnostics.mutationPath,
+      rpcName: diagnostics.rpcName,
+      rpcApplied: diagnostics.rpcApplied,
+      fallbackAllowed: diagnostics.fallbackAllowed,
     });
   };
 
@@ -131,18 +186,23 @@ export async function requestJson<T>(
       elapsedMs: Date.now() - startedAt,
       errorCode: code,
     });
-    recordApiEvent(Date.now() - startedAt, code);
+    recordApiEvent(
+      Date.now() - startedAt,
+      code,
+      getMutationDiagnostics(response, body),
+    );
     throw new ApiRequestError(message, response.status, code, details);
   }
 
   if (body && typeof body === "object" && "ok" in body) {
     if (body.ok) {
+      const elapsedMs = Date.now() - startedAt;
       updatePerformanceMetric({
         apiName,
-        elapsedMs: Date.now() - startedAt,
+        elapsedMs,
         errorCode: undefined,
       });
-      recordApiEvent(Date.now() - startedAt);
+      recordApiEvent(elapsedMs, undefined, getMutationDiagnostics(response, body));
       return body.data;
     }
     throw new Error(body.message);
@@ -152,11 +212,12 @@ export async function requestJson<T>(
     throw new Error("Empty API response");
   }
 
+  const elapsedMs = Date.now() - startedAt;
   updatePerformanceMetric({
     apiName,
-    elapsedMs: Date.now() - startedAt,
+    elapsedMs,
     errorCode: undefined,
   });
-  recordApiEvent(Date.now() - startedAt);
+  recordApiEvent(elapsedMs, undefined, getMutationDiagnostics(response, body));
   return body as T;
 }

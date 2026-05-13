@@ -1,0 +1,36 @@
+{
+  "common": {
+    "ok": "確認",
+    "cancel": "取消",
+    "close": "關閉",
+    "settings": "設定",
+    "language": "語言"
+  },
+  "nav": {
+    "blacksmith": "鐵匠鋪",
+    "shop": "商店",
+    "forge": "鍛造爐",
+    "inventory": "倉庫",
+    "ranking": "排行榜"
+  },
+  "blacksmith": {
+    "enhance": "強化",
+    "enhanceCost": "強化費用",
+    "success": "成功",
+    "fail": "失敗",
+    "destroyed": "破壞"
+  },
+  "shop": {
+    "buy": "購買",
+    "notEnoughGold": "金幣不足"
+  },
+  "inventory": {
+    "sell": "出售",
+    "empty": "倉庫是空的"
+  },
+  "ranking": {
+    "weekly": "每週",
+    "world": "世界",
+    "myRank": "我的排名"
+  }
+}

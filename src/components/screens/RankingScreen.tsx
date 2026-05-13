@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useBetaPlayer } from "@/components/auth/AuthGate";
 import { FantasyPanel } from "@/components/ui/FantasyPanel";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { formatGold, formatInt } from "@/lib/format";
 import { getGameMode, type PlayerRecordAdapterResult, type WeeklyRankingAdapterResult, type WorldRecordsAdapterResult } from "@/lib/ranking/rankingAdapter";
@@ -32,6 +32,40 @@ function formatScore(cat: RankingCategory, row: RankingRowDisplay): string {
     return formatGold(row.score);
   }
   return formatInt(Math.round(row.score));
+}
+
+const EMPTY_HOLDER_LABEL = "아직 기록 없음";
+
+function isEmptyHolder(name: string): boolean {
+  return name.trim() === EMPTY_HOLDER_LABEL;
+}
+
+function hasWorldWeaponRecord(record: {
+  weaponName: string;
+  rankingValue: number;
+  holderName: string;
+}): boolean {
+  return (
+    record.rankingValue > 0 &&
+    record.weaponName !== "-" &&
+    !isEmptyHolder(record.holderName)
+  );
+}
+
+function hasWorldSaleRecord(record: {
+  gold: number;
+  weaponName: string;
+  holderName: string;
+}): boolean {
+  return (
+    record.gold > 0 &&
+    record.weaponName !== "-" &&
+    !isEmptyHolder(record.holderName)
+  );
+}
+
+function hasWorldCountRecord(record: { value: number; holderName: string }): boolean {
+  return record.value > 0 && !isEmptyHolder(record.holderName);
 }
 
 function RankBadge({ rank }: { rank: number }) {
@@ -170,18 +204,22 @@ export function RankingScreen() {
       : "—";
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-6 px-3 pb-5 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+24px)] pt-5">
       <ScreenBackground screen="ranking" />
-      <header className="relative z-10 space-y-2">
-        <h2 className="text-xl font-bold text-amber-50">랭킹</h2>
-        <p className="text-sm text-zinc-400">이번 시즌 기록과 월드레코드를 확인하세요.</p>
+      <header className="relative z-10 space-y-1.5">
+        <h2 className="text-2xl font-black tracking-wide text-amber-50 drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)]">
+          랭킹
+        </h2>
+        <p className="text-sm font-medium text-zinc-300/90">
+          이번 시즌 기록과 월드 레코드를 확인하세요.
+        </p>
       </header>
 
-      <div className="relative z-10 flex gap-2 overflow-x-auto rounded-xl bg-[rgba(6,8,14,0.68)] p-1 ring-1 ring-amber-900/38 backdrop-blur-[1px]">
+      <div className="relative z-10 grid grid-cols-3 gap-1 rounded-xl border border-amber-700/25 bg-[rgba(8,6,4,0.76)] p-1 shadow-[inset_0_1px_0_rgba(251,191,36,0.08),0_12px_28px_rgba(0,0,0,0.24)] ring-1 ring-black/30 backdrop-blur-[2px]">
         {(
           [
             ["weekly", "주간 랭킹"],
-            ["world", "월드레코드"],
+            ["world", "월드 레코드"],
             ["me", "내 기록"],
           ] as const
         ).map(([id, label]) => (
@@ -189,10 +227,10 @@ export function RankingScreen() {
             key={id}
             type="button"
             onClick={() => setSub(id)}
-            className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+            className={`min-w-0 whitespace-nowrap rounded-lg px-2 py-2.5 text-center text-sm font-bold transition ${
               sub === id
-                ? "bg-amber-600/25 text-amber-50 ring-1 ring-amber-500/45"
-                : "text-zinc-400 hover:text-zinc-200"
+                ? "bg-gradient-to-b from-amber-500/28 to-amber-900/28 text-amber-50 shadow-[0_0_18px_rgba(245,158,11,0.12)] ring-1 ring-amber-400/45"
+                : "text-zinc-400 hover:bg-zinc-900/40 hover:text-zinc-200"
             }`}
           >
             {label}
@@ -201,18 +239,24 @@ export function RankingScreen() {
       </div>
 
       {sub === "weekly" ? (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           <aside className="space-y-3">
-            <div className="rounded-xl border border-amber-800/35 bg-[rgba(6,8,14,0.7)] p-4 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[1px]">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-600/90">
-                이번 주간 시즌
-              </div>
-              <div className="mt-1 font-mono text-lg text-amber-100">
-                {season.seasonId}
-              </div>
-              <div className="mt-3 text-xs text-zinc-500">시즌 종료까지</div>
-              <div className="font-mono text-sm text-sky-300/95">
-                {formatSeasonCountdown(season.remainingMs)}
+            <div className="rounded-xl border border-amber-700/30 bg-[rgba(8,6,4,0.74)] p-3.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)] ring-1 ring-black/25 backdrop-blur-[2px]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-500/90">
+                    이번 주간 시즌
+                  </div>
+                  <div className="mt-1 font-mono text-lg leading-none text-amber-100">
+                    {season.seasonId}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[10px] font-semibold text-zinc-500">시즌 종료까지</div>
+                  <div className="numeric-value mt-1 font-mono text-sm font-bold text-sky-200">
+                    {formatSeasonCountdown(season.remainingMs)}
+                  </div>
+                </div>
               </div>
             </div>
             <div className="hidden">
@@ -245,10 +289,10 @@ export function RankingScreen() {
                   key={c.id}
                   type="button"
                   onClick={() => setWeeklyCat(c.id)}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     weeklyCat === c.id
-                      ? "bg-indigo-600/35 text-indigo-100 ring-1 ring-indigo-400/40"
-                      : "bg-zinc-900 text-zinc-400 ring-1 ring-zinc-700"
+                      ? "bg-amber-600/25 text-amber-100 ring-1 ring-amber-400/40"
+                      : "bg-[rgba(6,8,14,0.72)] text-zinc-400 ring-1 ring-zinc-700/80 hover:text-zinc-200"
                   }`}
                 >
                   {c.label}
@@ -258,38 +302,39 @@ export function RankingScreen() {
 
             <FantasyPanel
               title={`주간 · ${catMeta.label}`}
-              className="overflow-hidden"
+              className="overflow-hidden border-amber-700/30 bg-[rgba(8,6,4,0.76)]"
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-3 text-xs text-zinc-500">
-                <span>이번 시즌 기준 {catMeta.scoreLabel} 순위입니다.</span>
+              <div className="mb-4 flex items-center justify-between gap-3 border-b border-amber-900/30 pb-3 text-xs text-zinc-400">
+                <span className="min-w-0">이번 시즌 기준 {catMeta.scoreLabel} 순위입니다.</span>
+                <span className="shrink-0 text-amber-300/75">TOP 기록</span>
               </div>
               <ul className="space-y-2">
                 {mergedWeekly.length > 0 ? mergedWeekly.map((row) => (
                   <li
                     key={`${row.rank}-${row.playerName}-${row.weaponName}`}
-                    className={`rounded-xl px-3 py-3 ring-1 transition sm:px-4 ${
+                    className={`rounded-xl border px-3 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition sm:px-4 ${
                       row.isPlayer
-                        ? "bg-indigo-950/35 ring-indigo-500/35"
+                        ? "border-indigo-400/30 bg-indigo-950/35 ring-1 ring-indigo-400/25"
                         : row.rank === 1
-                          ? "bg-amber-950/25 ring-amber-600/35"
-                          : "bg-zinc-950/60 ring-zinc-800"
+                          ? "border-amber-500/35 bg-gradient-to-br from-amber-950/35 to-zinc-950/72 ring-1 ring-amber-500/25"
+                          : "border-zinc-800/80 bg-zinc-950/68"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
                       <RankBadge rank={row.rank} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-zinc-100">
+                          <span className="min-w-0 truncate font-semibold text-zinc-100">
                             {row.playerName}
                           </span>
                           {row.isPlayer ? (
-                            <span className="rounded bg-indigo-600/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-100">
+                            <StatusBadge tone="ranking" className="px-1.5">
                               나
-                            </span>
+                            </StatusBadge>
                           ) : null}
                         </div>
-                        <div className="mt-0.5 text-sm text-zinc-400">
-                          {row.weaponName}{" "}
+                        <div className="mt-1 min-w-0 truncate text-sm text-zinc-400">
+                          <span>{row.weaponName}</span>{" "}
                           <span className="font-mono text-zinc-500">
                             +{row.enhanceLevel}
                             {row.transcendLevel >= 1
@@ -298,8 +343,8 @@ export function RankingScreen() {
                           </span>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="font-mono text-base text-amber-200">
+                      <div className="min-w-[86px] shrink-0 text-right">
+                        <div className="numeric-value font-mono text-base font-bold text-amber-200">
                           {formatScore(weeklyCat, row)}
                         </div>
                         <div className="text-[10px] text-zinc-600">
@@ -309,15 +354,20 @@ export function RankingScreen() {
                     </div>
                   </li>
                 )) : (
-                  <li className="rounded-xl bg-zinc-950/60 px-4 py-6 text-center text-sm text-zinc-500 ring-1 ring-zinc-800">
-                    랭킹 데이터를 불러오는 중입니다.
+                  <li className="rounded-xl border border-amber-800/20 bg-zinc-950/65 px-4 py-7 text-center ring-1 ring-black/20">
+                    <div className="text-sm font-semibold text-zinc-300">
+                      {weeklyResult ? "아직 주간 랭킹 기록이 없습니다." : "랭킹 데이터를 불러오는 중입니다."}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {weeklyResult ? "강화를 진행해 첫 기록을 남겨보세요." : "시즌 기록을 확인하고 있습니다."}
+                    </div>
                   </li>
                 )}
               </ul>
             </FantasyPanel>
 
-            <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-4 ring-1 ring-indigo-800/30">
-              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-300/90">
+            <div className="rounded-xl border border-indigo-600/25 bg-[rgba(18,13,38,0.52)] p-4 ring-1 ring-indigo-800/25">
+              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-200/90">
                 내 예상 순위 ({catMeta.label})
               </div>
               <div className="mt-2 flex flex-wrap items-baseline gap-2">
@@ -340,96 +390,83 @@ export function RankingScreen() {
         <div className="grid gap-4">
           {worldRecords ? (
             <>
-              <WorldCard
+              <RecordCard
                 title="세계 최고가 무기"
-                subtitle="랭킹 가치"
-                accent="amber"
-              >
-                <div className="text-lg font-semibold text-zinc-100">
-                  {worldRecords.highestWeapon.weaponName}
-                </div>
-                <div className="mt-1 font-mono text-sm text-amber-200/90">
-                  +{worldRecords.highestWeapon.enhanceLevel} ★
-                  {worldRecords.highestWeapon.transcendLevel}
-                </div>
-                <div className="mt-3 font-mono text-2xl text-amber-300">
-                  {formatGold(worldRecords.highestWeapon.rankingValue)}
-                </div>
-                <HolderFooter
-                  name={worldRecords.highestWeapon.holderName}
-                  isPlayer={worldRecords.highestWeapon.isPlayer}
-                />
-              </WorldCard>
+                categoryLabel="랭킹 가치"
+                subject={worldRecords.highestWeapon.weaponName}
+                meta={`+${worldRecords.highestWeapon.enhanceLevel} · ★${worldRecords.highestWeapon.transcendLevel}`}
+                value={formatGold(worldRecords.highestWeapon.rankingValue)}
+                owner={worldRecords.highestWeapon.holderName}
+                isPlayer={worldRecords.highestWeapon.isPlayer}
+                accent="gold"
+                empty={!hasWorldWeaponRecord(worldRecords.highestWeapon)}
+                emptyDescription="가치 기록이 생기면 이곳에 표시됩니다."
+              />
 
-              <WorldCard
+              <RecordCard
                 title="최고 초월 무기"
-                subtitle="초월 단계 우선 · 동률 시 가치"
-                accent="violet"
-              >
-                <div className="text-lg font-semibold text-zinc-100">
-                  {worldRecords.bestTranscend.weaponName}
-                </div>
-                <div className="mt-1 font-mono text-sm text-violet-200">
-                  ★{worldRecords.bestTranscend.transcendLevel}
-                </div>
-                <div className="mt-3 font-mono text-2xl text-violet-200">
-                  {formatGold(worldRecords.bestTranscend.rankingValue)}
-                </div>
-                <HolderFooter
-                  name={worldRecords.bestTranscend.holderName}
-                  isPlayer={worldRecords.bestTranscend.isPlayer}
-                />
-              </WorldCard>
+                categoryLabel="초월 단계 우선 · 동률 시 가치"
+                subject={worldRecords.bestTranscend.weaponName}
+                meta={`★${worldRecords.bestTranscend.transcendLevel}`}
+                value={formatGold(worldRecords.bestTranscend.rankingValue)}
+                owner={worldRecords.bestTranscend.holderName}
+                isPlayer={worldRecords.bestTranscend.isPlayer}
+                accent="purple"
+                empty={!hasWorldWeaponRecord(worldRecords.bestTranscend)}
+                emptyDescription="첫 초월 기록이 생기면 이곳에 표시됩니다."
+              />
 
-              <WorldCard title="최고 판매가" subtitle="단일 거래 · 판매 골드" accent="sky">
-                <div className="font-mono text-2xl text-sky-300">
-                  {formatGold(worldRecords.bestSale.gold)}
-                </div>
-                <div className="mt-2 text-sm text-zinc-400">{worldRecords.bestSale.weaponName}</div>
-                <HolderFooter name={worldRecords.bestSale.holderName} isPlayer={worldRecords.bestSale.isPlayer} />
-              </WorldCard>
+              <RecordCard
+                title="최고 판매가"
+                categoryLabel="단일 거래 · 판매 골드"
+                subject={worldRecords.bestSale.weaponName}
+                value={formatGold(worldRecords.bestSale.gold)}
+                owner={worldRecords.bestSale.holderName}
+                isPlayer={worldRecords.bestSale.isPlayer}
+                accent="blue"
+                empty={!hasWorldSaleRecord(worldRecords.bestSale)}
+                emptyDescription="판매 기록이 생기면 이곳에 표시됩니다."
+              />
 
-              <WorldCard title="최다 강화 시도" subtitle="누적 시도 횟수" accent="zinc">
-                <div className="font-mono text-2xl text-zinc-100">
-                  {formatInt(worldRecords.mostEnhanceAttempts.value)}
-                </div>
-                <HolderFooter
-                  name={worldRecords.mostEnhanceAttempts.holderName}
-                  isPlayer={worldRecords.mostEnhanceAttempts.isPlayer}
-                />
-              </WorldCard>
+              <RecordCard
+                title="최대 강화 시도"
+                categoryLabel="누적 시도 횟수"
+                value={formatInt(worldRecords.mostEnhanceAttempts.value)}
+                owner={worldRecords.mostEnhanceAttempts.holderName}
+                isPlayer={worldRecords.mostEnhanceAttempts.isPlayer}
+                accent="bronze"
+                empty={!hasWorldCountRecord(worldRecords.mostEnhanceAttempts)}
+                emptyDescription="강화 시도 기록이 생기면 이곳에 표시됩니다."
+              />
 
-              <WorldCard title="최다 초월 성공" subtitle="누적 성공 횟수" accent="fuchsia">
-                <div className="font-mono text-2xl text-fuchsia-200">
-                  {formatInt(worldRecords.mostTranscendSuccesses.value)}
-                </div>
-                <HolderFooter
-                  name={worldRecords.mostTranscendSuccesses.holderName}
-                  isPlayer={worldRecords.mostTranscendSuccesses.isPlayer}
-                />
-              </WorldCard>
+              <RecordCard
+                title="최대 초월 성공"
+                categoryLabel="누적 성공 횟수"
+                value={formatInt(worldRecords.mostTranscendSuccesses.value)}
+                owner={worldRecords.mostTranscendSuccesses.holderName}
+                isPlayer={worldRecords.mostTranscendSuccesses.isPlayer}
+                accent="purple"
+                empty={!hasWorldCountRecord(worldRecords.mostTranscendSuccesses)}
+                emptyDescription="첫 초월 성공자가 기록됩니다."
+              />
 
-              <WorldCard
+              <RecordCard
                 title="파괴된 전설"
-                subtitle="파괴 기록"
+                categoryLabel="파괴 기록"
+                subject={worldRecords.destroyedLegend.weaponName}
+                meta={`+${worldRecords.destroyedLegend.enhanceLevel} · ★${worldRecords.destroyedLegend.transcendLevel}`}
+                value={formatGold(worldRecords.destroyedLegend.rankingValue)}
+                owner={worldRecords.destroyedLegend.holderName}
+                isPlayer={worldRecords.destroyedLegend.isPlayer}
                 accent="red"
-              >
-                <div className="text-lg font-semibold text-zinc-100">
-                  {worldRecords.destroyedLegend.weaponName}
-                </div>
-                <div className="mt-1 font-mono text-sm text-red-300/90">
-                  +{worldRecords.destroyedLegend.enhanceLevel} ★
-                  {worldRecords.destroyedLegend.transcendLevel}
-                </div>
-                <div className="mt-2 font-mono text-xl text-red-200/90">
-                  {formatGold(worldRecords.destroyedLegend.rankingValue)}
-                </div>
-                <HolderFooter name={worldRecords.destroyedLegend.holderName} isPlayer={worldRecords.destroyedLegend.isPlayer} />
-              </WorldCard>
+                empty={!hasWorldWeaponRecord(worldRecords.destroyedLegend)}
+                emptyDescription="파괴 기록이 생기면 이곳에 표시됩니다."
+              />
             </>
           ) : (
-            <div className="rounded-xl bg-zinc-950/60 px-4 py-6 text-center text-sm text-zinc-500 ring-1 ring-zinc-800">
-              월드레코드를 불러오는 중입니다.
+            <div className="rounded-xl border border-amber-800/20 bg-zinc-950/65 px-4 py-7 text-center ring-1 ring-black/20">
+              <div className="text-sm font-semibold text-zinc-300">월드 레코드를 불러오는 중입니다.</div>
+              <div className="mt-1 text-xs text-zinc-500">기록의 전당을 정리하고 있습니다.</div>
             </div>
           )}
         </div>
@@ -437,42 +474,54 @@ export function RankingScreen() {
 
       {sub === "me" ? (
         <div className="grid gap-4">
-          <FantasyPanel title="역대 최고 무기" className="space-y-3">
+          <FantasyPanel title="역대 최고 무기" className="space-y-3 border-amber-600/35 bg-[rgba(8,6,4,0.78)]">
             {bestWeaponSnapshotView ? (
               <>
-                <div className="text-lg font-semibold text-zinc-100">
-                  {bestWeaponSnapshotView.weaponName}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="truncate text-lg font-bold text-zinc-50">
+                      {bestWeaponSnapshotView.weaponName}
+                    </div>
+                    <div className="mt-1 font-mono text-sm text-amber-200/85">
+                      +{bestWeaponSnapshotView.enhanceLevel}
+                      {bestWeaponSnapshotView.transcendLevel >= 1
+                        ? ` · ★${bestWeaponSnapshotView.transcendLevel}`
+                        : ""}{" "}
+                      · 내구 {bestWeaponSnapshotView.durability}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[10px] font-semibold text-zinc-500">랭킹 가치</div>
+                    <div className="numeric-value mt-1 font-mono text-2xl font-black text-amber-300">
+                      {formatGold(bestWeaponSnapshotView.rankingValue)}
+                    </div>
+                  </div>
                 </div>
-                <div className="font-mono text-amber-200/90">
-                  +{bestWeaponSnapshotView.enhanceLevel}
-                  {bestWeaponSnapshotView.transcendLevel >= 1
-                    ? ` ★${bestWeaponSnapshotView.transcendLevel}`
-                    : ""}{" "}
-                  · 내구 {bestWeaponSnapshotView.durability}
+                <div className="border-t border-amber-900/25 pt-3 text-xs text-zinc-500">
+                  달성일 {achievedLabel}
                 </div>
-                <div className="font-mono text-2xl text-amber-300">
-                  {formatGold(bestWeaponSnapshotView.rankingValue)}
-                </div>
-                <div className="text-xs text-zinc-500">달성일 {achievedLabel}</div>
               </>
             ) : (
-              <p className="text-sm text-zinc-500">
-                아직 스냅샷이 없습니다. 강화·초월로 가치를 올려 보세요.
-                <span className="mt-2 block font-mono text-amber-200/80">
+              <div className="rounded-xl border border-amber-800/20 bg-zinc-950/45 p-4">
+                <div className="text-sm font-semibold text-zinc-200">아직 기록 없음</div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  강화를 진행해 첫 최고 기록을 남겨보세요.
+                </p>
+                <span className="numeric-value mt-3 block font-mono text-sm text-amber-200/80">
                   역대 최고 가치(참고):{" "}
                   {formatGold(recordsView.personalBestRankingValue)}
                 </span>
-              </p>
+              </div>
             )}
           </FantasyPanel>
 
-          <FantasyPanel title="판매 실적" className="space-y-3 text-sm">
+          <FantasyPanel title="판매 실적" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
             <StatRow label="최고 단일 판매가" value={formatGold(recordsView.bestSaleGold)} mono />
             <StatRow label="총 판매 골드" value={formatGold(recordsView.totalSalesGold)} mono />
             <StatRow label="판매한 무기 수" value={formatInt(recordsView.soldWeaponCount)} mono />
           </FantasyPanel>
 
-          <FantasyPanel title="강화 통계" className="space-y-3 text-sm">
+          <FantasyPanel title="강화 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
             <StatRow label="강화 시도" value={formatInt(recordsView.totalEnhanceAttempts)} mono />
             <StatRow label="강화 성공" value={formatInt(recordsView.totalEnhanceSuccesses)} mono />
             <StatRow label="강화 실패" value={formatInt(recordsView.enhanceFailCount)} mono />
@@ -482,11 +531,11 @@ export function RankingScreen() {
             <StatRow label="역대 최고 강화 단계" value={`+${recordsView.maxEnhanceLevel}`} mono />
           </FantasyPanel>
 
-          <FantasyPanel title="초월 통계" className="space-y-3 text-sm">
+          <FantasyPanel title="초월 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
             <StatRow label="초월 시도" value={formatInt(recordsView.transcendAttemptCount)} mono />
             <StatRow label="초월 성공" value={formatInt(recordsView.transcendSuccessCount)} mono />
             <StatRow label="초월 실패" value={formatInt(recordsView.transcendFailCount)} mono />
-            <StatRow label="최고 초월 ★" value={`★${recordsView.maxTranscendLevel}`} mono accent />
+            <StatRow label="최고 초월" value={`★${recordsView.maxTranscendLevel}`} mono accent />
             <StatRow
               label="초월 무기 최고 가치"
               value={formatGold(recordsView.bestTranscendedWeaponValue)}
@@ -495,7 +544,7 @@ export function RankingScreen() {
             <StatRow label="초월 실패 파괴" value={formatInt(recordsView.transcendDestroyedCount)} mono accent />
           </FantasyPanel>
 
-          <FantasyPanel title="제련로 통계" className="space-y-3 text-sm">
+          <FantasyPanel title="제련로 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
             <StatRow label="총 수령 제련의 불씨" value={formatInt(recordsView.totalForgeCollected)} mono />
             <StatRow
               label="광고 보너스 수령량"
@@ -518,14 +567,14 @@ function HolderFooter({
   isPlayer: boolean;
 }) {
   return (
-    <div className="mt-4 flex items-center justify-between border-t border-zinc-800/80 pt-3 text-xs">
-      <span className="text-zinc-500">보유자</span>
-      <span className="flex items-center gap-2 font-medium text-zinc-200">
-        {name}
+    <div className="mt-4 grid grid-cols-[1fr_auto] items-center gap-3 border-t border-zinc-800/80 pt-3 text-xs">
+      <span className="min-w-0 text-zinc-500">보유자</span>
+      <span className="flex min-w-0 max-w-[220px] items-center justify-end gap-2 text-right font-medium text-zinc-200">
+        <span className="truncate">{name}</span>
         {isPlayer ? (
-          <span className="rounded bg-indigo-600/35 px-1.5 py-0.5 text-[10px] text-indigo-100">
+          <StatusBadge tone="ranking" className="px-1.5">
             나
-          </span>
+          </StatusBadge>
         ) : null}
       </span>
     </div>
@@ -544,10 +593,10 @@ function StatRow({
   accent?: boolean;
 }) {
   return (
-    <div className="flex justify-between gap-3 border-b border-zinc-800/60 pb-2 last:border-0">
-      <span className={accent ? "text-violet-300/90" : "text-zinc-500"}>{label}</span>
+    <div className="stat-row border-b border-zinc-800/60 pb-2 last:border-0">
+      <span className={`min-w-0 ${accent ? "text-violet-300/90" : "text-zinc-500"}`}>{label}</span>
       <span
-        className={`text-right ${mono ? "font-mono text-zinc-100" : "text-zinc-200"}`}
+        className={`stat-value ${mono ? "font-mono text-zinc-100" : "text-zinc-200"}`}
       >
         {value}
       </span>
@@ -555,39 +604,101 @@ function StatRow({
   );
 }
 
-function WorldCard({
+function RecordCard({
   title,
-  subtitle,
+  categoryLabel,
+  subject,
+  meta,
+  value,
+  owner,
+  isPlayer,
   accent,
-  children,
+  empty,
+  emptyDescription,
 }: {
   title: string;
-  subtitle: string;
-  accent: "amber" | "violet" | "sky" | "zinc" | "fuchsia" | "red";
-  children: ReactNode;
+  categoryLabel: string;
+  subject?: string;
+  meta?: string;
+  value: string;
+  owner: string;
+  isPlayer: boolean;
+  accent: "gold" | "purple" | "blue" | "bronze" | "red";
+  empty: boolean;
+  emptyDescription: string;
 }) {
-  const ring =
-    accent === "amber"
-      ? "ring-amber-700/35"
-      : accent === "violet"
-        ? "ring-violet-600/35"
-        : accent === "sky"
-          ? "ring-sky-700/35"
-          : accent === "fuchsia"
-            ? "ring-fuchsia-700/35"
-            : accent === "red"
-              ? "ring-red-700/35"
-              : "ring-zinc-700/35";
+  const accentClass =
+    accent === "gold"
+      ? {
+          border: "border-amber-500/35",
+          ring: "ring-amber-600/25",
+          label: "text-amber-300/80",
+          value: "text-amber-300",
+          glow: "shadow-[inset_0_1px_0_rgba(251,191,36,0.08),0_0_22px_rgba(245,158,11,0.08)]",
+        }
+      : accent === "purple"
+        ? {
+            border: "border-violet-500/30",
+            ring: "ring-violet-500/20",
+            label: "text-violet-300/80",
+            value: "text-violet-200",
+            glow: "shadow-[inset_0_1px_0_rgba(196,181,253,0.08),0_0_22px_rgba(139,92,246,0.08)]",
+          }
+        : accent === "blue"
+          ? {
+              border: "border-sky-500/30",
+              ring: "ring-sky-500/20",
+              label: "text-sky-300/80",
+              value: "text-sky-200",
+              glow: "shadow-[inset_0_1px_0_rgba(125,211,252,0.08),0_0_22px_rgba(14,165,233,0.08)]",
+            }
+          : accent === "red"
+            ? {
+                border: "border-red-500/30",
+                ring: "ring-red-500/20",
+                label: "text-red-300/80",
+                value: "text-red-200",
+                glow: "shadow-[inset_0_1px_0_rgba(252,165,165,0.08),0_0_22px_rgba(239,68,68,0.08)]",
+              }
+            : {
+                border: "border-orange-600/30",
+                ring: "ring-orange-700/20",
+                label: "text-orange-300/80",
+                value: "text-orange-100",
+                glow: "shadow-[inset_0_1px_0_rgba(253,186,116,0.08),0_0_22px_rgba(194,65,12,0.07)]",
+              };
 
   return (
     <div
-      className={`rounded-2xl border border-zinc-800/80 bg-[rgba(6,8,14,0.72)] p-5 shadow-inner ${ring} ring-1 backdrop-blur-[1px]`}
+      className={`rounded-2xl border ${accentClass.border} bg-[rgba(8,6,4,0.78)] p-4 ${accentClass.glow} ${accentClass.ring} ring-1 backdrop-blur-[2px]`}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-        {subtitle}
+      <div className={`text-[10px] font-semibold uppercase tracking-wider ${accentClass.label}`}>
+        {categoryLabel}
       </div>
-      <h3 className="mt-1 text-lg font-bold text-zinc-50">{title}</h3>
-      <div className="mt-4">{children}</div>
+      <h3 className="mt-1 text-lg font-black text-zinc-50">{title}</h3>
+      {empty ? (
+        <div className="mt-5 rounded-xl border border-zinc-800/70 bg-zinc-950/48 p-4">
+          <div className="text-sm font-semibold text-zinc-200">아직 기록 없음</div>
+          <div className="mt-1 text-xs leading-relaxed text-zinc-500">{emptyDescription}</div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
+            <div className="min-w-0">
+              {subject ? (
+                <div className="truncate text-lg font-bold text-zinc-100">{subject}</div>
+              ) : null}
+              {meta ? (
+                <div className="mt-1 font-mono text-sm text-zinc-400">{meta}</div>
+              ) : null}
+            </div>
+            <div className={`numeric-value max-w-[190px] font-mono text-2xl font-black ${accentClass.value}`}>
+              {value}
+            </div>
+          </div>
+          <HolderFooter name={owner} isPlayer={isPlayer} />
+        </>
+      )}
     </div>
   );
 }

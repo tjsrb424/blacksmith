@@ -12,7 +12,11 @@ import {
   durabilityLossOnFail,
   getForgeMaxAccumulateMinutes,
 } from "@/data/balance";
-import { STARTER_WEAPON_ID, WEAPONS_BY_ID } from "@/data/weapons";
+import {
+  STARTER_WEAPON_ID,
+  WEAPON_DEFINITIONS,
+  WEAPONS_BY_ID,
+} from "@/data/weapons";
 import { calculateSaleGold, calculateAdSaleGold } from "@/lib/economy";
 import {
   calculateRankingValue,
@@ -673,7 +677,9 @@ async function runAdRewardAction(params: {
       );
       params.onPatchSynced?.();
     }
-    syncLatestServerSnapshotDeferred(params.get, params.set);
+    if (!response.patch && !response.snapshot) {
+      syncLatestServerSnapshotDeferred(params.get, params.set);
+    }
     scheduleAdRewardStatusRefreshAfterReward({
       rewardType: params.request.rewardType,
       relatedActionId:
@@ -717,6 +723,7 @@ export interface GameStore extends SaveDataV1 {
   devForceSuccess: boolean;
   syncFromServerPlayerMe: (snapshot: BetaPlayerSnapshot) => void;
   reloadServerSnapshot: () => Promise<void>;
+  runDevPerfSmoke: () => Promise<void>;
   setActiveTab: (tab: NavTab) => void;
   closeModal: () => void;
   acknowledgeSeasonStart: () => void;
@@ -919,6 +926,119 @@ export const useGameStore = create<GameStore>()(
             serverActionMessage: null,
             modal: null,
           }));
+        } catch (error) {
+          set({
+            serverActionPending: false,
+            serverActionMessage: null,
+            modal: {
+              kind: "server_error",
+              message: serverErrorMessage(error),
+            },
+          });
+        }
+      },
+
+      runDevPerfSmoke: async () => {
+        if (!isBetaMode() || !devToolsRuntimeEnabled()) return;
+        if (get().serverActionPending) return;
+
+        set({
+          serverActionPending: true,
+          serverActionMessage: "Perf smoke running...",
+          modal: null,
+        });
+
+        const applyResponse = (response: ServerGameActionResponse) => {
+          set((state) => ({
+            ...patchFromServerAction(response, state),
+            modal: null,
+          }));
+        };
+
+        try {
+          let enhanceCount = 0;
+          let buyCount = 0;
+          let forgeCollectCount = 0;
+          let sellCount = 0;
+
+          for (let i = 0; i < 5; i += 1) {
+            const targetId = get().equippedWeaponId;
+            if (!targetId) break;
+            const target = get().ownedWeapons.find(
+              (weapon) => weapon.instanceId === targetId,
+            );
+            if (!target || target.enhanceLevel >= 15) break;
+            applyResponse(
+              await enhanceWeaponApi({
+                ...newActionMeta(),
+                weaponInstanceId: targetId,
+              }),
+            );
+            enhanceCount += 1;
+          }
+
+          for (const def of WEAPON_DEFINITIONS) {
+            if (buyCount >= 5) break;
+            const state = get();
+            if (state.ownedWeapons.some((weapon) => weapon.weaponId === def.id)) {
+              continue;
+            }
+            if (state.gold < def.basePrice) continue;
+            applyResponse(
+              await buyWeaponApi({
+                ...newActionMeta(),
+                weaponId: def.id,
+              }),
+            );
+            buyCount += 1;
+          }
+
+          for (let i = 0; i < 2; i += 1) {
+            const state = get();
+            const pending = computePendingForgeEmber({
+              forgeLevel: state.forgeLevel,
+              forgeLastCollectAt: state.forgeLastCollectAt,
+              now: Date.now(),
+            });
+            if (pending <= 0) break;
+            applyResponse(
+              await collectForgeApi({
+                ...newActionMeta(),
+                collectMode: "normal",
+              }),
+            );
+            forgeCollectCount += 1;
+          }
+
+          for (let i = 0; i < 5; i += 1) {
+            const state = get();
+            const sellable = state.ownedWeapons.find(
+              (weapon) =>
+                weapon.instanceId !== state.equippedWeaponId &&
+                !weapon.locked &&
+                !state.pendingSellWeaponIds.includes(weapon.instanceId),
+            );
+            if (!sellable || state.ownedWeapons.length <= 1) break;
+            applyResponse(
+              await sellWeaponApi({
+                ...newActionMeta(),
+                weaponInstanceId: sellable.instanceId,
+                sellMode: "normal",
+              }),
+            );
+            sellCount += 1;
+          }
+
+          set({
+            serverActionPending: false,
+            serverActionMessage: `Perf smoke done: enhance ${enhanceCount}, buy ${buyCount}, forge ${forgeCollectCount}, sell ${sellCount}`,
+            modal: null,
+          });
+          window.setTimeout(() => {
+            if (get().serverActionMessage?.startsWith("Perf smoke done:")) {
+              set({ serverActionMessage: null });
+            }
+          }, 2500);
         } catch (error) {
           set({
             serverActionPending: false,
@@ -1152,7 +1272,6 @@ export const useGameStore = create<GameStore>()(
                       (id) => id !== instanceId,
                     ),
                   });
-                  syncLatestServerSnapshotDeferred(get, set);
                 });
           void action
             .then((response) => {

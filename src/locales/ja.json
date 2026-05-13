@@ -1,0 +1,36 @@
+{
+  "common": {
+    "ok": "確認",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "settings": "設定",
+    "language": "言語"
+  },
+  "nav": {
+    "blacksmith": "鍛冶屋",
+    "shop": "ショップ",
+    "forge": "鍛冶炉",
+    "inventory": "保管庫",
+    "ranking": "ランキング"
+  },
+  "blacksmith": {
+    "enhance": "強化",
+    "enhanceCost": "強化費用",
+    "success": "成功",
+    "fail": "失敗",
+    "destroyed": "破壊"
+  },
+  "shop": {
+    "buy": "購入",
+    "notEnoughGold": "ゴールドが足りません"
+  },
+  "inventory": {
+    "sell": "売却",
+    "empty": "保管庫は空です"
+  },
+  "ranking": {
+    "weekly": "週間",
+    "world": "ワールド",
+    "myRank": "自分の順位"
+  }
+}

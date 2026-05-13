@@ -270,6 +270,17 @@ export type ServerGameActionResponse = {
   snapshot?: BetaPlayerSnapshot;
   patch?: ServerActionPatch;
   display?: ServerActionDisplay;
+  debug?: {
+    mutationPath: "rpc" | "legacy";
+    rpcName:
+      | "apply_buy_action_v1"
+      | "apply_enhance_action_v1"
+      | "apply_sell_action_v1"
+      | "apply_forge_collect_action_v1"
+      | "apply_forge_upgrade_action_v1";
+    rpcApplied: boolean;
+    fallbackAllowed: boolean;
+  };
 };
 
 export type GameActionResult = {

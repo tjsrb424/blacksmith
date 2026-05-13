@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { FantasyButton } from "@/components/ui/FantasyButton";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { WeaponCard } from "@/components/ui/WeaponCard";
 import { WEAPON_DEFINITIONS } from "@/data/weapons";
@@ -68,7 +69,7 @@ export function WeaponShopScreen() {
   }, [ownedIds]);
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-4 px-3 pb-5 pt-6">
+    <div className="relative mx-auto w-full flex-1 space-y-4 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+16px)] pt-6">
       <ScreenBackground screen="shop" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]">
@@ -83,7 +84,7 @@ export function WeaponShopScreen() {
         </p>
       </header>
 
-      <div className="relative z-10 flex flex-wrap gap-1.5 rounded-2xl bg-black/18 p-2 ring-1 ring-amber-900/18 sm:gap-2">
+      <div className="relative z-10 flex flex-wrap gap-1.5 rounded-2xl border border-amber-700/20 bg-[rgba(8,6,4,0.58)] p-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.06)] ring-1 ring-black/20 backdrop-blur-[1px] sm:gap-2">
         {GRADE_FILTERS.map((g) => {
           const active = gradeFilter === g.id;
           const countLabel =
@@ -98,8 +99,8 @@ export function WeaponShopScreen() {
               className={cn(
                 "min-h-[36px] shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition sm:text-sm",
                 active
-                  ? "bg-amber-600/35 text-amber-50 ring-amber-400/55 shadow-[0_0_18px_rgba(245,158,11,0.22)]"
-                  : "bg-zinc-950/65 text-zinc-500 ring-zinc-700 hover:text-zinc-300",
+                  ? "bg-amber-600/28 text-amber-50 ring-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.18)]"
+                  : "bg-zinc-950/65 text-zinc-500 ring-zinc-700/70 hover:text-zinc-300",
               )}
             >
               {g.label}
@@ -166,11 +167,11 @@ export function WeaponShopScreen() {
                 footer={
                   <div className="space-y-1.5">
                     {owned ? (
-                      <p className="text-center text-[10px] font-medium text-emerald-400/90">
-                        보유 중
-                      </p>
+                      <div className="flex justify-center">
+                        <StatusBadge tone="owned">보유 중</StatusBadge>
+                      </div>
                     ) : !affordable ? (
-                      <p className="text-center text-[10px] text-red-300/90">
+                      <p className="text-center text-[10px] font-semibold text-red-300/90">
                         부족{" "}
                         <span
                           className="numeric-value inline-block max-w-full align-bottom font-mono"
@@ -197,9 +198,9 @@ export function WeaponShopScreen() {
                 }
               />
               {isRecommended ? (
-                <p className="mt-1 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-300/95">
-                  {recommendationLabel}
-                </p>
+                <div className="mt-1 flex justify-center">
+                  <StatusBadge tone="recommended">{recommendationLabel}</StatusBadge>
+                </div>
               ) : null}
             </div>
           );

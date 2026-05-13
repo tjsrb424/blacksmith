@@ -6,6 +6,7 @@ import { gradeLabel, weaponTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/cn";
 import { formatCompactKoreanNumber, formatGold } from "@/lib/format";
 import { WeaponImage } from "@/components/ui/WeaponImage";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import {
   getCardFramePath,
   getRarityArtBackdropClass,
@@ -69,37 +70,49 @@ export const WeaponCard = memo(function WeaponCard({
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_65%,rgba(0,0,0,0.2),transparent_60%)]" />
         {rankingCandidate ? (
-          <span className="absolute left-1.5 top-1.5 z-30 rounded bg-indigo-600/45 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-50 ring-1 ring-indigo-400/50 sm:left-2 sm:top-2 sm:text-[10px]">
+          <StatusBadge
+            tone="ranking"
+            className="absolute left-1.5 top-1.5 z-30 px-1.5 text-[9px] sm:left-2 sm:top-2 sm:text-[10px]"
+          >
             기록 후보
-          </span>
+          </StatusBadge>
         ) : null}
         {transcendReady ? (
-          <span className="absolute right-1.5 top-1.5 z-30 rounded bg-violet-600/40 px-1.5 py-0.5 text-[9px] font-bold text-violet-50 ring-1 ring-violet-400/45 sm:right-2 sm:top-2 sm:text-[10px]">
+          <StatusBadge
+            tone="transcend"
+            className="absolute right-1.5 top-1.5 z-30 px-1.5 text-[9px] sm:right-2 sm:top-2 sm:text-[10px]"
+          >
             초월 가능
-          </span>
+          </StatusBadge>
         ) : null}
         {equipped ? (
-          <span className="absolute bottom-1.5 left-1.5 z-30 rounded bg-amber-600/50 px-1.5 py-0.5 text-[9px] font-bold text-amber-50 ring-1 ring-amber-300/50 sm:bottom-2 sm:left-2 sm:text-[10px]">
+          <StatusBadge
+            tone="equipped"
+            className="absolute bottom-1.5 left-1.5 z-30 px-1.5 text-[9px] sm:bottom-2 sm:left-2 sm:text-[10px]"
+          >
             장착 중
-          </span>
+          </StatusBadge>
         ) : null}
         {owned ? (
-          <span className="absolute bottom-1.5 right-1.5 z-30 rounded bg-zinc-800/90 px-1.5 py-0.5 text-[9px] font-medium text-zinc-300 ring-1 ring-zinc-600/50 sm:bottom-2 sm:right-2 sm:text-[10px]">
+          <StatusBadge
+            tone="owned"
+            className="absolute bottom-1.5 right-1.5 z-30 px-1.5 text-[9px] sm:bottom-2 sm:right-2 sm:text-[10px]"
+          >
             보유
-          </span>
+          </StatusBadge>
         ) : null}
         {locked ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/55 backdrop-blur-[1px]">
-            <span className="rounded-full bg-red-950/80 px-3 py-1 text-xs font-bold text-red-200 ring-1 ring-red-500/45">
+            <StatusBadge tone="locked" className="px-3 py-1 text-xs">
               잠금
-            </span>
+            </StatusBadge>
           </div>
         ) : null}
         {dur !== undefined && dur <= 1 && dur > 0 ? (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-red-950/70 to-transparent py-1.5 text-center sm:py-2">
-            <span className="text-[9px] font-bold uppercase tracking-wide text-red-200 sm:text-[10px]">
+            <StatusBadge tone="danger" className="text-[9px] sm:text-[10px]">
               위험
-            </span>
+            </StatusBadge>
           </div>
         ) : null}
         <div
@@ -147,7 +160,7 @@ export const WeaponCard = memo(function WeaponCard({
           </div>
         </div>
         <div className={cn("flex flex-wrap items-center gap-1.5", compact ? "text-[10px]" : "text-xs")}>
-          <span className="rounded bg-zinc-900/80 px-1.5 py-0.5 font-mono text-zinc-400 ring-1 ring-zinc-700">
+          <span className="rounded-md border border-zinc-700/50 bg-zinc-950/70 px-1.5 py-0.5 font-mono text-zinc-400 ring-1 ring-black/20">
             티어 {def.tier}
           </span>
           {el > 0 || tl > 0 ? (

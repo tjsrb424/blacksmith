@@ -27,6 +27,8 @@ const USER_MESSAGES: Record<string, string> = {
   not_eligible: "+15 무기만 초월할 수 있습니다.",
   no_forge_reward: "아직 수령할 제련의 불씨가 없습니다.",
   max_forge_level: "제련로가 이미 최대 레벨입니다.",
+  mutation_rpc_not_applied:
+    "서버 최적화 처리 경로가 적용되지 않았습니다. 관리자에게 문의해주세요.",
   server_error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
 };
 

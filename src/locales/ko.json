@@ -1,0 +1,36 @@
+{
+  "common": {
+    "ok": "확인",
+    "cancel": "취소",
+    "close": "닫기",
+    "settings": "설정",
+    "language": "언어"
+  },
+  "nav": {
+    "blacksmith": "대장간",
+    "shop": "상점",
+    "forge": "제련로",
+    "inventory": "보관함",
+    "ranking": "랭킹"
+  },
+  "blacksmith": {
+    "enhance": "강화",
+    "enhanceCost": "강화 비용",
+    "success": "성공",
+    "fail": "실패",
+    "destroyed": "파괴"
+  },
+  "shop": {
+    "buy": "구매",
+    "notEnoughGold": "골드가 부족합니다"
+  },
+  "inventory": {
+    "sell": "판매",
+    "empty": "보관함이 비어 있습니다"
+  },
+  "ranking": {
+    "weekly": "주간",
+    "world": "월드",
+    "myRank": "내 순위"
+  }
+}

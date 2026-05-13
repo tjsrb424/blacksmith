@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { LoginScreen } from "@/components/auth/LoginScreen";
@@ -98,6 +99,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [lastAuthEvent, setLastAuthEvent] = useState("init");
   const [lastAuthError, setLastAuthError] = useState("-");
   const [authAttempt, setAuthAttempt] = useState(0);
+  const bootstrappedUserIdRef = useRef<string | null>(null);
   const supabaseEnv = getSupabaseBrowserEnv();
 
   const setAuthStage = useCallback((nextStage: AuthStage) => {
@@ -177,6 +179,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setLoadingSnapshot(false);
     setAuthStage("checking_session");
     invalidatePlayerApiCache();
+    bootstrappedUserIdRef.current = null;
     setAuthAttempt((value) => value + 1);
   }, [setAuthEvent, setAuthStage]);
 
@@ -203,6 +206,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const syncStartedAt = Date.now();
       setSnapshot(nextSnapshot);
       useGameStore.getState().syncFromServerPlayerMe(nextSnapshot);
+      bootstrappedUserIdRef.current = nextSnapshot.userId;
       updatePerformanceMetric({
         playerSyncElapsedMs: Date.now() - syncStartedAt,
         lastStoreSyncElapsedMs: Date.now() - syncStartedAt,
@@ -230,6 +234,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthChecked(false);
     setAuthStage("checking_session");
     invalidatePlayerApiCache();
+    bootstrappedUserIdRef.current = null;
     if (supabase) await supabase.auth.signOut();
     setAuthChecked(true);
   }, [setAuthEvent, setAuthStage]);
@@ -334,12 +339,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [authAttempt, mode, setAuthEvent, setAuthFailure, setAuthStage]);
 
   useEffect(() => {
-    if (mode !== "beta" || !session) return;
+    if (mode !== "beta" || !sessionUserId) return;
+    if (
+      bootstrappedUserIdRef.current === sessionUserId &&
+      snapshot?.userId === sessionUserId
+    ) {
+      return;
+    }
     const id = requestAnimationFrame(() => {
       void refresh();
     });
     return () => cancelAnimationFrame(id);
-  }, [mode, refresh, session]);
+  }, [mode, refresh, sessionUserId, snapshot?.userId]);
 
   const contextValue = useMemo(
     () => ({ snapshot, refresh }),
