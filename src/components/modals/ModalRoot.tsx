@@ -342,7 +342,12 @@ export function ModalRoot() {
                     </p>
                   ) : null}
                   <div className="flex gap-2 pt-2">
-                    <FantasyButton variant="ghost" className="flex-1" onClick={close}>
+                    <FantasyButton
+                      variant="ghost"
+                      className="flex-1"
+                      disabled={serverActionPending}
+                      onClick={close}
+                    >
                       취소
                     </FantasyButton>
                     <FantasyButton className="flex-1" onClick={() => commitEnhance()}>
@@ -665,7 +670,11 @@ export function ModalRoot() {
                     <FantasyButton variant="ghost" className="flex-1" onClick={close}>
                       취소
                     </FantasyButton>
-                    <FantasyButton className="flex-1" onClick={() => confirmBuy()}>
+                    <FantasyButton
+                      className="flex-1"
+                      disabled={serverActionPending}
+                      onClick={() => confirmBuy()}
+                    >
                       구매하기
                     </FantasyButton>
                   </div>
@@ -768,7 +777,7 @@ export function ModalRoot() {
                     <FantasyButton
                       className="w-full"
                       onClick={() => collectForge(false)}
-                      disabled={modal.pendingBase <= 0}
+                      disabled={modal.pendingBase <= 0 || serverActionPending}
                     >
                       기본 수령
                     </FantasyButton>
@@ -776,7 +785,11 @@ export function ModalRoot() {
                       variant="promo"
                       className="w-full"
                       onClick={() => collectForge(true)}
-                      disabled={modal.pendingBase <= 0 || isRewardAdDisabled}
+                      disabled={
+                        modal.pendingBase <= 0 ||
+                        isRewardAdDisabled ||
+                        serverActionPending
+                      }
                     >
                       {isRewardAdDisabled
                         ? "광고 보상 준비 중"
@@ -865,12 +878,17 @@ export function ModalRoot() {
                     <p className="text-center text-sm text-red-400">골드가 부족합니다</p>
                   ) : null}
                   <div className="flex gap-2 pt-1">
-                    <FantasyButton variant="ghost" className="flex-1" onClick={close}>
+                    <FantasyButton
+                      variant="ghost"
+                      className="flex-1"
+                      disabled={serverActionPending}
+                      onClick={close}
+                    >
                       취소
                     </FantasyButton>
                     <FantasyButton
                       className="flex-1"
-                      disabled={modal.playerGold < modal.costGold}
+                      disabled={modal.playerGold < modal.costGold || serverActionPending}
                       onClick={() => confirmForgeUpgrade()}
                     >
                       업그레이드

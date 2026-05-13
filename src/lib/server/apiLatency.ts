@@ -3,6 +3,8 @@ import "server-only";
 type ApiRunner<T> = () => Promise<T> | T;
 
 function shouldLog() {
+  if (process.env.PERF_DEBUG_SERVER === "true") return true;
+  if (process.env.PERF_DEBUG_SERVER === "false") return false;
   return process.env.NODE_ENV !== "production";
 }
 
@@ -18,8 +20,8 @@ export async function withApiLatency<T>(
       const elapsedMs = Date.now() - startedAt;
       const message =
         elapsedMs >= 1000
-          ? `[${name}] slow request ${elapsedMs}ms`
-          : `[${name}] completed in ${elapsedMs}ms`;
+          ? `[perf][${name}] total=${elapsedMs}ms slow=true`
+          : `[perf][${name}] total=${elapsedMs}ms`;
       if (elapsedMs >= 1000) {
         console.warn(message);
       } else {

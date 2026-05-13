@@ -22,27 +22,48 @@ function rounded(ms: number) {
   return Math.round(ms);
 }
 
+function shouldLogPerf() {
+  if (process.env.PERF_DEBUG_SERVER === "true") return true;
+  if (process.env.PERF_DEBUG_SERVER === "false") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+function perfKey(name: string) {
+  const words = name
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return "step";
+  return words
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      return index === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join("");
+}
+
 export function createServerStepTimer(
   scope: string,
   options: { slowStepMs?: number } = {},
 ): ServerStepTimer {
   const startedAt = nowMs();
   const entries: StepEntry[] = [];
-  const shouldLog = process.env.NODE_ENV !== "production";
+  const shouldLog = shouldLogPerf();
   const slowStepMs = options.slowStepMs ?? DEFAULT_SLOW_STEP_MS;
 
   function record(name: string, elapsedMs: number) {
     const entry = { name, elapsedMs: rounded(elapsedMs) };
     entries.push(entry);
+  }
 
+  function logSummary() {
     if (!shouldLog) return;
-
-    const line = `[${scope} step] ${name} ${entry.elapsedMs}ms`;
-    if (entry.elapsedMs >= slowStepMs) {
-      console.warn(line);
-    } else {
-      console.log(line);
-    }
+    const parts = entries.map((entry) => `${perfKey(entry.name)}=${entry.elapsedMs}ms`);
+    const line = `[perf][${scope}] ${parts.join(" ")}`;
+    const hasSlowStep = entries.some((entry) => entry.elapsedMs >= slowStepMs);
+    if (hasSlowStep) console.warn(line);
+    else console.log(line);
   }
 
   return {
@@ -67,6 +88,7 @@ export function createServerStepTimer(
     },
     finish(name = "total") {
       record(name, nowMs() - startedAt);
+      logSummary();
       return entries;
     },
   };

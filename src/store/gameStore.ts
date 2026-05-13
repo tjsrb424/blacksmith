@@ -1947,14 +1947,21 @@ export const useGameStore = create<GameStore>()(
                 set({
                   ...patchFromServerAction(response, get()),
                   serverActionPending: false,
+                  serverActionMessage: null,
                 });
               });
-          if (!withAd) set({ serverActionPending: true });
+          if (!withAd) {
+            set({
+              serverActionPending: true,
+              serverActionMessage: "수령 중...",
+            });
+          }
           void action
             .catch((error) => {
               playUiError();
               set({
                 serverActionPending: false,
+                serverActionMessage: null,
                 modal: {
                   kind: "server_error",
                   message: serverErrorMessage(error),
@@ -2075,7 +2082,10 @@ export const useGameStore = create<GameStore>()(
         }
         if (isBetaMode()) {
           if (state.serverActionPending) return;
-          set({ serverActionPending: true });
+          set({
+            serverActionPending: true,
+            serverActionMessage: "업그레이드 중...",
+          });
           void upgradeForgeApi({
             ...newActionMeta(),
           })
@@ -2083,12 +2093,14 @@ export const useGameStore = create<GameStore>()(
               set({
                 ...patchFromServerAction(response, get()),
                 serverActionPending: false,
+                serverActionMessage: null,
               });
             })
             .catch((error) => {
               playUiError();
               set({
                 serverActionPending: false,
+                serverActionMessage: null,
                 modal: {
                   kind: "server_error",
                   message: serverErrorMessage(error),

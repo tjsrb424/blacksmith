@@ -300,41 +300,93 @@ async function runLoggedAction(args: {
 export async function buyWeaponServer(
   user: User,
   payload: BuyActionRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
   return runLoggedAction({
     user,
     actionType: "buy",
     actionId: payload.actionId,
     payload,
+    timer,
     run: async () => {
       const def = WEAPONS_BY_ID[payload.weaponId];
       if (!def) throw new GameActionError("Unknown weaponId", 404, "weapon_not_found");
-      const state = await getPlayerState(user.id);
+      const state = await (timer
+        ? timer.time("player_state lookup", () => getPlayerState(user.id))
+        : getPlayerState(user.id));
       if (Number(state.gold) < def.basePrice) {
         throw new GameActionError("Not enough gold", 409, "insufficient_gold");
       }
 
       const admin = getSupabaseAdminClient();
-      const { error: stateError } = await admin
-        .from("player_states")
-        .update({ gold: Number(state.gold) - def.basePrice })
-        .eq("id", state.id);
-      if (stateError) throw stateError;
+      const nextGold = Number(state.gold) - def.basePrice;
+      await (timer
+        ? timer.time("player_state gold update", async () => {
+            const { error } = await admin
+              .from("player_states")
+              .update({ gold: nextGold })
+              .eq("id", state.id);
+            if (error) throw error;
+          })
+        : admin
+            .from("player_states")
+            .update({ gold: nextGold })
+            .eq("id", state.id)
+            .then(({ error }) => {
+              if (error) throw error;
+            }));
 
-      const { error: weaponError } = await admin.from("owned_weapons").insert({
-        user_id: user.id,
-        weapon_id: def.id,
-        enhance_level: 0,
-        transcend_level: 0,
-        durability: DEFAULT_DURABILITY,
-        is_locked: false,
-      });
-      if (weaponError) throw weaponError;
+      const insertedWeapon = await (timer
+        ? timer.time("owned_weapon insert", async () => {
+            const { data, error } = await admin
+              .from("owned_weapons")
+              .insert({
+                user_id: user.id,
+                weapon_id: def.id,
+                enhance_level: 0,
+                transcend_level: 0,
+                durability: DEFAULT_DURABILITY,
+                is_locked: false,
+              })
+              .select(OWNED_WEAPON_SELECT)
+              .single();
+            if (error) throw error;
+            return data;
+          })
+        : admin
+            .from("owned_weapons")
+            .insert({
+              user_id: user.id,
+              weapon_id: def.id,
+              enhance_level: 0,
+              transcend_level: 0,
+              durability: DEFAULT_DURABILITY,
+              is_locked: false,
+            })
+            .select(OWNED_WEAPON_SELECT)
+            .single()
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data;
+            }));
 
       return {
         actionId: payload.actionId,
         actionType: "buy",
-        snapshot: await getPlayerSnapshot(user),
+        patch: timer
+          ? timer.timeSync("response patch create", () => ({
+              currentGold: nextGold,
+              currentEmber: Number(state.forge_ember),
+              currentStone: Number(state.transcend_stone),
+              changedWeapon: insertedWeapon,
+            }))
+          : {
+              currentGold: nextGold,
+              currentEmber: Number(state.forge_ember),
+              currentStone: Number(state.transcend_stone),
+              changedWeapon: insertedWeapon,
+            },
         display: { kind: "buy", weaponName: def.name },
       };
     },
@@ -1348,22 +1400,39 @@ async function sellWeaponServerLegacy(
 export async function collectForgeServer(
   user: User,
   payload: ForgeCollectActionRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
   return runLoggedAction({
     user,
     actionType: "forge_collect",
     actionId: payload.actionId,
     payload,
+    timer,
     run: async () => {
-      const state = await getPlayerState(user.id);
-      const record = await getPlayerRecord(user.id);
+      const [state, record] = await Promise.all([
+        timer
+          ? timer.time("player_state lookup", () => getPlayerState(user.id))
+          : getPlayerState(user.id),
+        timer
+          ? timer.time("player_records lookup", () => getPlayerRecord(user.id))
+          : getPlayerRecord(user.id),
+      ]);
       const now = Date.now();
       const last = new Date(state.forge_last_collected_at).getTime();
-      const pending = computePendingForgeEmber({
-        forgeLevel: Number(state.forge_level),
-        forgeLastCollectAt: last,
-        now,
-      });
+      const pending = timer
+        ? timer.timeSync("forge reward calculation", () =>
+            computePendingForgeEmber({
+              forgeLevel: Number(state.forge_level),
+              forgeLastCollectAt: last,
+              now,
+            }),
+          )
+        : computePendingForgeEmber({
+            forgeLevel: Number(state.forge_level),
+            forgeLastCollectAt: last,
+            now,
+          });
       if (pending <= 0) {
         throw new GameActionError("No forge reward to collect", 409, "no_forge_reward");
       }
@@ -1383,16 +1452,44 @@ export async function collectForgeServer(
           : records.forgeAdCollectCount,
       };
 
-      await updatePlayerState(state.id, {
-        forge_ember: Number(state.forge_ember) + gained,
-        forge_last_collected_at: new Date(now).toISOString(),
-      });
-      await updatePlayerRecord(record.id, { stats: toJson(nextRecords) });
+      const collectedAt = new Date(now).toISOString();
+      const nextEmber = Number(state.forge_ember) + gained;
+      await (timer
+        ? timer.time("player_state/player_records update", () =>
+            Promise.all([
+              updatePlayerState(state.id, {
+                forge_ember: nextEmber,
+                forge_last_collected_at: collectedAt,
+              }),
+              updatePlayerRecord(record.id, { stats: toJson(nextRecords) }),
+            ]).then(() => undefined),
+          )
+        : Promise.all([
+            updatePlayerState(state.id, {
+              forge_ember: nextEmber,
+              forge_last_collected_at: collectedAt,
+            }),
+            updatePlayerRecord(record.id, { stats: toJson(nextRecords) }),
+          ]).then(() => undefined));
 
       return {
         actionId: payload.actionId,
         actionType: "forge_collect",
-        snapshot: await getPlayerSnapshot(user),
+        patch: timer
+          ? timer.timeSync("response patch create", () => ({
+              currentGold: Number(state.gold),
+              currentEmber: nextEmber,
+              currentStone: Number(state.transcend_stone),
+              forgeLastCollectedAt: collectedAt,
+              records: nextRecords,
+            }))
+          : {
+              currentGold: Number(state.gold),
+              currentEmber: nextEmber,
+              currentStone: Number(state.transcend_stone),
+              forgeLastCollectedAt: collectedAt,
+              records: nextRecords,
+            },
         display: {
           kind: "forgeCollect",
           gained,
@@ -1408,14 +1505,19 @@ export async function collectForgeServer(
 export async function upgradeForgeServer(
   user: User,
   payload: ForgeUpgradeActionRequest,
+  options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
+  const timer = options.timer;
   return runLoggedAction({
     user,
     actionType: "forge_upgrade",
     actionId: payload.actionId,
     payload,
+    timer,
     run: async () => {
-      const state = await getPlayerState(user.id);
+      const state = await (timer
+        ? timer.time("player_state lookup", () => getPlayerState(user.id))
+        : getPlayerState(user.id));
       const currentLevel = Number(state.forge_level);
       if (currentLevel >= 10) {
         throw new GameActionError("Forge is already max level", 409, "max_forge_level");
@@ -1427,15 +1529,35 @@ export async function upgradeForgeServer(
       }
 
       const newLevel = currentLevel + 1;
-      await updatePlayerState(state.id, {
-        gold: Number(state.gold) - costGold,
-        forge_level: newLevel,
-      });
+      const nextGold = Number(state.gold) - costGold;
+      await (timer
+        ? timer.time("player_state forge update", () =>
+            updatePlayerState(state.id, {
+              gold: nextGold,
+              forge_level: newLevel,
+            }),
+          )
+        : updatePlayerState(state.id, {
+            gold: nextGold,
+            forge_level: newLevel,
+          }));
 
       return {
         actionId: payload.actionId,
         actionType: "forge_upgrade",
-        snapshot: await getPlayerSnapshot(user),
+        patch: timer
+          ? timer.timeSync("response patch create", () => ({
+              currentGold: nextGold,
+              currentEmber: Number(state.forge_ember),
+              currentStone: Number(state.transcend_stone),
+              forgeLevel: newLevel,
+            }))
+          : {
+              currentGold: nextGold,
+              currentEmber: Number(state.forge_ember),
+              currentStone: Number(state.transcend_stone),
+              forgeLevel: newLevel,
+            },
         display: {
           kind: "forgeUpgrade",
           previousLevel: currentLevel,

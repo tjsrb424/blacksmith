@@ -44,6 +44,7 @@ export function BlacksmithScreen() {
   const isEnhancing = useGameStore((s) => s.isEnhancing);
   const hammerPhase = useGameStore((s) => s.enhanceHammerPhase);
   const enhanceWaitMessage = useGameStore((s) => s.serverActionMessage);
+  const serverActionPending = useGameStore((s) => s.serverActionPending);
 
   const [stageFx, setStageFx] = useState<BlacksmithFxKind>("idle");
   const [fxSession, setFxSession] = useState(0);
@@ -324,7 +325,12 @@ export function BlacksmithScreen() {
               ) : null}
               <FantasyButton
                 className="min-h-14 w-full text-base focus-visible:ring-2 focus-visible:ring-amber-400/80"
-                disabled={!equipped || !canAffordEnhance || isEnhancing}
+                disabled={
+                  !equipped ||
+                  !canAffordEnhance ||
+                  isEnhancing ||
+                  serverActionPending
+                }
                 onClick={() => requestEnhance()}
               >
                 {!canAffordEnhance
@@ -361,7 +367,7 @@ export function BlacksmithScreen() {
             <FantasyButton
               variant="accent"
               className="min-h-12 w-full focus-visible:ring-2 focus-visible:ring-amber-400/80"
-              disabled={durability <= 0 || isEnhancing || isLastWeapon}
+              disabled={durability <= 0 || isEnhancing || isLastWeapon || serverActionPending}
               title={
                 isLastWeapon
                   ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
@@ -415,7 +421,7 @@ export function BlacksmithScreen() {
             ) : null}
             <FantasyButton
               className="min-h-14 w-full bg-gradient-to-b from-violet-600 to-indigo-950 text-amber-50 shadow-[0_0_20px_rgba(139,92,246,0.35)] ring-1 ring-violet-400/40 hover:from-violet-500 hover:to-indigo-900 focus-visible:ring-2 focus-visible:ring-violet-300/90"
-              disabled={!canTranscend || durability <= 0 || isEnhancing}
+              disabled={!canTranscend || durability <= 0 || isEnhancing || serverActionPending}
               onClick={() => requestTranscend()}
             >
               {!canTranscend
@@ -452,7 +458,13 @@ export function BlacksmithScreen() {
             <FantasyButton
               variant="accent"
               className="min-h-12 flex-1 focus-visible:ring-2 focus-visible:ring-amber-400/80"
-              disabled={!equipped || durability <= 0 || isEnhancing || isLastWeapon}
+              disabled={
+                !equipped ||
+                durability <= 0 ||
+                isEnhancing ||
+                isLastWeapon ||
+                serverActionPending
+              }
               title={
                 isLastWeapon
                   ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
@@ -465,7 +477,7 @@ export function BlacksmithScreen() {
           <FantasyButton
             variant="ghost"
             className="min-h-12 flex-1 text-xs text-zinc-500 focus-visible:ring-2 focus-visible:ring-zinc-500"
-            disabled={isEnhancing}
+            disabled={isEnhancing || serverActionPending}
             onClick={() => setTab("shop")}
           >
             무기 상점으로

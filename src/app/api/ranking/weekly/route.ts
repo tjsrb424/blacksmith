@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
+import { createServerStepTimer } from "@/lib/server/stepLatency";
 import { getWeeklyRankingRows } from "@/lib/server/rankingService";
 import type { RankingCategory } from "@/types/game";
 
@@ -19,15 +20,25 @@ function isWeeklyCategory(value: string | null): value is RankingCategory {
 
 export async function GET(request: NextRequest) {
   return withApiLatency("api/ranking/weekly", async () => {
-    try {
-      const auth = await requireSupabaseUser();
-      if (!auth.ok) return auth.response;
+    const timer = createServerStepTimer("rankingWeekly", { slowStepMs: 700 });
 
-      const url = new URL(request.url);
-      const seasonId = url.searchParams.get("seasonId")?.trim();
-      const category = url.searchParams.get("category");
+    try {
+      const auth = await timer.time("auth", () => requireSupabaseUser());
+      if (!auth.ok) {
+        timer.finish();
+        return auth.response;
+      }
+
+      const { seasonId, category } = timer.timeSync("request parse", () => {
+        const url = new URL(request.url);
+        return {
+          seasonId: url.searchParams.get("seasonId")?.trim(),
+          category: url.searchParams.get("category"),
+        };
+      });
 
       if (!seasonId) {
+        timer.finish();
         return NextResponse.json(
           {
             error: "missing_season_id",
@@ -38,6 +49,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (!isWeeklyCategory(category)) {
+        timer.finish();
         return NextResponse.json(
           {
             error: "invalid_ranking_category",
@@ -47,14 +59,21 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      return NextResponse.json(
-        await getWeeklyRankingRows({
+      const result = await timer.time("weekly_rankings query", () =>
+        getWeeklyRankingRows({
           seasonId,
           category,
           playerId: auth.user.id,
         }),
       );
+      const response = timer.timeSync("response serialize", () =>
+        NextResponse.json(result),
+      );
+
+      timer.finish();
+      return response;
     } catch (error) {
+      timer.finish();
       console.error("[ranking.weekly] failed", error);
       return NextResponse.json(
         {

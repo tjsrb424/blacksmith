@@ -28,6 +28,7 @@ export function WeaponShopScreen() {
   const gold = useGameStore((s) => s.gold);
   const ownedWeapons = useGameStore((s) => s.ownedWeapons);
   const records = useGameStore((s) => s.records);
+  const serverActionPending = useGameStore((s) => s.serverActionPending);
 
   const [gradeFilter, setGradeFilter] = useState<WeaponGrade | "all">("all");
 
@@ -158,7 +159,7 @@ export function WeaponShopScreen() {
                     ) : null}
                     <FantasyButton
                       className="min-h-10 w-full px-2 py-2 text-xs focus-visible:ring-2 focus-visible:ring-amber-400/80"
-                      disabled={!affordable || owned}
+                      disabled={!affordable || owned || serverActionPending}
                       onClick={() => buyWeapon(def.id)}
                     >
                       {owned ? "보유 중" : affordable ? "구매" : "골드 부족"}

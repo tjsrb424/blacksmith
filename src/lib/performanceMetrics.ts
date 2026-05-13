@@ -95,7 +95,11 @@ export function diagnosticLog(
   event: string,
   details?: Record<string, unknown>,
 ) {
-  if (process.env.NODE_ENV === "production") return;
+  const debugEnabled =
+    process.env.NEXT_PUBLIC_PERF_DEBUG === "true" ||
+    (process.env.NODE_ENV !== "production" &&
+      process.env.NEXT_PUBLIC_PERF_DEBUG !== "false");
+  if (!debugEnabled) return;
   const payload = details ? { ...details } : undefined;
   console.log(`[diag:${scope}] ${event}`, payload ?? "");
 }

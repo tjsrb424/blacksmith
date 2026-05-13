@@ -60,6 +60,7 @@ export function AutoForgeScreen() {
   const gold = useGameStore((s) => s.gold);
   const collect = useGameStore((s) => s.collectForge);
   const requestUpgrade = useGameStore((s) => s.requestForgeUpgrade);
+  const serverActionPending = useGameStore((s) => s.serverActionPending);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -172,7 +173,7 @@ export function AutoForgeScreen() {
           <div className="grid grid-cols-1 gap-2 pt-1">
             <FantasyButton
               className="min-h-[52px] w-full text-base shadow-[0_0_22px_rgba(245,158,11,0.18)]"
-              disabled={pending <= 0}
+              disabled={pending <= 0 || serverActionPending}
               onClick={() => collect(false)}
             >
               수령하기
@@ -180,7 +181,7 @@ export function AutoForgeScreen() {
             <FantasyButton
               variant="promo"
               className="min-h-[52px] w-full"
-              disabled={pending <= 0 || isRewardAdDisabled}
+              disabled={pending <= 0 || isRewardAdDisabled || serverActionPending}
               onClick={() => collect(true)}
             >
               {isRewardAdDisabled ? "광고 보상 준비 중" : "광고 보고 2배 수령"}
@@ -239,7 +240,7 @@ export function AutoForgeScreen() {
           <FantasyButton
             variant="secondary"
             className="w-full"
-            disabled={forgeLevel >= 10}
+            disabled={forgeLevel >= 10 || serverActionPending}
             onClick={() => requestUpgrade()}
           >
             {forgeLevel >= 10 ? "최대 레벨" : "제련로 업그레이드"}
