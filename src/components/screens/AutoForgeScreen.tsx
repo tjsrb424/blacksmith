@@ -11,7 +11,7 @@ import {
   getForgeEmberPerMinute,
   getForgeSnapshot,
 } from "@/lib/forge";
-import { formatInt } from "@/lib/format";
+import { formatGold, formatInt } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
@@ -128,7 +128,7 @@ export function AutoForgeScreen() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-amber-800/30 bg-black/22 p-4 text-center shadow-[inset_0_0_38px_rgba(251,146,60,0.08)]">
+          <div className="rounded-2xl border border-amber-800/30 bg-black/22 px-4 py-5 text-center shadow-[inset_0_0_44px_rgba(251,146,60,0.1)]">
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl border border-amber-500/30 bg-linear-to-b from-amber-500/16 to-orange-950/28 shadow-[0_0_28px_rgba(251,146,60,0.24)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -137,10 +137,10 @@ export function AutoForgeScreen() {
                 className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(251,146,60,0.5)]"
               />
             </div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/65">
               미수령 불씨
             </div>
-            <div className="mt-1 font-mono text-5xl font-bold tabular-nums text-orange-200 drop-shadow-[0_0_24px_rgba(251,146,60,0.42)]">
+            <div className="mx-auto mt-1 max-w-full overflow-hidden text-center font-mono text-5xl font-black tabular-nums text-orange-200 drop-shadow-[0_0_24px_rgba(251,146,60,0.42)]">
               {formatInt(pending)}
             </div>
           </div>
@@ -150,7 +150,7 @@ export function AutoForgeScreen() {
               <span>보관량</span>
               <span
                 className={cn(
-                  "font-mono",
+                  "numeric-value max-w-[12rem] font-mono",
                   full ? "text-red-300" : warnBand ? "text-amber-200" : "text-zinc-100",
                 )}
               >
@@ -172,20 +172,36 @@ export function AutoForgeScreen() {
 
           <div className="grid grid-cols-1 gap-2 pt-1">
             <FantasyButton
-              className="min-h-[52px] w-full text-base shadow-[0_0_22px_rgba(245,158,11,0.18)]"
+              className="min-h-[54px] w-full overflow-hidden rounded-xl border border-amber-300/35 bg-[linear-gradient(180deg,rgba(245,158,11,0.82)_0%,rgba(180,83,9,0.94)_48%,rgba(67,20,7,0.98)_100%)] px-3 py-2 text-base text-amber-50 shadow-[0_0_24px_rgba(251,146,60,0.28),0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,237,213,0.32),inset_0_-12px_22px_rgba(0,0,0,0.24)] ring-1 ring-amber-200/25 hover:bg-[linear-gradient(180deg,rgba(251,191,36,0.88)_0%,rgba(194,91,12,0.96)_48%,rgba(88,28,8,1)_100%)]"
               disabled={pending <= 0 || serverActionPending}
               onClick={() => collect(false)}
             >
-              수령하기
+              <span className="text-[17px] font-black leading-none tracking-wide text-amber-50 drop-shadow-[0_1px_8px_rgba(0,0,0,0.55)]">
+                수령하기
+              </span>
             </FantasyButton>
-            <FantasyButton
-              variant="promo"
-              className="min-h-[52px] w-full"
-              disabled={pending <= 0 || isRewardAdDisabled || serverActionPending}
-              onClick={() => collect(true)}
-            >
-              {isRewardAdDisabled ? "광고 보상 준비 중" : "광고 보고 2배 수령"}
-            </FantasyButton>
+            {isRewardAdDisabled ? (
+              <div className="rounded-xl border border-zinc-800/80 bg-black/24 px-3 py-3 text-center ring-1 ring-zinc-900/60">
+                <div className="text-xs font-semibold text-zinc-400">
+                  광고 보상은 아직 이용할 수 없습니다
+                </div>
+                <div className="mt-1 text-[11px] text-zinc-600">
+                  기본 수령은 정상 이용 가능합니다.
+                </div>
+              </div>
+            ) : (
+              <FantasyButton
+                variant="promo"
+                className="min-h-[52px] w-full flex-col gap-0.5 text-amber-50"
+                disabled={pending <= 0 || serverActionPending}
+                onClick={() => collect(true)}
+              >
+                <span className="text-sm font-black">2배 수령</span>
+                <span className="numeric-value max-w-full font-mono text-[11px] text-amber-100/85">
+                  {formatInt(pending * 2)}
+                </span>
+              </FantasyButton>
+            )}
           </div>
           {isRewardAdDisabled ? (
             <p className="text-center text-[11px] leading-relaxed text-zinc-500">
@@ -198,11 +214,18 @@ export function AutoForgeScreen() {
           <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
             <div className="rounded-xl bg-black/24 p-3 ring-1 ring-zinc-700/50">
               <div className="text-zinc-500">기본 수령</div>
-              <div className="mt-1 font-mono text-amber-100">{formatInt(pending)}</div>
+              <div className="numeric-value mt-1 font-mono text-amber-100">{formatInt(pending)}</div>
             </div>
-            <div className="rounded-xl bg-violet-950/16 p-3 ring-1 ring-violet-700/30">
+            <div
+              className={cn(
+                "rounded-xl p-3 ring-1",
+                isRewardAdDisabled
+                  ? "bg-black/18 opacity-60 ring-zinc-800/70"
+                  : "bg-violet-950/16 ring-violet-700/30",
+              )}
+            >
               <div className="text-zinc-500">광고 2배</div>
-              <div className="mt-1 font-mono text-violet-100">{formatInt(pending * 2)}</div>
+              <div className="numeric-value mt-1 font-mono text-violet-100">{formatInt(pending * 2)}</div>
             </div>
           </div>
         </div>
@@ -210,40 +233,46 @@ export function AutoForgeScreen() {
 
       <div className="relative z-10 grid gap-3">
         <FantasyPanel title="생산 정보" className="space-y-2 text-sm">
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <span className="text-zinc-500">분당 생산</span>
-            <span className="font-mono text-amber-100">{formatInt(snap.ratePerMinute)} / 분</span>
+            <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerMinute)} / 분</span>
           </div>
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <span className="text-zinc-500">시간당 생산</span>
-            <span className="font-mono text-amber-100">{formatInt(snap.ratePerHour)} / 시</span>
+            <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerHour)} / 시</span>
           </div>
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <span className="text-zinc-500">보유 불씨</span>
-            <span className="font-mono text-zinc-200">{formatInt(ember)}</span>
+            <span className="numeric-value font-mono text-zinc-200">{formatInt(ember)}</span>
           </div>
         </FantasyPanel>
 
         <FantasyPanel title="업그레이드" className="space-y-3 text-sm">
-          <div className="flex justify-between gap-2">
-            <span className="text-zinc-500">다음 레벨 분당 생산</span>
-            <span className="font-mono text-amber-100">
-              {forgeLevel >= 10 ? "MAX" : `${formatInt(nextRate)} / 분`}
-            </span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className="text-zinc-500">비용</span>
-            <span className="font-mono text-amber-200">
-              {forgeLevel >= 10 ? "—" : `${formatInt(upgradeCost)} G`}
-            </span>
+          <div className="space-y-2">
+            <div className="stat-row">
+              <span className="text-zinc-500">현재 생산</span>
+              <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerMinute)} / 분</span>
+            </div>
+            <div className="stat-row">
+              <span className="text-zinc-500">다음 생산</span>
+              <span className="numeric-value font-mono text-amber-100">
+                {forgeLevel >= 10 ? "MAX" : `${formatInt(nextRate)} / 분`}
+              </span>
+            </div>
+            <div className="stat-row">
+              <span className="text-zinc-500">비용</span>
+              <span className="numeric-value font-mono text-amber-200">
+                {forgeLevel >= 10 ? "—" : formatGold(upgradeCost)}
+              </span>
+            </div>
           </div>
           <FantasyButton
-            variant="secondary"
+            variant={canAffordUpgrade ? "secondary" : "muted"}
             className="w-full"
-            disabled={forgeLevel >= 10 || serverActionPending}
+            disabled={forgeLevel >= 10 || !canAffordUpgrade || serverActionPending}
             onClick={() => requestUpgrade()}
           >
-            {forgeLevel >= 10 ? "최대 레벨" : "제련로 업그레이드"}
+            {forgeLevel >= 10 ? "최대 레벨" : "업그레이드"}
           </FantasyButton>
           {!canAffordUpgrade && forgeLevel < 10 ? (
             <p className="text-center text-xs text-red-400/95">골드가 부족합니다</p>

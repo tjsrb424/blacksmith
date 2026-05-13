@@ -42,7 +42,7 @@ export function TopResourceBar() {
     process.env.NODE_ENV !== "production" && getConfiguredAdProvider() === "mock";
 
   return (
-    <header className="relative z-40 shrink-0 border-b border-amber-900/25 bg-[rgba(5,5,8,0.82)] backdrop-blur-sm">
+    <header className="resource-header relative z-40 shrink-0 border-b border-amber-900/25 bg-[rgba(5,5,8,0.82)] backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-2.5 py-1.5">
         <div className="grid min-w-0 grid-cols-3 gap-1.5">
           <ResourcePill

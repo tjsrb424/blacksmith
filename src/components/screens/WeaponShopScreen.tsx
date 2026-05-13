@@ -6,7 +6,7 @@ import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { WeaponCard } from "@/components/ui/WeaponCard";
 import { WEAPON_DEFINITIONS } from "@/data/weapons";
 import { calculateRankingValue } from "@/lib/ranking";
-import { formatGold } from "@/lib/format";
+import { formatCompactKoreanNumber, formatGold } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { WeaponGrade } from "@/types/game";
 import { cn } from "@/lib/cn";
@@ -62,6 +62,11 @@ export function WeaponShopScreen() {
     return next?.id ?? WEAPON_DEFINITIONS[0]?.id;
   }, [ownedIds]);
 
+  const cheapestUnownedId = useMemo(() => {
+    const unowned = WEAPON_DEFINITIONS.filter((d) => !ownedIds.has(d.id));
+    return unowned.sort((a, b) => a.basePrice - b.basePrice)[0]?.id ?? null;
+  }, [ownedIds]);
+
   return (
     <div className="relative mx-auto w-full flex-1 space-y-4 px-3 pb-5 pt-6">
       <ScreenBackground screen="shop" />
@@ -70,7 +75,11 @@ export function WeaponShopScreen() {
           무기 상점
         </h2>
         <p className="text-sm text-zinc-300 drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]">
-          보유 골드 <span className="font-mono text-amber-200">{formatGold(gold)}</span> — 카드를 눌러 구매 확인 창을 엽니다.
+          보유 골드{" "}
+          <span className="numeric-value inline-block max-w-[9rem] align-bottom font-mono text-amber-200" title={formatGold(gold)}>
+            {formatCompactKoreanNumber(gold)}G
+          </span>{" "}
+          — 카드를 눌러 구매 확인 창을 엽니다.
         </p>
       </header>
 
@@ -128,6 +137,11 @@ export function WeaponShopScreen() {
             inst.transcendLevel < 10 &&
             inst.durability > 0;
           const isRecommended = def.id === recommendedId && !owned;
+          const recommendationLabel = affordable
+            ? "추천 · 구매 가능"
+            : def.id === cheapestUnownedId
+              ? "추천 · 최저가"
+              : "추천 · 성장 후보";
 
           return (
             <div
@@ -145,6 +159,10 @@ export function WeaponShopScreen() {
                 transcendReady={transcendReady}
                 rankingCandidate={rankingCandidate}
                 maxEnhanceHighlight={!!inst && inst.enhanceLevel >= 15}
+                className={cn(
+                  !owned && affordable && "shadow-[0_0_24px_rgba(245,158,11,0.08)]",
+                  !owned && !affordable && "opacity-[0.82]",
+                )}
                 footer={
                   <div className="space-y-1.5">
                     {owned ? (
@@ -152,13 +170,24 @@ export function WeaponShopScreen() {
                         보유 중
                       </p>
                     ) : !affordable ? (
-                      <p className="text-center text-[10px] text-red-400/90">
+                      <p className="text-center text-[10px] text-red-300/90">
                         부족{" "}
-                        <span className="font-mono">{formatGold(shortfall)}</span>
+                        <span
+                          className="numeric-value inline-block max-w-full align-bottom font-mono"
+                          title={formatGold(shortfall)}
+                        >
+                          {formatCompactKoreanNumber(shortfall)}G
+                        </span>
                       </p>
                     ) : null}
                     <FantasyButton
-                      className="min-h-10 w-full px-2 py-2 text-xs focus-visible:ring-2 focus-visible:ring-amber-400/80"
+                      variant={owned || !affordable ? "muted" : "primary"}
+                      className={cn(
+                        "min-h-10 w-full px-2 py-2 text-xs focus-visible:ring-2 focus-visible:ring-amber-400/80",
+                        affordable &&
+                          !owned &&
+                          "bg-[linear-gradient(180deg,rgba(245,158,11,0.86),rgba(180,83,9,0.96)_52%,rgba(67,20,7,0.98))] text-amber-50 shadow-[0_0_20px_rgba(245,158,11,0.24),inset_0_1px_0_rgba(255,237,213,0.28)]",
+                      )}
                       disabled={!affordable || owned || serverActionPending}
                       onClick={() => buyWeapon(def.id)}
                     >
@@ -168,8 +197,8 @@ export function WeaponShopScreen() {
                 }
               />
               {isRecommended ? (
-                <p className="mt-1 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-400/90">
-                  추천
+                <p className="mt-1 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-300/95">
+                  {recommendationLabel}
                 </p>
               ) : null}
             </div>

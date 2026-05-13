@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 import type { WeaponDefinition } from "@/types/game";
 import { gradeLabel, weaponTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/cn";
-import { formatGold } from "@/lib/format";
+import { formatCompactKoreanNumber, formatGold } from "@/lib/format";
 import { WeaponImage } from "@/components/ui/WeaponImage";
 import {
   getCardFramePath,
@@ -159,11 +159,12 @@ export const WeaponCard = memo(function WeaponCard({
         </div>
         <div
           className={cn(
-            "font-mono text-amber-300",
+            "numeric-value max-w-full font-mono text-amber-300",
             compact ? "text-[11px]" : "text-sm",
           )}
+          title={`기본가 ${formatGold(def.basePrice)}`}
         >
-          기본가 {formatGold(def.basePrice)}
+          기본가 {formatCompactKoreanNumber(def.basePrice)}G
         </div>
         {footer ? <div className="mt-auto pt-0.5">{footer}</div> : null}
       </div>

@@ -10,8 +10,13 @@ import { WeaponImage } from "@/components/ui/WeaponImage";
 import { BlacksmithResultFx } from "@/components/effects/BlacksmithResultFx";
 import type { BlacksmithFxKind } from "@/components/effects/BlacksmithResultFx";
 import { ForgeGlow, type ForgeAuraMode } from "@/components/effects/ForgeGlow";
+import { CURRENCY_ICONS } from "@/data/assets";
 import { gradeLabel } from "@/lib/labels";
-import { formatGold, formatInt, formatPercent } from "@/lib/format";
+import {
+  formatGold,
+  formatInt,
+  formatPercent,
+} from "@/lib/format";
 import { WEAPONS_BY_ID } from "@/data/weapons";
 import { calculateSaleGold } from "@/lib/economy";
 import { calculateRankingValue } from "@/lib/ranking";
@@ -154,11 +159,11 @@ export function BlacksmithScreen() {
           scale: [1, 1 + hammerPhase * 0.028, 1],
           x: [0, hammerPhase * 1.8, -hammerPhase * 1.8, 0],
           transition: { duration: 0.14 },
-        }
+      }
       : weaponMotion;
 
   const mainColumn = (
-    <div className="relative flex min-h-[230px] flex-col items-center justify-center gap-3 rounded-2xl border border-amber-900/35 bg-[rgba(0,0,0,0.14)] p-2.5 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[260px] sm:p-3">
+    <div className="relative flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-xl border border-amber-900/35 bg-[linear-gradient(180deg,rgba(28,15,8,0.2),rgba(0,0,0,0.14))] p-2 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[220px] sm:gap-2 sm:p-2.5">
       <BlacksmithResultFx kind={stageFx} burstKey={fxSession} />
       <div className="relative flex w-full flex-col items-center justify-center">
         {!def || !equipped ? (
@@ -175,9 +180,13 @@ export function BlacksmithScreen() {
           </>
         ) : (
           <>
-            <div className="relative flex h-[min(48vw,270px)] w-full max-w-[300px] items-center justify-center">
+            <div className="relative flex h-[min(26vw,102px)] w-full max-w-[178px] items-center justify-center sm:h-[min(34vw,178px)] sm:max-w-[250px]">
               <div className="absolute inset-0 flex items-center justify-center">
-                <ForgeGlow mode={auraMode === "idle" ? "neutral" : auraMode} />
+                <ForgeGlow
+                  mode={auraMode === "idle" ? "neutral" : auraMode}
+                  className="h-[112px] w-[112px] sm:h-44 sm:w-44"
+                  showRing={false}
+                />
               </div>
               <motion.div
                 className={cn(
@@ -194,14 +203,16 @@ export function BlacksmithScreen() {
                 <WeaponImage
                   src={def.imagePath}
                   alt={def.name}
-                  className="relative z-10 max-h-[min(43vw,180px)] w-auto object-contain drop-shadow-[0_0_24px_rgba(251,146,60,0.42)] sm:max-h-[200px]"
+                  className="relative z-10 max-h-[min(21vw,82px)] w-auto object-contain drop-shadow-[0_0_22px_rgba(251,146,60,0.42)] sm:max-h-[145px]"
                 />
               </motion.div>
             </div>
-            <div className="text-center">
-              <div className="text-base font-bold text-amber-50">{stageWeaponName}</div>
+            <div className="mt-1 flex min-h-[42px] max-w-full flex-col items-center justify-start text-center">
+              <div className="max-w-full truncate px-2 text-sm font-bold leading-tight text-amber-50 drop-shadow-[0_1px_6px_rgba(0,0,0,0.72)] sm:text-base">
+                {stageWeaponName}
+              </div>
               <motion.div
-                className="mt-0.5 font-mono text-sm text-amber-200/90"
+                className="font-mono text-xs leading-tight text-amber-200/90 sm:text-sm"
                 animate={
                   stageFx === "enhance_ok"
                     ? { scale: [1, 1.15, 1], color: ["#fde68a", "#fef08a", "#fde68a"] }
@@ -213,7 +224,7 @@ export function BlacksmithScreen() {
                 {transcendLevel >= 1 ? ` ★${transcendLevel}` : ""}
               </motion.div>
               {rankingCandidate ? (
-                <span className="mt-1.5 inline-block rounded-full bg-indigo-600/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-100 ring-1 ring-indigo-400/40">
+                <span className="mt-1 inline-block rounded-full bg-indigo-600/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-100 ring-1 ring-indigo-400/40">
                   기록 후보
                 </span>
               ) : null}
@@ -228,7 +239,7 @@ export function BlacksmithScreen() {
                 </span>
               ) : null}
               {durability <= 1 && equipped && equipped.durability > 0 ? (
-                <p className="mt-2 rounded-lg bg-red-950/45 px-3 py-1.5 text-[11px] font-semibold text-red-200 ring-1 ring-red-500/35">
+                <p className="mt-1 rounded-lg bg-red-950/45 px-2.5 py-1 text-[10px] font-semibold text-red-200 ring-1 ring-red-500/35">
                   위험: 다음 실패 시 파괴 가능
                 </p>
               ) : null}
@@ -240,30 +251,30 @@ export function BlacksmithScreen() {
   );
 
   const infoPanel = (
-    <FantasyPanel title="무기 정보" className="h-full p-2.5">
+    <FantasyPanel title="무기 정보" className="h-full p-2 [&>h3]:mb-1">
       {!def || !equipped ? (
         <p className="text-sm text-zinc-400">
           장착한 무기가 없습니다. 보관함에서 장착하거나 상점에서 구매하세요.
         </p>
       ) : (
-        <dl className="space-y-1.5 text-sm">
-          <div className="flex justify-between gap-2">
+        <dl className="space-y-1 text-xs sm:text-sm">
+          <div className="stat-row">
             <dt className="text-zinc-500">등급</dt>
             <dd className="text-zinc-100">{gradeLabel(def.grade)}</dd>
           </div>
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <dt className="text-zinc-500">내구도</dt>
-            <dd className="flex items-center gap-2">
+            <dd className="flex items-center justify-end gap-2">
               <DurabilityIcons value={durability} emphasizeCritical />
             </dd>
           </div>
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <dt className="text-zinc-500">판매가</dt>
-            <dd className="font-mono text-sky-300">{formatGold(saleGold)}</dd>
+            <dd className="numeric-value font-mono text-sky-300">{formatGold(saleGold)}</dd>
           </div>
-          <div className="flex justify-between gap-2">
+          <div className="stat-row">
             <dt className="text-zinc-500">랭킹 가치</dt>
-            <dd className="font-mono text-zinc-400">{formatGold(rankingVal)}</dd>
+            <dd className="numeric-value font-mono text-zinc-400">{formatGold(rankingVal)}</dd>
           </div>
         </dl>
       )}
@@ -271,31 +282,39 @@ export function BlacksmithScreen() {
   );
 
   const enhancePanel = (
-    <FantasyPanel title="강화" className="h-full p-2.5">
+    <FantasyPanel title="강화" className="h-full p-2 [&>h3]:mb-1">
       {def && equipped ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {!isMaxEnhance ? (
             <>
-              <dl className="space-y-1.5 text-sm">
-                <div className="flex justify-between gap-2">
+              <dl className="space-y-1 text-xs sm:text-sm">
+                <div className="stat-row">
                   <dt className="text-zinc-500">다음 단계</dt>
-                  <dd className="font-mono text-zinc-100">+{targetLevel}</dd>
+                  <dd className="numeric-value font-mono text-zinc-100">+{targetLevel}</dd>
                 </div>
-                <div className="flex justify-between gap-2">
+                <div className="stat-row">
                   <dt className="text-zinc-500">성공률</dt>
-                  <dd className="font-mono text-emerald-300">
+                  <dd className="numeric-value font-mono text-emerald-300">
                     {formatPercent(successRate)}
                   </dd>
                 </div>
-                <div className="flex justify-between gap-2">
+                <div className="stat-row">
                   <dt className="text-zinc-500">비용</dt>
-                  <dd className="font-mono text-amber-200">
-                    {formatInt(cost)} 불씨
+                  <dd className="flex min-w-0 items-center justify-end text-amber-200">
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={CURRENCY_ICONS.ember}
+                        alt=""
+                        className="h-4 w-4 shrink-0 object-contain"
+                      />
+                      <span className="numeric-value font-mono">{formatInt(cost)}</span>
+                    </span>
                   </dd>
                 </div>
-                <div className="flex justify-between gap-2">
+                <div className="stat-row">
                   <dt className="text-zinc-500">실패 시</dt>
-                  <dd className="text-xs text-zinc-300">
+                  <dd className="whitespace-nowrap text-right text-[11px] text-zinc-300">
                     {failDurability
                       ? "내구도 -1 (+8 이상 구간)"
                       : "내구도 유지 (+0~+7)"}
@@ -324,7 +343,7 @@ export function BlacksmithScreen() {
                 </div>
               ) : null}
               <FantasyButton
-                className="min-h-14 w-full text-base focus-visible:ring-2 focus-visible:ring-amber-400/80"
+                className="enhance-button min-h-[52px] w-full overflow-hidden rounded-xl border border-amber-300/45 bg-[linear-gradient(180deg,rgba(254,215,114,0.82)_0%,rgba(217,119,6,0.94)_46%,rgba(124,45,18,0.98)_100%)] px-3 py-2 text-base shadow-[0_0_28px_rgba(245,158,11,0.36),0_10px_24px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,251,235,0.45),inset_0_-12px_22px_rgba(69,26,3,0.32)] ring-1 ring-amber-200/35 hover:bg-[linear-gradient(180deg,rgba(254,226,150,0.92)_0%,rgba(234,137,16,0.97)_48%,rgba(146,64,14,1)_100%)] focus-visible:ring-2 focus-visible:ring-amber-200/90"
                 disabled={
                   !equipped ||
                   !canAffordEnhance ||
@@ -333,11 +352,12 @@ export function BlacksmithScreen() {
                 }
                 onClick={() => requestEnhance()}
               >
-                {!canAffordEnhance
-                  ? "불씨 부족"
-                  : durability <= 1 && failDurability
-                    ? "위험 강화"
-                    : "강화하기"}
+                <span
+                  className="enhance-button__label text-[18px] font-black leading-none tracking-wide drop-shadow-[0_1px_8px_rgba(0,0,0,0.55)]"
+                  style={{ color: "#fff7e8" }}
+                >
+                  {durability <= 1 && failDurability ? "위험 강화" : "강화하기"}
+                </span>
               </FantasyButton>
             </>
           ) : (

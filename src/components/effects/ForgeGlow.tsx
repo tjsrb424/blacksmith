@@ -12,12 +12,13 @@ export type ForgeAuraMode =
 type ForgeGlowProps = {
   mode?: ForgeAuraMode;
   className?: string;
+  showRing?: boolean;
 };
 
 /**
  * 대장간 중앙 화로 글로우 — 모드별 색상 (과한 blur 지양)
  */
-export function ForgeGlow({ mode = "neutral", className }: ForgeGlowProps) {
+export function ForgeGlow({ mode = "neutral", className, showRing = true }: ForgeGlowProps) {
   const ring =
     mode === "danger"
       ? "ring-red-500/55 shadow-[0_0_36px_rgba(239,68,68,0.35)]"
@@ -49,12 +50,14 @@ export function ForgeGlow({ mode = "neutral", className }: ForgeGlowProps) {
       )}
     >
       <div className={cn("absolute inset-0 rounded-full blur-sm", core)} />
-      <div
-        className={cn(
-          "absolute inset-2 rounded-full ring-2 ring-offset-4 ring-offset-zinc-950",
-          ring,
-        )}
-      />
+      {showRing ? (
+        <div
+          className={cn(
+            "absolute inset-2 rounded-full ring-2 ring-offset-4 ring-offset-zinc-950",
+            ring,
+          )}
+        />
+      ) : null}
       <div
         className={cn(
           "absolute inset-0 animate-pulse rounded-full motion-reduce:animate-none",

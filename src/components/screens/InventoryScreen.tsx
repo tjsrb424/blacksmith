@@ -36,8 +36,12 @@ export function InventoryScreen() {
       <ScreenBackground screen="inventory" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50">보관함</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          가치 높은 순으로 정렬했습니다. 잠금 시 판매할 수 없습니다.
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-700/24 bg-black/24 px-3 py-1 text-xs text-zinc-400 ring-1 ring-zinc-900/60">
+          <span className="text-zinc-500">정렬</span>
+          <span className="font-semibold text-amber-100/90">가치 높은 순</span>
+        </div>
+        <p className="mt-2 text-sm text-zinc-400">
+          잠금된 무기와 장착 중인 무기는 판매할 수 없습니다.
         </p>
       </header>
 
@@ -50,6 +54,17 @@ export function InventoryScreen() {
           const isEquipped = w.instanceId === equippedId;
           const isPendingSell = pendingSellWeaponIds.includes(w.instanceId);
           const isActionBlocked = serverActionPending || isPendingSell;
+          const cannotSellReason = isPendingSell
+            ? "판매 처리 중입니다."
+            : isEquipped
+              ? "장착 중인 무기는 판매할 수 없습니다."
+              : w.locked
+                ? "잠금된 무기는 판매할 수 없습니다."
+                : isLastWeapon
+                  ? "마지막 무기는 판매할 수 없습니다."
+                  : w.durability <= 0
+                    ? "파괴된 무기는 판매할 수 없습니다."
+                    : null;
           return (
             <li key={w.instanceId}>
               <FantasyPanel
@@ -81,19 +96,19 @@ export function InventoryScreen() {
                         <span className="min-w-0 break-words font-semibold leading-snug text-zinc-100">{def.name}</span>
                         {w.locked ? (
                           <span className="rounded-full bg-red-950/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-300 ring-1 ring-red-500/40">
-                            잠금
+                            잠금됨
                           </span>
                         ) : null}
                         {isEquipped ? (
                           <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200 ring-1 ring-amber-500/40">
-                            장착 중
+                            장착중
                           </span>
                         ) : null}
                       </div>
                       <div className="text-xs text-zinc-500">
                         {gradeLabel(def.grade)} · 티어 {def.tier}
                       </div>
-                      <div className="font-mono text-sm text-amber-100">
+                      <div className="numeric-value max-w-full text-left font-mono text-sm text-amber-100">
                         +{w.enhanceLevel}
                         {w.transcendLevel >= 1 ? ` ★${w.transcendLevel}` : ""} · 판매가{" "}
                         {formatGold(sell)}
@@ -109,9 +124,14 @@ export function InventoryScreen() {
                         <span>내구도</span>
                         <DurabilityIcons value={w.durability} emphasizeCritical />
                       </div>
-                      <div className="text-[11px] text-zinc-600">
+                      <div className="numeric-value max-w-full text-left text-[11px] text-zinc-600">
                         랭킹 가치 {formatGold(rankVal)}
                       </div>
+                      {cannotSellReason && !isPendingSell ? (
+                        <div className="rounded-md bg-zinc-950/60 px-2 py-1 text-xs font-semibold text-zinc-400 ring-1 ring-zinc-700/60">
+                          {cannotSellReason}
+                        </div>
+                      ) : null}
                       {isPendingSell ? (
                         <div className="rounded-md bg-orange-950/35 px-2 py-1 text-xs font-semibold text-orange-200 ring-1 ring-orange-500/25">
                           판매 처리 중...
@@ -125,7 +145,7 @@ export function InventoryScreen() {
                         className="min-h-11 w-full min-w-0 px-2 text-xs"
                         onClick={() => equip(w.instanceId)}
                       >
-                        {isEquipped ? "장착됨" : "장착"}
+                        {isEquipped ? "장착중" : "장착"}
                       </FantasyButton>
                       <FantasyButton
                         variant="muted"
@@ -139,17 +159,17 @@ export function InventoryScreen() {
                   </div>
                   <div className="flex min-w-0 flex-wrap gap-2 border-t border-zinc-800 pt-3">
                     <FantasyButton
-                      variant="accent"
+                      variant={cannotSellReason ? "muted" : "accent"}
                       className="min-h-12 w-full min-w-0"
-                      disabled={w.durability <= 0 || isLastWeapon || isActionBlocked}
-                      title={
-                        isLastWeapon
-                          ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
-                          : undefined
-                      }
+                      disabled={!!cannotSellReason || isActionBlocked}
+                      title={cannotSellReason ?? undefined}
                       onClick={() => requestSellWeapon(w.instanceId)}
                     >
-                      {isPendingSell ? "판매 중..." : "판매"}
+                      {isPendingSell
+                        ? "판매 중..."
+                        : cannotSellReason
+                          ? "판매 불가"
+                          : "판매"}
                     </FantasyButton>
                   </div>
                 </div>
@@ -157,6 +177,14 @@ export function InventoryScreen() {
             </li>
           );
         })}
+        {sorted.length === 0 ? (
+          <li>
+            <FantasyPanel className="px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-zinc-300">보관 중인 무기가 없습니다.</p>
+              <p className="mt-1 text-xs text-zinc-500">무기상점에서 새 무기를 구매해보세요.</p>
+            </FantasyPanel>
+          </li>
+        ) : null}
       </ul>
     </div>
   );
