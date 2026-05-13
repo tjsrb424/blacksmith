@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
+  attachServerTiming,
+  createServerStepTimer,
+} from "@/lib/server/stepLatency";
+import {
   BootstrapError,
   bootstrapPlayer,
 } from "@/lib/server/playerRepository";
@@ -59,35 +63,42 @@ function logBootstrapError(error: unknown, userId?: string) {
 
 export async function POST() {
   return withApiLatency("api/player/bootstrap", async () => {
-  let userId: string | undefined;
+    const timer = createServerStepTimer("playerBootstrap", { slowStepMs: 700 });
+    let userId: string | undefined;
 
-  try {
-    const auth = await requireSupabaseUser();
-    if (!auth.ok) return auth.response;
+    try {
+      const auth = await timer.time("auth", () => requireSupabaseUser());
+      if (!auth.ok) return attachServerTiming(auth.response, timer.finish());
 
-    userId = auth.user.id;
-    const snapshot = await bootstrapPlayer(auth.user);
-    return NextResponse.json(snapshot);
-  } catch (error) {
-    logBootstrapError(error, userId);
+      userId = auth.user.id;
+      const snapshot = await timer.time("bootstrap player", () =>
+        bootstrapPlayer(auth.user),
+      );
+      const response = timer.timeSync("response serialize", () =>
+        NextResponse.json(snapshot),
+      );
+      return attachServerTiming(response, timer.finish());
+    } catch (error) {
+      logBootstrapError(error, userId);
 
-    const isBootstrapError = error instanceof BootstrapError;
-    const status = isBootstrapError ? error.status : 500;
-    const isDevelopment = process.env.NODE_ENV === "development";
+      const isBootstrapError = error instanceof BootstrapError;
+      const status = isBootstrapError ? error.status : 500;
+      const isDevelopment = process.env.NODE_ENV === "development";
 
-    return NextResponse.json(
-      {
-        error: "bootstrap_failed",
-        message: "Failed to bootstrap player",
-        errorCode: isBootstrapError ? error.errorCode : "bootstrap_failed",
-        ...(isDevelopment
-          ? {
-              details: errorDetails(error) ?? errorMessage(error),
-            }
-          : {}),
-      },
-      { status },
-    );
-  }
+      const response = NextResponse.json(
+        {
+          error: "bootstrap_failed",
+          message: "Failed to bootstrap player",
+          errorCode: isBootstrapError ? error.errorCode : "bootstrap_failed",
+          ...(isDevelopment
+            ? {
+                details: errorDetails(error) ?? errorMessage(error),
+              }
+            : {}),
+        },
+        { status },
+      );
+      return attachServerTiming(response, timer.finish());
+    }
   });
 }

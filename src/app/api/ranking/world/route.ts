@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
-import { createServerStepTimer } from "@/lib/server/stepLatency";
+import {
+  attachServerTiming,
+  createServerStepTimer,
+} from "@/lib/server/stepLatency";
 import { getWorldRecordRows } from "@/lib/server/rankingService";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +16,7 @@ export async function GET() {
     try {
       const auth = await timer.time("auth", () => requireSupabaseUser());
       if (!auth.ok) {
-        timer.finish();
-        return auth.response;
+        return attachServerTiming(auth.response, timer.finish());
       }
 
       const result = await timer.time("world_records query", () =>
@@ -24,8 +26,7 @@ export async function GET() {
         NextResponse.json(result),
       );
 
-      timer.finish();
-      return response;
+      return attachServerTiming(response, timer.finish());
     } catch (error) {
       timer.finish();
       console.error("[ranking.world] failed", error);

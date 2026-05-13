@@ -3,7 +3,10 @@ import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { enhanceWeaponServer } from "@/lib/server/gameActionService";
 import { withApiLatency } from "@/lib/server/apiLatency";
-import { createServerStepTimer } from "@/lib/server/stepLatency";
+import {
+  attachServerTiming,
+  createServerStepTimer,
+} from "@/lib/server/stepLatency";
 import type { EnhanceActionRequest } from "@/types/server";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +18,7 @@ export async function POST(request: NextRequest) {
     try {
       const auth = await timer.time("auth user 조회", () => requireSupabaseUser());
       if (!auth.ok) {
-        timer.finish("enhance total");
-        return auth.response;
+        return attachServerTiming(auth.response, timer.finish("enhance total"));
       }
 
       const payload = (await timer.time("request parse", () =>
@@ -27,8 +29,7 @@ export async function POST(request: NextRequest) {
         NextResponse.json(result),
       );
 
-      timer.finish("enhance total");
-      return response;
+      return attachServerTiming(response, timer.finish("enhance total"));
     } catch (error) {
       timer.finish("enhance total");
       return actionErrorResponse(error, "강화에 실패했습니다.");

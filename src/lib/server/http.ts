@@ -1,4 +1,11 @@
-import { updatePerformanceMetric } from "@/lib/performanceMetrics";
+import {
+  getPerformanceMetricSnapshot,
+  updatePerformanceMetric,
+} from "@/lib/performanceMetrics";
+import {
+  perfActionNameFromApi,
+  recordPerfEvent,
+} from "@/lib/perfRecorder";
 import type { ApiResponse } from "@/types/server";
 
 const DEFAULT_API_BASE = "";
@@ -38,6 +45,21 @@ export async function requestJson<T>(
   const startedAt = Date.now();
   const timeoutId = setTimeout(() => controller.abort("timeout"), timeoutMs);
 
+  const recordApiEvent = (elapsedMs: number, error?: string) => {
+    const actionName = perfActionNameFromApi(apiName);
+    recordPerfEvent({
+      screen: getPerformanceMetricSnapshot().currentScreen ?? "unknown",
+      eventType: error ? "error" : actionName === "bootstrap" ? "bootstrap" : "api",
+      actionName,
+      api: apiName,
+      elapsedMs,
+      bootstrapMs: actionName === "bootstrap" ? elapsedMs : undefined,
+      enhanceApiMs: actionName === "enhance" ? elapsedMs : undefined,
+      error: error ?? "",
+      adStatusApiCalled: actionName === "ad_status",
+    });
+  };
+
   if (callerSignal) {
     if (callerSignal.aborted) {
       controller.abort(callerSignal.reason);
@@ -70,6 +92,7 @@ export async function requestJson<T>(
       elapsedMs,
       errorCode: code,
     });
+    recordApiEvent(elapsedMs, code);
     throw new ApiRequestError(
       timedOut
         ? "서버 응답이 지연되고 있습니다. 다시 시도해주세요."
@@ -108,6 +131,7 @@ export async function requestJson<T>(
       elapsedMs: Date.now() - startedAt,
       errorCode: code,
     });
+    recordApiEvent(Date.now() - startedAt, code);
     throw new ApiRequestError(message, response.status, code, details);
   }
 
@@ -118,6 +142,7 @@ export async function requestJson<T>(
         elapsedMs: Date.now() - startedAt,
         errorCode: undefined,
       });
+      recordApiEvent(Date.now() - startedAt);
       return body.data;
     }
     throw new Error(body.message);
@@ -132,5 +157,6 @@ export async function requestJson<T>(
     elapsedMs: Date.now() - startedAt,
     errorCode: undefined,
   });
+  recordApiEvent(Date.now() - startedAt);
   return body as T;
 }

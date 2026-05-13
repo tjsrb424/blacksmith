@@ -30,6 +30,7 @@ type CacheEntry<T> = {
 };
 
 const cache = new Map<string, CacheEntry<unknown>>();
+const inFlight = new Map<string, Promise<unknown>>();
 
 async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
   const now = Date.now();
@@ -38,17 +39,31 @@ async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
     updatePerformanceMetric({ rankingCacheStatus: "hit" });
     return entry.value as T;
   }
+
+  const pending = inFlight.get(key);
+  if (pending) {
+    updatePerformanceMetric({ rankingCacheStatus: "hit" });
+    return pending as Promise<T>;
+  }
+
   updatePerformanceMetric({ rankingCacheStatus: "miss" });
   const startedAt = Date.now();
-  const value = await loader();
-  updatePerformanceMetric({
-    rankingFetchMs: Date.now() - startedAt,
-  });
-  cache.set(key, {
-    value,
-    expiresAt: now + RANKING_CACHE_TTL_MS,
-  });
-  return value;
+  const request = loader()
+    .then((value) => {
+      updatePerformanceMetric({
+        rankingFetchMs: Date.now() - startedAt,
+      });
+      cache.set(key, {
+        value,
+        expiresAt: Date.now() + RANKING_CACHE_TTL_MS,
+      });
+      return value;
+    })
+    .finally(() => {
+      if (inFlight.get(key) === request) inFlight.delete(key);
+    });
+  inFlight.set(key, request);
+  return request;
 }
 
 function withFallbackSource<T extends { source: RankingAdapterSource; error?: string }>(

@@ -1,6 +1,6 @@
 import "server-only";
 
-type StepEntry = {
+export type StepEntry = {
   name: string;
   elapsedMs: number;
 };
@@ -41,6 +41,26 @@ function perfKey(name: string) {
       return index === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join("");
+}
+
+function serverTimingKey(name: string) {
+  return perfKey(name).replace(/[^A-Za-z0-9_-]/g, "") || "step";
+}
+
+export function serverTimingHeader(entries: readonly StepEntry[]) {
+  return entries
+    .map((entry) => `${serverTimingKey(entry.name)};dur=${entry.elapsedMs}`)
+    .join(", ");
+}
+
+export function attachServerTiming<T extends Response>(
+  response: T,
+  entries: readonly StepEntry[],
+): T {
+  if (entries.length > 0) {
+    response.headers.set("Server-Timing", serverTimingHeader(entries));
+  }
+  return response;
 }
 
 export function createServerStepTimer(

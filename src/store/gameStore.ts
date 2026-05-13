@@ -65,12 +65,16 @@ import {
 } from "@/lib/ads/adRewardApi";
 import { scheduleAdRewardStatusRefreshAfterReward } from "@/lib/ads/adRewardStatusCache";
 import { ApiRequestError } from "@/lib/server/http";
-import { getCurrentPlayerSnapshot } from "@/lib/server/playerApi";
+import {
+  getCurrentPlayerSnapshot,
+  invalidatePlayerApiCache,
+} from "@/lib/server/playerApi";
 import {
   diagnosticLog,
   getRenderCount,
   updatePerformanceMetric,
 } from "@/lib/performanceMetrics";
+import { recordPerfEvent } from "@/lib/perfRecorder";
 import { getGameMode } from "@/lib/supabase/env";
 import type {
   EnhanceAnimationTier,
@@ -515,10 +519,11 @@ function syncLatestServerSnapshotDeferred(
   get: () => GameStore,
   set: (patch: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
 ): void {
+  invalidatePlayerApiCache();
   runWhenIdle(() => {
     const startedAt = Date.now();
     diagnosticLog("adReward", "deferred snapshot sync start");
-    void getCurrentPlayerSnapshot()
+    void getCurrentPlayerSnapshot({ force: true })
       .then((snapshot) => {
         set((state) => mapServerSnapshot(snapshot, state));
         updatePerformanceMetric({
@@ -901,12 +906,13 @@ export const useGameStore = create<GameStore>()(
 
       reloadServerSnapshot: async () => {
         if (!isBetaMode()) return;
+        invalidatePlayerApiCache();
         set({
           serverActionPending: true,
           serverActionMessage: "서버 데이터 다시 불러오는 중...",
         });
         try {
-          const snapshot = await getCurrentPlayerSnapshot();
+          const snapshot = await getCurrentPlayerSnapshot({ force: true });
           set((state) => ({
             ...mapServerSnapshot(snapshot, state),
             serverActionPending: false,
@@ -1023,6 +1029,7 @@ export const useGameStore = create<GameStore>()(
       },
 
       equipWeapon: (instanceId: string) => {
+        const startedAt = performance.now();
         const state = get();
         const exists = state.ownedWeapons.some((w) => w.instanceId === instanceId);
         if (!exists) return;
@@ -1030,6 +1037,13 @@ export const useGameStore = create<GameStore>()(
         set({
           equippedWeaponId: instanceId,
           activeTab: "blacksmith",
+        });
+        recordPerfEvent({
+          screen: state.activeTab,
+          eventType: "action",
+          actionName: "equip",
+          elapsedMs: performance.now() - startedAt,
+          error: "",
         });
       },
 
@@ -1232,6 +1246,7 @@ export const useGameStore = create<GameStore>()(
       },
 
       toggleWeaponLock: (instanceId: string) => {
+        const startedAt = performance.now();
         const state = get();
         if (
           state.serverActionPending ||
@@ -1244,6 +1259,13 @@ export const useGameStore = create<GameStore>()(
             w.instanceId === instanceId ? { ...w, locked: !w.locked } : w,
           ),
         }));
+        recordPerfEvent({
+          screen: state.activeTab,
+          eventType: "action",
+          actionName: "lock",
+          elapsedMs: performance.now() - startedAt,
+          error: "",
+        });
       },
 
       requestEnhanceEquipped: () => {

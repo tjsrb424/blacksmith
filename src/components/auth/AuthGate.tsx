@@ -13,7 +13,10 @@ import {
 import { LoginScreen } from "@/components/auth/LoginScreen";
 import { NicknameSetupModal } from "@/components/auth/NicknameSetupModal";
 import { ApiRequestError } from "@/lib/server/http";
-import { bootstrapPlayerSnapshot } from "@/lib/server/playerApi";
+import {
+  bootstrapPlayerSnapshot,
+  invalidatePlayerApiCache,
+} from "@/lib/server/playerApi";
 import {
   diagnosticLog,
   updatePerformanceMetric,
@@ -173,8 +176,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthChecked(false);
     setLoadingSnapshot(false);
     setAuthStage("checking_session");
+    invalidatePlayerApiCache();
     setAuthAttempt((value) => value + 1);
   }, [setAuthEvent, setAuthStage]);
+
+  const sessionUserId = session?.user.id;
 
   const refresh = useCallback(async () => {
     setLoadingSnapshot(true);
@@ -184,7 +190,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const bootstrapStartedAt = Date.now();
 
     try {
-      const nextSnapshot = await bootstrapPlayerSnapshot();
+      const nextSnapshot = await bootstrapPlayerSnapshot({
+        cacheKey: sessionUserId,
+      });
       setAuthEvent("bootstrap resolved", {
         elapsedMs: Date.now() - bootstrapStartedAt,
       });
@@ -211,7 +219,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     } finally {
       setLoadingSnapshot(false);
     }
-  }, [setAuthEvent, setAuthFailure, setAuthStage]);
+  }, [sessionUserId, setAuthEvent, setAuthFailure, setAuthStage]);
 
   const signOutAndReset = useCallback(async () => {
     setAuthEvent("sign_out_requested");
@@ -221,6 +229,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setError(null);
     setAuthChecked(false);
     setAuthStage("checking_session");
+    invalidatePlayerApiCache();
     if (supabase) await supabase.auth.signOut();
     setAuthChecked(true);
   }, [setAuthEvent, setAuthStage]);

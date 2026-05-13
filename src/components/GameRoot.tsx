@@ -11,6 +11,15 @@ import { RankingScreen } from "@/components/screens/RankingScreen";
 import { EnhanceAnimationOrchestrator } from "@/components/effects/EnhanceAnimationOrchestrator";
 import { navTabToScreenKey, preloadBootstrapAssets } from "@/lib/preloadAssets";
 import {
+  clearPerfEvents,
+  createPerfExportBundle,
+  getPerfEventsSnapshot,
+  perfEventsToCsv,
+  perfExportFilename,
+  subscribePerfEvents,
+  summarizePerfEvents,
+} from "@/lib/perfRecorder";
+import {
   getPerformanceMetricSnapshot,
   subscribePerformanceMetrics,
   updatePerformanceMetric,
@@ -36,17 +45,105 @@ function DevToolsPanel({ screen }: { screen: string }) {
       ? window.localStorage.getItem("blacksmith.devtools.open") === "true"
       : false,
   );
-  const [tab, setTab] = useState<"metrics" | "cheats">("metrics");
+  const [tab, setTab] = useState<"metrics" | "logs" | "summary" | "cheats">(
+    "metrics",
+  );
+  const [copyStatus, setCopyStatus] = useState("");
+  const [copyFallback, setCopyFallback] = useState("");
   const metrics = useSyncExternalStore(
     subscribePerformanceMetrics,
     getPerformanceMetricSnapshot,
     getPerformanceMetricSnapshot,
+  );
+  const perfEvents = useSyncExternalStore(
+    subscribePerfEvents,
+    getPerfEventsSnapshot,
+    getPerfEventsSnapshot,
   );
   const enabled =
     process.env.NODE_ENV !== "production" &&
     process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
 
   if (!enabled) return null;
+
+  const summary = summarizePerfEvents(perfEvents);
+  const summaryRows = Object.values(summary).sort((a, b) => {
+    const hot = [
+      "enhance",
+      "buy",
+      "sell",
+      "forge_collect",
+      "forge_upgrade",
+      "player_me",
+      "ranking_weekly",
+      "ranking_world",
+      "ad_fetch",
+      "bootstrap",
+    ];
+    const ai = hot.indexOf(a.key);
+    const bi = hot.indexOf(b.key);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return a.key.localeCompare(b.key);
+  });
+
+  const exportBundle = () => createPerfExportBundle(perfEvents);
+  const setStatus = (message: string) => {
+    setCopyStatus(message);
+    window.setTimeout(() => setCopyStatus(""), 1800);
+  };
+  const copyText = async (text: string, successMessage: string) => {
+    setCopyFallback("");
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus(successMessage);
+    } catch {
+      setCopyFallback(text);
+      setStatus("복사 실패 - 아래 텍스트를 직접 복사하세요");
+    }
+  };
+  const downloadText = (text: string, filename: string, type: string) => {
+    const blob = new Blob([text], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setStatus("다운로드 생성 완료");
+  };
+  const copyLogs = () => {
+    void copyText(JSON.stringify(exportBundle(), null, 2), "복사 완료");
+  };
+  const copySummary = () => {
+    void copyText(
+      JSON.stringify(
+        {
+          sessionId: exportBundle().sessionId,
+          createdAt: new Date().toISOString(),
+          summary,
+        },
+        null,
+        2,
+      ),
+      "Summary 복사 완료",
+    );
+  };
+  const downloadJson = () => {
+    downloadText(
+      JSON.stringify(exportBundle(), null, 2),
+      perfExportFilename("json"),
+      "application/json",
+    );
+  };
+  const downloadCsv = () => {
+    downloadText(
+      perfEventsToCsv(perfEvents),
+      perfExportFilename("csv"),
+      "text/csv;charset=utf-8",
+    );
+  };
 
   const setOpenPersisted = (next: boolean) => {
     setOpen(next);
@@ -111,13 +208,27 @@ function DevToolsPanel({ screen }: { screen: string }) {
           닫기
         </button>
       </div>
-      <div className="grid grid-cols-2 border-b border-zinc-800 text-xs font-semibold">
+      <div className="grid grid-cols-4 border-b border-zinc-800 text-xs font-semibold">
         <button
           type="button"
           className={`py-2 ${tab === "metrics" ? "bg-zinc-800 text-amber-100" : "text-zinc-500"}`}
           onClick={() => setTab("metrics")}
         >
           Metrics
+        </button>
+        <button
+          type="button"
+          className={`py-2 ${tab === "logs" ? "bg-zinc-800 text-amber-100" : "text-zinc-500"}`}
+          onClick={() => setTab("logs")}
+        >
+          Logs
+        </button>
+        <button
+          type="button"
+          className={`py-2 ${tab === "summary" ? "bg-zinc-800 text-amber-100" : "text-zinc-500"}`}
+          onClick={() => setTab("summary")}
+        >
+          Summary
         </button>
         <button
           type="button"
@@ -129,15 +240,139 @@ function DevToolsPanel({ screen }: { screen: string }) {
       </div>
       <div className="max-h-[calc(60dvh-5.5rem)] overflow-y-auto p-3 sm:max-h-[calc(70vh-5.5rem)]">
         {tab === "metrics" ? (
-          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-[11px] leading-4">
-            {metricRows.map(([label, value]) => (
-              <div key={label} className="contents">
-                <span className="text-zinc-500">{label}</span>
-                <span className="truncate text-zinc-200">{value}</span>
+          <div className="space-y-3">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-[11px] leading-4">
+              {metricRows.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <span className="text-zinc-500">{label}</span>
+                  <span className="truncate text-zinc-200">{value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold">
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={copyLogs}>
+                Copy Logs
+              </button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={copySummary}>
+                Summary Copy
+              </button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={downloadJson}>
+                Download JSON
+              </button>
+              <button type="button" className="rounded bg-zinc-800 px-2 py-2" onClick={downloadCsv}>
+                Download CSV
+              </button>
+              <button
+                type="button"
+                className="col-span-2 rounded bg-red-950/55 px-2 py-2 text-red-200"
+                onClick={() => {
+                  clearPerfEvents();
+                  setStatus("로그 삭제 완료");
+                }}
+              >
+                Clear Logs ({perfEvents.length})
+              </button>
+            </div>
+            {copyStatus ? (
+              <p className="rounded bg-amber-950/40 px-2 py-1 text-[11px] text-amber-100">
+                {copyStatus}
+              </p>
+            ) : null}
+            {copyFallback ? (
+              <textarea
+                className="h-24 w-full resize-none rounded bg-zinc-950 p-2 font-mono text-[10px] text-zinc-300 ring-1 ring-zinc-700"
+                readOnly
+                value={copyFallback}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        {tab === "logs" ? (
+          <div className="space-y-2 font-mono text-[10px]">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-amber-100">
+                Recent Events ({perfEvents.length})
+              </span>
+              <button
+                type="button"
+                className="rounded bg-zinc-800 px-2 py-1 text-[11px]"
+                onClick={() => setTab("metrics")}
+              >
+                Actions
+              </button>
+            </div>
+            {perfEvents.slice(-80).reverse().map((event, index) => (
+              <div
+                key={`${event.timestamp}-${index}`}
+                className="rounded-lg bg-zinc-950/70 p-2 ring-1 ring-zinc-800"
+              >
+                <div className="flex justify-between gap-2 text-zinc-200">
+                  <span className="truncate">
+                    {event.eventType}/{event.actionName ?? event.api ?? "-"}
+                  </span>
+                  <span className={event.error ? "text-red-300" : "text-emerald-300"}>
+                    {event.elapsedMs}ms
+                  </span>
+                </div>
+                <div className="mt-1 truncate text-zinc-500">
+                  {new Date(event.timestamp).toLocaleTimeString()} · {event.screen}
+                  {event.api ? ` · ${event.api}` : ""}
+                </div>
+                {event.adStatusApiCalled || event.adFetchSkippedReason ? (
+                  <div className="mt-1 truncate text-violet-300/90">
+                    ad={event.adProvider ?? "-"} statusApi=
+                    {String(Boolean(event.adStatusApiCalled))} skip=
+                    {event.adFetchSkippedReason ?? "-"}
+                  </div>
+                ) : null}
+                {event.error ? (
+                  <div className="mt-1 truncate text-red-300">{event.error}</div>
+                ) : null}
               </div>
             ))}
           </div>
-        ) : (
+        ) : null}
+        {tab === "summary" ? (
+          <div className="space-y-2 text-[11px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_repeat(5,auto)] gap-x-2 border-b border-zinc-800 pb-1 font-mono text-zinc-500">
+              <span>name</span>
+              <span>n</span>
+              <span>avg</span>
+              <span>p50</span>
+              <span>p95</span>
+              <span>max</span>
+            </div>
+            {summaryRows.length === 0 ? (
+              <p className="text-zinc-500">아직 누적 로그가 없습니다.</p>
+            ) : null}
+            {summaryRows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-[minmax(0,1fr)_repeat(5,auto)] gap-x-2 rounded bg-zinc-950/55 px-2 py-1.5 font-mono"
+              >
+                <span className="truncate text-zinc-200">
+                  {row.key}
+                  {row.baseline ? (
+                    <span className="ml-1 text-[9px] text-amber-400/80">
+                      base {row.baseline}
+                    </span>
+                  ) : null}
+                  {row.errorCount ? (
+                    <span className="ml-1 text-[9px] text-red-300">
+                      err {row.errorCount}
+                    </span>
+                  ) : null}
+                </span>
+                <span>{row.count}</span>
+                <span>{row.avg}</span>
+                <span>{row.p50}</span>
+                <span>{row.p95}</span>
+                <span>{row.max}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {tab === "cheats" ? (
           <div className="space-y-2 text-xs">
             <button
               type="button"
@@ -162,7 +397,7 @@ function DevToolsPanel({ screen }: { screen: string }) {
               <button type="button" className="rounded bg-red-950/60 px-2 py-2 text-red-300" onClick={() => reset()}>초기화</button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

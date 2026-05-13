@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
-import { createServerStepTimer } from "@/lib/server/stepLatency";
+import {
+  attachServerTiming,
+  createServerStepTimer,
+} from "@/lib/server/stepLatency";
 import { getWeeklyRankingRows } from "@/lib/server/rankingService";
 import type { RankingCategory } from "@/types/game";
 
@@ -25,8 +28,7 @@ export async function GET(request: NextRequest) {
     try {
       const auth = await timer.time("auth", () => requireSupabaseUser());
       if (!auth.ok) {
-        timer.finish();
-        return auth.response;
+        return attachServerTiming(auth.response, timer.finish());
       }
 
       const { seasonId, category } = timer.timeSync("request parse", () => {
@@ -38,25 +40,25 @@ export async function GET(request: NextRequest) {
       });
 
       if (!seasonId) {
-        timer.finish();
-        return NextResponse.json(
+        const response = NextResponse.json(
           {
             error: "missing_season_id",
             message: "seasonId is required.",
           },
           { status: 400 },
         );
+        return attachServerTiming(response, timer.finish());
       }
 
       if (!isWeeklyCategory(category)) {
-        timer.finish();
-        return NextResponse.json(
+        const response = NextResponse.json(
           {
             error: "invalid_ranking_category",
             message: "Unknown weekly ranking category.",
           },
           { status: 400 },
         );
+        return attachServerTiming(response, timer.finish());
       }
 
       const result = await timer.time("weekly_rankings query", () =>
@@ -70,8 +72,7 @@ export async function GET(request: NextRequest) {
         NextResponse.json(result),
       );
 
-      timer.finish();
-      return response;
+      return attachServerTiming(response, timer.finish());
     } catch (error) {
       timer.finish();
       console.error("[ranking.weekly] failed", error);

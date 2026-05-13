@@ -1,5 +1,6 @@
 "use client";
 
+import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
 import { getAdRewardStatus } from "@/lib/ads/adRewardApi";
 import { updatePerformanceMetric } from "@/lib/performanceMetrics";
 import type { AdRewardStatusEntry, AdRewardType } from "@/types/ads";
@@ -35,6 +36,23 @@ export async function refreshAdRewardStatusEntry(params: {
   afterReward?: boolean;
 }): Promise<AdRewardStatusEntry | null> {
   const key = adRewardStatusCacheKey(params.rewardType, params.relatedActionId);
+  const adProvider = getConfiguredAdProvider();
+  if (adProvider === "disabled") {
+    const entry = {
+      entry: null,
+      expiresAt: Date.now() + AD_STATUS_CACHE_TTL_MS,
+    };
+    statusCache.set(key, entry);
+    updatePerformanceMetric({
+      adStatusCacheHit: true,
+      adStatusFetchMs: 0,
+      adStatusApiCalled: false,
+      adProvider,
+      adFetchSkippedReason: "rewarded_provider_disabled",
+    });
+    return null;
+  }
+
   const cached = statusCache.get(key);
   if (!params.afterReward && cached && cached.expiresAt > Date.now()) {
     updatePerformanceMetric({ adStatusCacheHit: true });

@@ -3,7 +3,10 @@ import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { buyWeaponServer } from "@/lib/server/gameActionService";
 import { withApiLatency } from "@/lib/server/apiLatency";
-import { createServerStepTimer } from "@/lib/server/stepLatency";
+import {
+  attachServerTiming,
+  createServerStepTimer,
+} from "@/lib/server/stepLatency";
 import type { BuyActionRequest } from "@/types/server";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +18,7 @@ export async function POST(request: NextRequest) {
     try {
       const auth = await timer.time("auth", () => requireSupabaseUser());
       if (!auth.ok) {
-        timer.finish();
-        return auth.response;
+        return attachServerTiming(auth.response, timer.finish());
       }
 
       const payload = (await timer.time("request parse", () =>
@@ -27,8 +29,7 @@ export async function POST(request: NextRequest) {
         NextResponse.json(result),
       );
 
-      timer.finish();
-      return response;
+      return attachServerTiming(response, timer.finish());
     } catch (error) {
       timer.finish();
       return actionErrorResponse(error, "구매에 실패했습니다.");
