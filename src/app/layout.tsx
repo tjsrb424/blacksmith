@@ -16,9 +16,6 @@ export const metadata: Metadata = {
   title: "세계 최강의 대장장이",
   description:
     "세계 최강의 대장장이는 무기 강화, 판매, 제련, 초월, 랭킹 경쟁을 즐기는 웹 기반 캐주얼 강화 게임입니다.",
-  other: {
-    "google-adsense-account": "ca-pub-4666198871295401",
-  },
 };
 
 export default function RootLayout({
@@ -29,9 +26,9 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#070708] text-zinc-100">
+      <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
         {children}
       </body>
     </html>

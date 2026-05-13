@@ -28,8 +28,9 @@ function SideRail({ side }: { side: "left" | "right" }) {
 
   return (
     <aside
-      className="relative hidden min-h-dvh overflow-hidden xl:block"
+      className="desktop-side-rail relative min-h-dvh w-full min-w-[180px] overflow-hidden"
       aria-hidden
+      data-side-rail={side}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.22] saturate-[0.82]"
@@ -54,7 +55,7 @@ function SideRail({ side }: { side: "left" | "right" }) {
             : "pointer-events-none absolute left-0 top-0 h-full w-px bg-gradient-to-b from-transparent via-amber-500/18 to-transparent"
         }
       />
-      <div className="relative z-10 flex min-h-dvh items-center justify-center px-8">
+      <div className="relative z-10 flex min-h-dvh items-center justify-center px-2">
         <div className="space-y-5">
           <SideBannerSlot
             slotName={isLeft ? "side-banner-left" : "side-banner-right"}
@@ -70,14 +71,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const showDesktopSideRails = useDesktopSideRails();
 
   return (
-    <div className="min-h-dvh bg-[#050506] text-zinc-100">
+    <div className="app-shell overflow-hidden bg-[#050506] text-zinc-100">
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%),linear-gradient(90deg,rgba(0,0,0,0.72),transparent_38%,transparent_62%,rgba(0,0,0,0.72))]" />
-      <div className="relative z-10 mx-auto grid min-h-dvh w-screen place-items-center xl:w-full xl:grid-cols-[minmax(0,1fr)_430px_minmax(0,1fr)]">
+      <div className="app-shell-layout relative z-10 mx-auto">
         {showDesktopSideRails ? <SideRail side="left" /> : null}
         <div className="game-viewport relative mx-auto flex min-h-0 flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)]">
           <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)]" />
           <TopResourceBar />
-          <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <main className="main-scroll relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto">
             {children}
           </main>
           <BottomTabs />

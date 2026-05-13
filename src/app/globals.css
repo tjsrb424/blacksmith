@@ -3,6 +3,8 @@
 :root {
   --background: #070708;
   --foreground: #f4f4f5;
+  --resource-header-height: 60px;
+  --bottom-nav-height: 68px;
 }
 
 @theme inline {
@@ -17,6 +19,22 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  scrollbar-width: none;
 }
 
 button,
@@ -69,6 +87,76 @@ img {
   max-height: calc(100svh - 16px);
 }
 
+.app-shell {
+  height: 100svh;
+  overflow: hidden;
+}
+
+.app-shell-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+  place-items: center;
+  width: 100vw;
+}
+
+.desktop-side-rail {
+  width: 100%;
+}
+
+.main-scroll {
+  min-height: 0;
+  overscroll-behavior: contain;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  scrollbar-color: rgba(194, 116, 20, 0.55) rgba(0, 0, 0, 0.25);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.main-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.main-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.main-scroll::-webkit-scrollbar-thumb {
+  background: rgba(194, 116, 20, 0.6);
+  border-radius: 999px;
+}
+
+.bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.numeric-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.game-viewport .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
 .game-fixed-overlay {
   aspect-ratio: 9.5 / 19.5;
   width: min(430px, 100vw, calc((100svh - 16px) * 9.5 / 19.5));
@@ -83,6 +171,10 @@ img {
 }
 
 @supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+
   .game-viewport,
   .game-fixed-overlay {
     width: min(430px, 100vw, calc((100dvh - 16px) * 9.5 / 19.5));
@@ -92,5 +184,22 @@ img {
   .game-modal-overlay {
     height: calc(100dvh - 16px);
     max-height: calc(100dvh - 16px);
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-shell-layout {
+    grid-template-columns: minmax(180px, 1fr) 430px minmax(180px, 1fr);
+    width: 100%;
+  }
+}
+
+@media (hover: none) {
+  .main-scroll {
+    scrollbar-width: none;
+  }
+
+  .main-scroll::-webkit-scrollbar {
+    display: none;
   }
 }
