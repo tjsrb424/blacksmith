@@ -3,7 +3,7 @@ import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { buyWeaponServer } from "@/lib/server/gameActionService";
 import { buyWeaponRpc } from "@/lib/server/hotMutationRpc";
 import { attachMutationDebugHeaders } from "@/lib/server/mutationResponse";
-import { resolveRequestPlayer } from "@/lib/server/playerIdentity";
+import { resolveRequestPlayerForHotMutation } from "@/lib/server/playerIdentity";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
         request.json(),
       )) as BuyActionRequest;
       const player = await timer.time("player identity", () =>
-        resolveRequestPlayer(payload),
+        resolveRequestPlayerForHotMutation(payload),
       );
       if (!player.ok) return attachServerTiming(player.response, timer.finish());
 

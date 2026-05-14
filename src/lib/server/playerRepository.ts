@@ -86,6 +86,11 @@ const OWNED_WEAPON_SELECT =
 const PLAYER_RECORD_SELECT =
   "id,user_id,best_weapon_name,best_weapon_id,best_weapon_value,best_weapon_enhance_level,best_weapon_transcend_level,best_sale_gold,total_sales_gold,max_transcend_level,stats,created_at,updated_at";
 
+type GuestIdentityProfile = Pick<
+  ProfileRow,
+  "id" | "guest_secret_hash" | "status"
+>;
+
 export class BootstrapError extends Error {
   constructor(
     message: string,
@@ -185,6 +190,20 @@ async function selectProfileByGuestId(
   const { data, error } = await admin
     .from("profiles")
     .select(PROFILE_SELECT)
+    .eq("guest_id", guestId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function selectGuestIdentityByGuestId(
+  guestId: string,
+): Promise<GuestIdentityProfile | null> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id,guest_secret_hash,status")
     .eq("guest_id", guestId)
     .maybeSingle();
 
@@ -301,6 +320,46 @@ async function validateGuestProfileForSecret(input: {
   }
 
   const profile = await selectProfileByGuestId(input.guestId);
+  const nextHash = guestSecretHash(input.guestSecret);
+  if (
+    !profile ||
+    !profile.guest_secret_hash ||
+    !safeEqualHash(profile.guest_secret_hash, nextHash)
+  ) {
+    throw new BootstrapError(
+      "Guest secret mismatch",
+      "guest_secret_mismatch",
+      "validate_guest",
+      401,
+    );
+  }
+
+  if (profile.status === "archived" || profile.status === "deleted") {
+    throw new BootstrapError(
+      "Guest player is no longer active",
+      "guest_credentials_invalid",
+      "validate_guest",
+      410,
+    );
+  }
+
+  return profile;
+}
+
+async function validateGuestIdentityForSecret(input: {
+  guestId?: string;
+  guestSecret?: string;
+}): Promise<GuestIdentityProfile> {
+  if (!isUuid(input.guestId) || !input.guestSecret) {
+    throw new BootstrapError(
+      "Invalid guest credentials",
+      "guest_credentials_invalid",
+      "validate_guest",
+      400,
+    );
+  }
+
+  const profile = await selectGuestIdentityByGuestId(input.guestId);
   const nextHash = guestSecretHash(input.guestSecret);
   if (
     !profile ||
@@ -809,6 +868,13 @@ export async function bootstrapGuestPlayer(
   const profile = await ensureGuestProfile(input);
   const identity: PlayerIdentity = { id: profile.id, email: null };
   return bootstrapPlayerIdentity(identity, profile);
+}
+
+export async function verifyGuestPlayerIdentity(
+  input: GuestRequestContext,
+): Promise<PlayerIdentity> {
+  const profile = await validateGuestIdentityForSecret(input);
+  return { id: profile.id, email: null };
 }
 
 async function bootstrapPlayerIdentity(
