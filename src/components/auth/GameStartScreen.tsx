@@ -10,14 +10,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
 import type { NicknameValidateResponse } from "@/types/server";
 
-const NICKNAME_SUGGESTIONS = [
-  "불꽃장인",
-  "강철망치",
-  "전설대장장이",
-  "황금모루",
-  "용광로왕",
-] as const;
-
 type GameStartScreenProps = {
   error?: string | null;
   onGuestStart: (nickname: string) => void;
@@ -67,14 +59,13 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
   const [guestStarting, setGuestStarting] = useState(false);
   const showDesktopSideRails = useDesktopSideRails();
   const env = getSupabaseBrowserEnv();
-  const [suggestion, setSuggestion] = useState<string>(NICKNAME_SUGGESTIONS[0]);
   const { t } = useLocale();
 
   async function submitGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (guestStarting) return;
 
-    const result = validateNickname(nickname || suggestion);
+    const result = validateNickname(nickname);
     if (!result.ok) {
       setMessage(t(nicknameReasonKey(result.reason)));
       return;
@@ -176,24 +167,8 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
                 placeholder={t("start.nicknamePlaceholder")}
               />
             </label>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <button
-                type="button"
-                disabled={guestStarting}
-                className="rounded px-1 py-1 font-semibold text-amber-200/86 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-55"
-                onClick={() => {
-                  const next =
-                    NICKNAME_SUGGESTIONS[
-                      Math.floor(Math.random() * NICKNAME_SUGGESTIONS.length)
-                    ];
-                  setSuggestion(next);
-                  setNickname(next);
-                  setMessage(null);
-                }}
-              >
-                {t("start.recommend", { nickname: suggestion })}
-              </button>
-              <span className="text-zinc-500">{t("start.nicknameRule")}</span>
+            <div className="mt-2 text-xs text-zinc-500">
+              <span>{t("start.nicknameRule")}</span>
             </div>
 
             {message ? (
