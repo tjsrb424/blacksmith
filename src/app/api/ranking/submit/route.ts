@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { submitRankingCandidateServer } from "@/lib/server/gameActionService";
+import { resolveRequestPlayer } from "@/lib/server/playerIdentity";
+import type { RankingCandidateSubmitPayload } from "@/types/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireSupabaseUser();
-    if (!auth.ok) return auth.response;
-    const payload = (await request.json()) as {
-      actionId: string;
-      weaponInstanceId: string;
-      seasonId: string;
-    };
+    const payload = (await request.json()) as RankingCandidateSubmitPayload;
+    const player = await resolveRequestPlayer(payload);
+    if (!player.ok) return player.response;
     return NextResponse.json(
-      await submitRankingCandidateServer(auth.user, payload),
+      await submitRankingCandidateServer(player.identity, payload),
     );
   } catch (error) {
     return actionErrorResponse(error, "랭킹 제출에 실패했습니다.");

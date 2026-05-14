@@ -5,7 +5,7 @@ import { GameRoot } from "@/components/GameRoot";
 export const metadata: Metadata = {
   title: "게임 플레이 | 세계 최강의 대장장이",
   description:
-    "세계 최강의 대장장이에서 무기를 구매하고 강화하며 제련, 초월, 랭킹 경쟁을 플레이합니다.",
+    "닉네임만 입력하면 바로 시작할 수 있는 캐주얼 대장장이 강화 게임입니다.",
 };
 
 export default function PlayPage() {

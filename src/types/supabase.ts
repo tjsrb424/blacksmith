@@ -8,7 +8,12 @@ export type Json =
 
 export type ProfileRow = {
   id: string;
+  auth_user_id: string | null;
+  guest_id: string | null;
+  guest_secret_hash: string | null;
   nickname: string | null;
+  play_mode: "auth" | "guest";
+  linked_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -127,12 +132,22 @@ export type Database = {
         ProfileRow,
         {
           id: string;
+          auth_user_id?: string | null;
+          guest_id?: string | null;
+          guest_secret_hash?: string | null;
           nickname?: string | null;
+          play_mode?: "auth" | "guest";
+          linked_at?: string | null;
           created_at?: string;
           updated_at?: string;
         },
         {
+          auth_user_id?: string | null;
+          guest_id?: string | null;
+          guest_secret_hash?: string | null;
           nickname?: string | null;
+          play_mode?: "auth" | "guest";
+          linked_at?: string | null;
           updated_at?: string;
         }
       >;
@@ -259,7 +274,61 @@ export type Database = {
       >;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      apply_buy_action_v1: {
+        Args: {
+          p_user_id: string;
+          p_action_id: string;
+          p_payload: Json;
+          p_weapon_id: string;
+          p_weapon_definitions: Json;
+        };
+        Returns: Json;
+      };
+      apply_enhance_action_v1: {
+        Args: {
+          p_user_id: string;
+          p_action_id: string;
+          p_payload: Json;
+          p_weapon_instance_id: string;
+          p_season_id: string;
+          p_weapon_definitions: Json;
+          p_rng: number;
+          p_scrap_gold_rng: number;
+          p_scrap_stone_rng: number;
+        };
+        Returns: Json;
+      };
+      apply_forge_collect_action_v1: {
+        Args: {
+          p_user_id: string;
+          p_action_id: string;
+          p_payload: Json;
+          p_season_id: string;
+          p_now: string;
+        };
+        Returns: Json;
+      };
+      apply_forge_upgrade_action_v1: {
+        Args: {
+          p_user_id: string;
+          p_action_id: string;
+          p_payload: Json;
+        };
+        Returns: Json;
+      };
+      apply_sell_action_v1: {
+        Args: {
+          p_user_id: string;
+          p_action_id: string;
+          p_payload: Json;
+          p_weapon_instance_id: string;
+          p_season_id: string;
+          p_weapon_definitions: Json;
+        };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

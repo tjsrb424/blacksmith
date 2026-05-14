@@ -1,4 +1,5 @@
 import { requestJson } from "@/lib/server/http";
+import { getGuestRequestContext } from "@/lib/player/guest";
 import type {
   PlayerRecordResponse,
   RankingCandidateSubmitPayload,
@@ -52,6 +53,9 @@ export async function submitRankingCandidate(
     method: "POST",
     apiName: "api/ranking/submit",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...getGuestRequestContext(),
+      ...payload,
+    }),
   });
 }

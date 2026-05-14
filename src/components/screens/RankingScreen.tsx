@@ -6,7 +6,8 @@ import { FantasyPanel } from "@/components/ui/FantasyPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { formatGold, formatInt } from "@/lib/format";
-import { getGameMode, type PlayerRecordAdapterResult, type WeeklyRankingAdapterResult, type WorldRecordsAdapterResult } from "@/lib/ranking/rankingAdapter";
+import { getGuestProfile } from "@/lib/player/guest";
+import { getGameMode, type WeeklyRankingAdapterResult, type WorldRecordsAdapterResult } from "@/lib/ranking/rankingAdapter";
 import { mockRankingAdapter } from "@/lib/ranking/mockRankingAdapter";
 import { serverRankingAdapter } from "@/lib/ranking/serverRankingAdapter";
 import { formatSeasonCountdown, getCurrentSeasonInfo } from "@/lib/season";
@@ -111,9 +112,6 @@ export function RankingScreen() {
     useState<WeeklyRankingAdapterResult | null>(null);
   const [worldResult, setWorldResult] =
     useState<WorldRecordsAdapterResult | null>(null);
-  const [playerRecordResult, setPlayerRecordResult] =
-    useState<PlayerRecordAdapterResult | null>(null);
-
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -124,12 +122,15 @@ export function RankingScreen() {
   const weeklySeasonStats = useGameStore((s) => s.weeklySeasonStats);
   const forgeLevel = useGameStore((s) => s.forgeLevel);
   const { snapshot: betaPlayerSnapshot } = useBetaPlayer();
+  const guestProfile = getGuestProfile();
 
   const season = useMemo(() => getCurrentSeasonInfo(now), [now]);
   const gameMode = getGameMode();
   const adapter = gameMode === "beta" ? serverRankingAdapter : mockRankingAdapter;
   const playerId =
-    gameMode === "beta" && betaPlayerSnapshot
+    guestProfile
+      ? guestProfile.guestId
+      : gameMode === "beta" && betaPlayerSnapshot
       ? betaPlayerSnapshot.userId
       : "local-player";
   const adapterContext = useMemo(
@@ -164,26 +165,12 @@ export function RankingScreen() {
     };
   }, [adapter, adapterContext]);
 
-  useEffect(() => {
-    let alive = true;
-    void adapter
-      .getPlayerRecord(playerId, season.seasonId, adapterContext)
-      .then((result) => {
-        if (alive) setPlayerRecordResult(result);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [adapter, adapterContext, playerId, season.seasonId]);
-
   const mergedWeekly = weeklyResult?.rows ?? [];
   const myWeeklyRank = weeklyResult?.playerRank ?? null;
 
   const catMeta = CATEGORY_META.find((c) => c.id === weeklyCat)!;
-  const playerRecord = playerRecordResult?.record;
-  const recordsView = playerRecord?.records ?? records;
-  const bestWeaponSnapshotView =
-    playerRecord?.bestWeaponSnapshot ?? bestWeaponSnapshot;
+  const recordsView = records;
+  const bestWeaponSnapshotView = bestWeaponSnapshot;
   const worldRecords = worldResult?.records;
 
   const enhanceRate =
@@ -344,7 +331,7 @@ export function RankingScreen() {
                         </div>
                       </div>
                       <div className="min-w-[86px] shrink-0 text-right">
-                        <div className="numeric-value font-mono text-base font-bold text-amber-200">
+                        <div className="numeric-value max-w-[8.5rem] font-mono text-base font-bold text-amber-200">
                           {formatScore(weeklyCat, row)}
                         </div>
                         <div className="text-[10px] text-zinc-600">
@@ -596,7 +583,7 @@ function StatRow({
     <div className="stat-row border-b border-zinc-800/60 pb-2 last:border-0">
       <span className={`min-w-0 ${accent ? "text-violet-300/90" : "text-zinc-500"}`}>{label}</span>
       <span
-        className={`stat-value ${mono ? "font-mono text-zinc-100" : "text-zinc-200"}`}
+        className={`stat-value numeric-value ${mono ? "font-mono text-zinc-100" : "text-zinc-200"}`}
       >
         {value}
       </span>

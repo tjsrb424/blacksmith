@@ -32,6 +32,12 @@ type BodyWithDebug = {
   };
 };
 
+type ParsedServerTiming = {
+  entries: Record<string, number>;
+  totalMs?: number;
+  summary: string;
+};
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -80,6 +86,36 @@ function getMutationDiagnostics(
   };
 }
 
+function parseServerTiming(header: string | null): ParsedServerTiming | undefined {
+  if (!header) return undefined;
+
+  const entries: Record<string, number> = {};
+  for (const rawEntry of header.split(",")) {
+    const parts = rawEntry.trim().split(";").map((part) => part.trim());
+    const name = parts[0];
+    if (!name) continue;
+
+    const durPart = parts.find((part) => part.startsWith("dur="));
+    if (!durPart) continue;
+
+    const dur = Number(durPart.slice(4));
+    if (Number.isFinite(dur)) entries[name] = dur;
+  }
+
+  const entryPairs = Object.entries(entries);
+  if (entryPairs.length === 0) return undefined;
+
+  const totalEntry =
+    entryPairs.find(([name]) => name.toLowerCase().endsWith("total")) ??
+    entryPairs[entryPairs.length - 1];
+
+  return {
+    entries,
+    totalMs: totalEntry?.[1],
+    summary: entryPairs.map(([name, dur]) => `${name}=${dur}ms`).join(" "),
+  };
+}
+
 export async function requestJson<T>(
   path: string,
   init?: RequestInit & { timeoutMs?: number; apiName?: string },
@@ -96,14 +132,21 @@ export async function requestJson<T>(
     elapsedMs: number,
     error?: string,
     diagnostics: MutationDiagnostics = {},
+    timings: { networkElapsedMs?: number; jsonParseMs?: number } = {},
   ) => {
     const actionName = perfActionNameFromApi(apiName);
+    const serverTiming = parseServerTiming(response?.headers.get("server-timing") ?? null);
+    const clientElapsedForGap = timings.networkElapsedMs ?? elapsedMs;
+    const clientServerGapMs =
+      serverTiming?.totalMs == null ? undefined : clientElapsedForGap - serverTiming.totalMs;
     recordPerfEvent({
       screen: getPerformanceMetricSnapshot().currentScreen ?? "unknown",
       eventType: error ? "error" : actionName === "bootstrap" ? "bootstrap" : "api",
       actionName,
       api: apiName,
       elapsedMs,
+      networkElapsedMs: timings.networkElapsedMs,
+      jsonParseMs: timings.jsonParseMs,
       bootstrapMs: actionName === "bootstrap" ? elapsedMs : undefined,
       enhanceApiMs: actionName === "enhance" ? elapsedMs : undefined,
       error: error ?? "",
@@ -112,6 +155,9 @@ export async function requestJson<T>(
       rpcName: diagnostics.rpcName,
       rpcApplied: diagnostics.rpcApplied,
       fallbackAllowed: diagnostics.fallbackAllowed,
+      serverTimingTotalMs: serverTiming?.totalMs,
+      serverTiming: serverTiming?.summary,
+      clientServerGapMs,
     });
   };
 
@@ -127,7 +173,8 @@ export async function requestJson<T>(
     }
   }
 
-  let response: Response;
+  let response: Response | undefined;
+  let networkElapsedMs: number | undefined;
   try {
     response = await fetch(`${base}${path}`, {
       cache: "no-store",
@@ -138,6 +185,7 @@ export async function requestJson<T>(
         ...init?.headers,
       },
     });
+    networkElapsedMs = Date.now() - startedAt;
   } catch (error) {
     const elapsedMs = Date.now() - startedAt;
     const timedOut = controller.signal.aborted;
@@ -160,13 +208,21 @@ export async function requestJson<T>(
     clearTimeout(timeoutId);
   }
 
+  if (!response) {
+    throw new ApiRequestError("Empty API response", 0, "network_error");
+  }
+
+  const jsonStartedAt = Date.now();
   const body = (await response.json().catch(() => null)) as
     | ApiResponse<T>
     | T
     | ErrorBody
     | null;
+  const jsonParseMs = Date.now() - jsonStartedAt;
 
   if (!response.ok) {
+    const elapsedMs = Date.now() - startedAt;
+    const serverTiming = parseServerTiming(response.headers.get("server-timing"));
     const code =
       body && typeof body === "object" && "code" in body
         ? String(body.code)
@@ -183,13 +239,22 @@ export async function requestJson<T>(
         : undefined;
     updatePerformanceMetric({
       apiName,
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs,
+      networkElapsedMs,
+      jsonParseMs,
       errorCode: code,
+      serverTimingTotalMs: serverTiming?.totalMs,
+      serverTiming: serverTiming?.summary,
+      clientServerGapMs:
+        serverTiming?.totalMs == null
+          ? undefined
+          : (networkElapsedMs ?? elapsedMs) - serverTiming.totalMs,
     });
     recordApiEvent(
-      Date.now() - startedAt,
+      elapsedMs,
       code,
       getMutationDiagnostics(response, body),
+      { networkElapsedMs, jsonParseMs },
     );
     throw new ApiRequestError(message, response.status, code, details);
   }
@@ -197,12 +262,26 @@ export async function requestJson<T>(
   if (body && typeof body === "object" && "ok" in body) {
     if (body.ok) {
       const elapsedMs = Date.now() - startedAt;
+      const serverTiming = parseServerTiming(response.headers.get("server-timing"));
       updatePerformanceMetric({
         apiName,
         elapsedMs,
+        networkElapsedMs,
+        jsonParseMs,
         errorCode: undefined,
+        serverTimingTotalMs: serverTiming?.totalMs,
+        serverTiming: serverTiming?.summary,
+        clientServerGapMs:
+          serverTiming?.totalMs == null
+          ? undefined
+          : (networkElapsedMs ?? elapsedMs) - serverTiming.totalMs,
       });
-      recordApiEvent(elapsedMs, undefined, getMutationDiagnostics(response, body));
+      recordApiEvent(
+        elapsedMs,
+        undefined,
+        getMutationDiagnostics(response, body),
+        { networkElapsedMs, jsonParseMs },
+      );
       return body.data;
     }
     throw new Error(body.message);
@@ -213,11 +292,25 @@ export async function requestJson<T>(
   }
 
   const elapsedMs = Date.now() - startedAt;
+  const serverTiming = parseServerTiming(response.headers.get("server-timing"));
   updatePerformanceMetric({
     apiName,
     elapsedMs,
+    networkElapsedMs,
+    jsonParseMs,
     errorCode: undefined,
+    serverTimingTotalMs: serverTiming?.totalMs,
+    serverTiming: serverTiming?.summary,
+    clientServerGapMs:
+      serverTiming?.totalMs == null
+        ? undefined
+        : (networkElapsedMs ?? elapsedMs) - serverTiming.totalMs,
   });
-  recordApiEvent(elapsedMs, undefined, getMutationDiagnostics(response, body));
+  recordApiEvent(
+    elapsedMs,
+    undefined,
+    getMutationDiagnostics(response, body),
+    { networkElapsedMs, jsonParseMs },
+  );
   return body as T;
 }

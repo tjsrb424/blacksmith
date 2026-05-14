@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import {
   DEFAULT_DURABILITY,
@@ -11,6 +12,7 @@ import {
 import { STARTER_WEAPON_ID, WEAPONS_BY_ID } from "@/data/weapons";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { MissingSupabaseAdminEnvError } from "@/lib/supabase/admin";
+import { validateNickname } from "@/lib/player/nickname";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import type {
   BestWeaponSnapshot,
@@ -19,6 +21,7 @@ import type {
 } from "@/types/game";
 import type {
   BetaPlayerSnapshot,
+  GuestRequestContext,
   NicknameUpdateResponse,
 } from "@/types/server";
 import type {
@@ -29,6 +32,8 @@ import type {
 } from "@/types/supabase";
 
 type BootstrapErrorCode =
+  | "guest_credentials_invalid"
+  | "guest_secret_mismatch"
   | "missing_admin_env"
   | "profile_insert_failed"
   | "player_state_insert_failed"
@@ -38,12 +43,26 @@ type BootstrapErrorCode =
   | "schema_mismatch"
   | "bootstrap_failed";
 
+export type PlayerIdentity = {
+  id: string;
+  email?: string | null;
+};
+
 type SupabaseErrorLike = {
   message?: string;
   code?: string;
   details?: string | null;
   hint?: string | null;
 };
+
+const PROFILE_SELECT =
+  "id,auth_user_id,guest_id,guest_secret_hash,nickname,play_mode,linked_at,created_at,updated_at";
+const PLAYER_STATE_SELECT =
+  "id,user_id,gold,forge_ember,transcend_stone,forge_level,forge_last_collected_at,current_season_id,stats,created_at,updated_at";
+const OWNED_WEAPON_SELECT =
+  "id,user_id,weapon_id,enhance_level,transcend_level,durability,is_locked,created_at,updated_at";
+const PLAYER_RECORD_SELECT =
+  "id,user_id,best_weapon_name,best_weapon_id,best_weapon_value,best_weapon_enhance_level,best_weapon_transcend_level,best_sale_gold,total_sales_gold,max_transcend_level,stats,created_at,updated_at";
 
 export class BootstrapError extends Error {
   constructor(
@@ -129,8 +148,22 @@ async function selectProfile(userId: string): Promise<ProfileRow | null> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("profiles")
-    .select("*")
+    .select(PROFILE_SELECT)
     .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function selectProfileByGuestId(
+  guestId: string,
+): Promise<ProfileRow | null> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select(PROFILE_SELECT)
+    .eq("guest_id", guestId)
     .maybeSingle();
 
   if (error) throw error;
@@ -141,7 +174,7 @@ async function selectPlayerState(userId: string): Promise<PlayerStateRow | null>
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("player_states")
-    .select("*")
+    .select(PLAYER_STATE_SELECT)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -153,7 +186,7 @@ async function selectOwnedWeapons(userId: string): Promise<OwnedWeaponRow[]> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("owned_weapons")
-    .select("*")
+    .select(OWNED_WEAPON_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
@@ -165,7 +198,7 @@ async function selectPlayerRecord(userId: string): Promise<PlayerRecordRow | nul
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("player_records")
-    .select("*")
+    .select(PLAYER_RECORD_SELECT)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -250,7 +283,47 @@ export function bestWeaponSnapshotFromRecord(
   };
 }
 
-async function ensureProfile(user: User): Promise<ProfileRow> {
+function guestSecretHash(secret: string) {
+  return createHash("sha256").update(secret, "utf8").digest("hex");
+}
+
+function safeEqualHash(a: string, b: string) {
+  const left = Buffer.from(a, "hex");
+  const right = Buffer.from(b, "hex");
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function isUuid(value: string | undefined | null): value is string {
+  return Boolean(
+    value &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value,
+      ),
+  );
+}
+
+function normalizeGuestContext(
+  input: GuestRequestContext,
+): { guestId: string; guestSecret: string; nickname: string } {
+  const nicknameResult = validateNickname(input.nickname ?? "");
+  if (!isUuid(input.guestId) || !input.guestSecret || !nicknameResult.ok) {
+    throw new BootstrapError(
+      "Invalid guest credentials",
+      "guest_credentials_invalid",
+      "validate_guest",
+      400,
+      nicknameResult.ok ? undefined : nicknameResult.message,
+    );
+  }
+
+  return {
+    guestId: input.guestId,
+    guestSecret: input.guestSecret,
+    nickname: nicknameResult.nickname,
+  };
+}
+
+async function ensureProfile(user: PlayerIdentity): Promise<ProfileRow> {
   const step = "ensure_profile";
   try {
     const existing = await selectProfile(user.id);
@@ -259,8 +332,13 @@ async function ensureProfile(user: User): Promise<ProfileRow> {
     const admin = getSupabaseAdminClient();
     const { data, error } = await admin
       .from("profiles")
-      .insert({ id: user.id, nickname: null })
-      .select("*")
+      .insert({
+        id: user.id,
+        auth_user_id: user.id,
+        nickname: null,
+        play_mode: "auth",
+      })
+      .select(PROFILE_SELECT)
       .single();
 
     if (error) {
@@ -277,7 +355,71 @@ async function ensureProfile(user: User): Promise<ProfileRow> {
   }
 }
 
-async function ensurePlayerState(user: User): Promise<PlayerStateRow> {
+async function ensureGuestProfile(
+  input: GuestRequestContext,
+): Promise<ProfileRow> {
+  const step = "ensure_guest_profile";
+  const guest = normalizeGuestContext(input);
+  const nextHash = guestSecretHash(guest.guestSecret);
+
+  try {
+    const existing = await selectProfileByGuestId(guest.guestId);
+    if (existing) {
+      if (
+        !existing.guest_secret_hash ||
+        !safeEqualHash(existing.guest_secret_hash, nextHash)
+      ) {
+        throw new BootstrapError(
+          "Guest secret mismatch",
+          "guest_secret_mismatch",
+          step,
+          401,
+        );
+      }
+
+      if (existing.nickname !== guest.nickname) {
+        const admin = getSupabaseAdminClient();
+        const { data, error } = await admin
+          .from("profiles")
+          .update({
+            nickname: guest.nickname,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .select(PROFILE_SELECT)
+          .single();
+        if (error) throw error;
+        return data;
+      }
+
+      return existing;
+    }
+
+    const admin = getSupabaseAdminClient();
+    const { data, error } = await admin
+      .from("profiles")
+      .insert({
+        id: guest.guestId,
+        guest_id: guest.guestId,
+        guest_secret_hash: nextHash,
+        nickname: guest.nickname,
+        play_mode: "guest",
+      })
+      .select(PROFILE_SELECT)
+      .single();
+
+    if (error) {
+      if (isUniqueViolation(error)) return ensureGuestProfile(input);
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
+    throw bootstrapFailure(step, "profile_insert_failed", error);
+  }
+}
+
+async function ensurePlayerState(user: PlayerIdentity): Promise<PlayerStateRow> {
   const step = "ensure_player_state";
   try {
     const existing = await selectPlayerState(user.id);
@@ -298,7 +440,7 @@ async function ensurePlayerState(user: User): Promise<PlayerStateRow> {
         current_season_id: season.seasonId,
         stats: {},
       })
-      .select("*")
+      .select(PLAYER_STATE_SELECT)
       .single();
 
     if (error) {
@@ -315,7 +457,7 @@ async function ensurePlayerState(user: User): Promise<PlayerStateRow> {
   }
 }
 
-async function ensureOwnedWeapons(user: User): Promise<OwnedWeaponRow[]> {
+async function ensureOwnedWeapons(user: PlayerIdentity): Promise<OwnedWeaponRow[]> {
   const step = "ensure_starter_weapon";
   try {
     if (!WEAPONS_BY_ID[STARTER_WEAPON_ID]) {
@@ -355,7 +497,7 @@ async function ensureOwnedWeapons(user: User): Promise<OwnedWeaponRow[]> {
   }
 }
 
-async function ensurePlayerRecord(user: User): Promise<PlayerRecordRow> {
+async function ensurePlayerRecord(user: PlayerIdentity): Promise<PlayerRecordRow> {
   const step = "ensure_player_record";
   try {
     const existing = await selectPlayerRecord(user.id);
@@ -376,7 +518,7 @@ async function ensurePlayerRecord(user: User): Promise<PlayerRecordRow> {
         max_transcend_level: 0,
         stats: {},
       })
-      .select("*")
+      .select(PLAYER_RECORD_SELECT)
       .single();
 
     if (error) {
@@ -394,7 +536,7 @@ async function ensurePlayerRecord(user: User): Promise<PlayerRecordRow> {
 }
 
 function snapshotForUser(params: {
-  user: User;
+  user: PlayerIdentity;
   profile: ProfileRow;
   playerState: PlayerStateRow;
   ownedWeapons: OwnedWeaponRow[];
@@ -425,7 +567,7 @@ function snapshotForUser(params: {
 }
 
 export function snapshotFromRows(params: {
-  user: User;
+  user: PlayerIdentity;
   profile: ProfileRow;
   playerState: PlayerStateRow;
   ownedWeapons: OwnedWeaponRow[];
@@ -441,12 +583,30 @@ export async function getOwnedWeaponsForSnapshot(
 }
 
 export async function bootstrapPlayer(user: User): Promise<BetaPlayerSnapshot> {
+  return bootstrapPlayerIdentity({
+    id: user.id,
+    email: user.email ?? null,
+  });
+}
+
+export async function bootstrapGuestPlayer(
+  input: GuestRequestContext,
+): Promise<BetaPlayerSnapshot> {
+  const profile = await ensureGuestProfile(input);
+  const identity: PlayerIdentity = { id: profile.id, email: null };
+  return bootstrapPlayerIdentity(identity, profile);
+}
+
+async function bootstrapPlayerIdentity(
+  identity: PlayerIdentity,
+  knownProfile?: ProfileRow,
+): Promise<BetaPlayerSnapshot> {
   const [existingProfile, existingPlayerState, existingOwnedWeapons, existingPlayerRecord] =
     await Promise.all([
-      selectProfile(user.id),
-      selectPlayerState(user.id),
-      selectOwnedWeapons(user.id),
-      selectPlayerRecord(user.id),
+      knownProfile ? Promise.resolve(knownProfile) : selectProfile(identity.id),
+      selectPlayerState(identity.id),
+      selectOwnedWeapons(identity.id),
+      selectPlayerRecord(identity.id),
     ]);
 
   if (
@@ -456,7 +616,7 @@ export async function bootstrapPlayer(user: User): Promise<BetaPlayerSnapshot> {
     existingPlayerRecord
   ) {
     return snapshotForUser({
-      user,
+      user: identity,
       profile: existingProfile,
       playerState: existingPlayerState,
       ownedWeapons: existingOwnedWeapons,
@@ -465,16 +625,16 @@ export async function bootstrapPlayer(user: User): Promise<BetaPlayerSnapshot> {
   }
 
   const [profile, playerState, ownedWeapons, playerRecord] = await Promise.all([
-    existingProfile ?? ensureProfile(user),
-    existingPlayerState ?? ensurePlayerState(user),
+    existingProfile ?? ensureProfile(identity),
+    existingPlayerState ?? ensurePlayerState(identity),
     existingOwnedWeapons.length > 0
       ? existingOwnedWeapons
-      : ensureOwnedWeapons(user),
-    existingPlayerRecord ?? ensurePlayerRecord(user),
+      : ensureOwnedWeapons(identity),
+    existingPlayerRecord ?? ensurePlayerRecord(identity),
   ]);
 
   return snapshotForUser({
-    user,
+    user: identity,
     profile,
     playerState,
     ownedWeapons,
@@ -483,9 +643,9 @@ export async function bootstrapPlayer(user: User): Promise<BetaPlayerSnapshot> {
 }
 
 export async function getPlayerSnapshot(
-  user: User,
+  user: PlayerIdentity,
 ): Promise<BetaPlayerSnapshot> {
-  return bootstrapPlayer(user);
+  return bootstrapPlayerIdentity(user);
 }
 
 export async function updatePlayerNickname(
@@ -503,7 +663,7 @@ export async function updatePlayerNickname(
       },
       { onConflict: "id" },
     )
-    .select("*")
+    .select(PROFILE_SELECT)
     .single();
 
   if (error) throw error;

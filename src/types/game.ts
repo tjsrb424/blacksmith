@@ -168,6 +168,12 @@ export type RecordBreakInfo = {
   isPersonalBest?: boolean;
   isWeeklyTop100?: boolean;
   estimatedWeeklyRank?: number;
+  newRankingValue?: number;
+  previousPersonalBestValue?: number;
+  rankingDelta?: number;
+  enteredWeeklyTop100?: boolean;
+  enhancementLevel?: number;
+  shouldPlayRecordBgm?: boolean;
 };
 
 /** 판매 완료 모달용 */

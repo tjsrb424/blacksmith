@@ -108,6 +108,9 @@ Run in Supabase SQL Editor:
 4. `docs/server/sql/004_bootstrap_fix.sql`
 5. `docs/server/sql/005_ad_reward_logs.sql`
 6. `docs/server/sql/006_ad_reward_limits.sql`
+7. `docs/server/sql/007_sprint23a_performance_indexes.sql`
+8. `docs/server/sql/008_sprint23a4_enhance_rpc.sql`
+9. `docs/server/sql/009_sprint23a5_hot_mutation_rpcs.sql`
 
 ## Local Mode
 

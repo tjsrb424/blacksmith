@@ -11,6 +11,8 @@ export type ClientPerfMetric = {
   lastAuthError?: string;
   apiName?: string;
   elapsedMs?: number;
+  networkElapsedMs?: number;
+  jsonParseMs?: number;
   errorCode?: string;
   bootstrapElapsedMs?: number;
   playerSyncElapsedMs?: number;
@@ -54,6 +56,9 @@ export type ClientPerfMetric = {
   renderTick?: number;
   currentScreen?: string;
   renderCounts?: Record<string, number>;
+  serverTimingTotalMs?: number;
+  serverTiming?: string;
+  clientServerGapMs?: number;
 };
 
 const listeners = new Set<() => void>();

@@ -25,6 +25,8 @@ export type PerfEvent = {
   actionName?: string;
   api?: string;
   elapsedMs: number;
+  networkElapsedMs?: number;
+  jsonParseMs?: number;
   bootstrapMs?: number;
   playerSyncMs?: number;
   storeSyncMs?: number;
@@ -56,6 +58,9 @@ export type PerfEvent = {
   rpcName?: string;
   rpcApplied?: boolean;
   fallbackAllowed?: boolean;
+  serverTimingTotalMs?: number;
+  serverTiming?: string;
+  clientServerGapMs?: number;
 };
 
 export type PerfSummaryRow = {
@@ -116,12 +121,29 @@ export function perfActionNameFromApi(apiName: string) {
   return path.replace(/^\/?api\//, "").replace(/[^A-Za-z0-9]+/g, "_");
 }
 
-export function isPerfRecorderEnabled() {
+function isLocalPerfHost() {
+  if (typeof window === "undefined") return false;
   return (
-    typeof window !== "undefined" &&
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false"
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "::1"
   );
+}
+
+export function isPerfToolsEnabled() {
+  if (typeof window === "undefined") return false;
+  if (process.env.NODE_ENV !== "production") {
+    return process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
+  }
+  return (
+    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED === "true" &&
+    process.env.NEXT_PUBLIC_PERF_OVERLAY_IN_PROD_LOCAL === "true" &&
+    isLocalPerfHost()
+  );
+}
+
+export function isPerfRecorderEnabled() {
+  return isPerfToolsEnabled();
 }
 
 function safeJsonParse(value: string | null): PerfEvent[] {
@@ -403,6 +425,10 @@ export function perfEventsToCsv(sourceEvents: readonly PerfEvent[]) {
     "actionName",
     "api",
     "elapsedMs",
+    "networkElapsedMs",
+    "jsonParseMs",
+    "serverTimingTotalMs",
+    "clientServerGapMs",
     "error",
     "adStatus",
     "adProvider",

@@ -1,8 +1,7 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import { DEFAULT_DURABILITY, durabilityLossOnFail, forgeUpgradeCostGold } from "@/data/balance";
-import { WEAPONS_BY_ID } from "@/data/weapons";
+import { WEAPON_DEFINITIONS, WEAPONS_BY_ID } from "@/data/weapons";
 import { calculateSaleGold } from "@/lib/economy";
 import { clampDurability } from "@/lib/enhancement";
 import { getCurrentSeasonInfo } from "@/lib/season";
@@ -16,6 +15,7 @@ import {
   defaultWeeklySeasonStats,
   getOwnedWeaponsForSnapshot,
   getPlayerSnapshot,
+  type PlayerIdentity,
 } from "@/lib/server/playerRepository";
 import {
   calculateRankingValue,
@@ -61,13 +61,15 @@ import type {
   ProfileRow,
 } from "@/types/supabase";
 
-const PROFILE_SELECT = "id,nickname,created_at,updated_at";
+const PROFILE_SELECT =
+  "id,auth_user_id,guest_id,guest_secret_hash,nickname,play_mode,linked_at,created_at,updated_at";
 const PLAYER_STATE_SELECT =
   "id,user_id,gold,forge_ember,transcend_stone,forge_level,forge_last_collected_at,current_season_id,stats,created_at,updated_at";
 const PLAYER_RECORD_SELECT =
   "id,user_id,best_weapon_name,best_weapon_id,best_weapon_value,best_weapon_enhance_level,best_weapon_transcend_level,best_sale_gold,total_sales_gold,max_transcend_level,stats,created_at,updated_at";
 const OWNED_WEAPON_SELECT =
   "id,user_id,weapon_id,enhance_level,transcend_level,durability,is_locked,created_at,updated_at";
+const unavailableRpcFunctions = new Set<string>();
 
 export class GameActionError extends Error {
   constructor(
@@ -217,7 +219,7 @@ function assertCanSellOwnedWeaponCount(count: number) {
   }
 }
 
-/** 일반 판매: base → bonus(0) → final → ranking(무기 점수, 광고와 무관) 순으로만 참조 */
+/** ?쇰컲 ?먮ℓ: base ??bonus(0) ??final ??ranking(臾닿린 ?먯닔, 愿묎퀬? 臾닿?) ?쒖쑝濡쒕쭔 李몄“ */
 function computeNormalSellEconomy(
   def: WeaponDefinition,
   owned: OwnedWeapon,
@@ -256,7 +258,7 @@ function computeNormalSellEconomy(
 }
 
 async function runLoggedAction(args: {
-  user: User;
+  user: PlayerIdentity;
   actionType: ServerGameActionResponse["actionType"];
   actionId: string;
   payload: unknown;
@@ -298,11 +300,28 @@ async function runLoggedAction(args: {
 }
 
 export async function buyWeaponServer(
-  user: User,
+  user: PlayerIdentity,
   payload: BuyActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
   const timer = options.timer;
+  const rpcName = "apply_buy_action_v1";
+  if (
+    process.env.HOT_MUTATION_RPC_DISABLED !== "true" &&
+    !unavailableRpcFunctions.has(rpcName)
+  ) {
+    try {
+      return await (timer
+        ? timer.time("buy rpc", () => buyWeaponServerRpc(user, payload))
+        : buyWeaponServerRpc(user, payload));
+    } catch (error) {
+      if (!isRpcMissingError(error, rpcName)) throw error;
+      unavailableRpcFunctions.add(rpcName);
+      if (!shouldUseLegacyRpcFallback()) throw rpcNotAppliedError(rpcName);
+      logRpcFallback("buy", error);
+    }
+  }
+
   return runLoggedAction({
     user,
     actionType: "buy",
@@ -393,12 +412,172 @@ export async function buyWeaponServer(
   });
 }
 
+function isRpcMissingError(error: unknown, functionName: string) {
+  if (!error || typeof error !== "object") return false;
+  const maybe = error as { code?: string; message?: string };
+  const message = maybe.message ?? "";
+  return (
+    maybe.code === "PGRST202" ||
+    maybe.code === "42883" ||
+    (message.includes(functionName) &&
+      (message.includes("not found") || message.includes("does not exist")))
+  );
+}
+
+function logRpcFallback(scope: string, error: unknown) {
+  if (process.env.NODE_ENV === "production") return;
+  console.warn(`[${scope}.rpc] unavailable; falling back to legacy path`, {
+    message: error instanceof Error ? error.message : String(error),
+  });
+}
+
+function shouldUseLegacyRpcFallback() {
+  return process.env.HOT_MUTATION_RPC_FALLBACK_LEGACY === "true";
+}
+
+function rpcNotAppliedError(functionName: string) {
+  return new GameActionError(
+    `${functionName} is not available. Apply the latest Supabase SQL migrations or set HOT_MUTATION_RPC_FALLBACK_LEGACY=true for temporary legacy fallback.`,
+    503,
+    "mutation_rpc_not_applied",
+  );
+}
+
+function rpcActionError(error: unknown): GameActionError | null {
+  if (!error || typeof error !== "object") return null;
+  const message = String((error as { message?: unknown }).message ?? "");
+  const knownCodes = [
+    "missing_action_id",
+    "action_conflict",
+    "player_state_not_found",
+    "player_record_not_found",
+    "weapon_not_found",
+    "weapon_def_not_found",
+    "max_enhance",
+    "destroyed_weapon",
+    "locked_weapon",
+    "last_weapon_cannot_sell",
+    "insufficient_ember",
+    "insufficient_gold",
+    "no_forge_reward",
+    "max_forge_level",
+    "ad_reward_required",
+    "invalid_request",
+  ];
+  const code = knownCodes.find((candidate) => message.includes(candidate));
+  if (!code) return null;
+  const status =
+    code === "weapon_not_found" || code === "weapon_def_not_found"
+      ? 404
+      : code === "missing_action_id" ||
+          code === "invalid_request" ||
+          code === "ad_reward_required"
+        ? 400
+        : 409;
+  return new GameActionError(message, status, code);
+}
+
+function hotMutationRpcWeaponDefinitions(): Json {
+  return toJson(
+    WEAPON_DEFINITIONS.map((def) => ({
+      id: def.id,
+      name: def.name,
+      basePrice: def.basePrice,
+    })),
+  );
+}
+
+async function buyWeaponServerRpc(
+  user: PlayerIdentity,
+  payload: BuyActionRequest,
+): Promise<ServerGameActionResponse> {
+  const actionId = requireActionId(payload.actionId);
+  const weaponId = payload.weaponId?.trim();
+  if (!weaponId) {
+    throw new GameActionError("weaponId is required", 400, "invalid_request");
+  }
+
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.rpc("apply_buy_action_v1", {
+    p_user_id: user.id,
+    p_action_id: actionId,
+    p_payload: toJson(payload),
+    p_weapon_id: weaponId,
+    p_weapon_definitions: hotMutationRpcWeaponDefinitions(),
+  });
+
+  if (error) {
+    const mapped = rpcActionError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GameActionError("Invalid buy RPC response", 500, "server_error");
+  }
+
+  return data as unknown as ServerGameActionResponse;
+}
+
+async function enhanceWeaponServerRpc(
+  user: PlayerIdentity,
+  payload: EnhanceActionRequest,
+): Promise<ServerGameActionResponse> {
+  const actionId = requireActionId(payload.actionId);
+  const weaponInstanceId = payload.weaponInstanceId?.trim();
+  if (!weaponInstanceId) {
+    throw new GameActionError("weaponInstanceId is required", 400, "invalid_request");
+  }
+
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.rpc("apply_enhance_action_v1", {
+    p_user_id: user.id,
+    p_action_id: actionId,
+    p_payload: toJson(payload),
+    p_weapon_instance_id: weaponInstanceId,
+    p_season_id: getCurrentSeasonInfo().seasonId,
+    p_weapon_definitions: hotMutationRpcWeaponDefinitions(),
+    p_rng: serverRandomUnit(),
+    p_scrap_gold_rng: serverRandomUnit(),
+    p_scrap_stone_rng: serverRandomUnit(),
+  });
+
+  if (error) {
+    const mapped = rpcActionError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GameActionError("Invalid enhance RPC response", 500, "server_error");
+  }
+
+  return data as unknown as ServerGameActionResponse;
+}
+
 export async function enhanceWeaponServer(
-  user: User,
+  user: PlayerIdentity,
   payload: EnhanceActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
   const timer = options.timer;
+  const rpcName = "apply_enhance_action_v1";
+  if (
+    process.env.ENHANCE_RPC_DISABLED !== "true" &&
+    !unavailableRpcFunctions.has(rpcName)
+  ) {
+    try {
+      return await (timer
+        ? timer.time("enhance rpc", () => enhanceWeaponServerRpc(user, payload))
+        : enhanceWeaponServerRpc(user, payload));
+    } catch (error) {
+      if (!isRpcMissingError(error, rpcName)) throw error;
+      unavailableRpcFunctions.add(rpcName);
+      if (!shouldUseLegacyRpcFallback()) throw rpcNotAppliedError(rpcName);
+      logRpcFallback("enhance", error);
+    }
+  }
+
   return runLoggedAction({
     user,
     actionType: "enhance",
@@ -408,16 +587,16 @@ export async function enhanceWeaponServer(
     run: async () => {
       const [profile, state, record, weapon] = await Promise.all([
         timer
-          ? timer.time("profile 조회", () => getProfile(user.id))
+          ? timer.time("profile 議고쉶", () => getProfile(user.id))
           : getProfile(user.id),
         timer
-          ? timer.time("player_state 조회", () => getPlayerState(user.id))
+          ? timer.time("player_state 議고쉶", () => getPlayerState(user.id))
           : getPlayerState(user.id),
         timer
-          ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+          ? timer.time("player_records 議고쉶", () => getPlayerRecord(user.id))
           : getPlayerRecord(user.id),
         timer
-          ? timer.time("owned_weapon 조회", () =>
+          ? timer.time("owned_weapon 議고쉶", () =>
               getOwnedWeapon(user.id, payload.weaponInstanceId),
             )
           : getOwnedWeapon(user.id, payload.weaponInstanceId),
@@ -429,7 +608,7 @@ export async function enhanceWeaponServer(
       if (owned.durability <= 0) throw new GameActionError("Weapon is destroyed", 409, "destroyed_weapon");
 
       const calculation = timer
-        ? timer.timeSync("비용/확률 계산", () => {
+        ? timer.timeSync("鍮꾩슜/?뺣쪧 怨꾩궛", () => {
             const targetLevel = owned.enhanceLevel + 1;
             return {
               targetLevel,
@@ -745,7 +924,7 @@ export async function enhanceWeaponServer(
         actionId: payload.actionId,
         actionType: "enhance",
         patch: timer
-          ? timer.timeSync("response result/patch 생성", () => ({
+          ? timer.timeSync("response result/patch ?앹꽦", () => ({
               currentGold: Number(nextState.gold),
               currentEmber: Number(nextState.forge_ember),
               currentStone: Number(nextState.transcend_stone),
@@ -777,7 +956,7 @@ export async function enhanceWeaponServer(
 }
 
 export async function transcendWeaponServer(
-  user: User,
+  user: PlayerIdentity,
   payload: TranscendActionRequest,
 ): Promise<ServerGameActionResponse> {
   return runLoggedAction({
@@ -997,11 +1176,28 @@ export async function transcendWeaponServer(
 }
 
 export async function sellWeaponServer(
-  user: User,
+  user: PlayerIdentity,
   payload: SellActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
   const timer = options.timer;
+  const rpcName = "apply_sell_action_v1";
+  if (
+    process.env.HOT_MUTATION_RPC_DISABLED !== "true" &&
+    !unavailableRpcFunctions.has(rpcName)
+  ) {
+    try {
+      return await (timer
+        ? timer.time("sell rpc", () => sellWeaponServerRpc(user, payload))
+        : sellWeaponServerRpc(user, payload));
+    } catch (error) {
+      if (!isRpcMissingError(error, rpcName)) throw error;
+      unavailableRpcFunctions.add(rpcName);
+      if (!shouldUseLegacyRpcFallback()) throw rpcNotAppliedError(rpcName);
+      logRpcFallback("sell", error);
+    }
+  }
+
   return runLoggedAction({
     user,
     actionType: "sell",
@@ -1087,6 +1283,14 @@ export async function sellWeaponServer(
         ...updateBestWeaponRecord(record, nextRecords, weapon),
         best_sale_gold: Math.max(Number(record.best_sale_gold ?? 0), finalGold),
         total_sales_gold: Number(record.total_sales_gold ?? 0) + finalGold,
+      };
+      const nextRecord: PlayerRecordRow = {
+        ...record,
+        ...recordPatch,
+        best_sale_gold: recordPatch.best_sale_gold ?? record.best_sale_gold,
+        total_sales_gold: recordPatch.total_sales_gold ?? record.total_sales_gold,
+        stats: recordPatch.stats ?? record.stats,
+        updated_at: new Date().toISOString(),
       };
 
       const admin = getSupabaseAdminClient();
@@ -1187,12 +1391,18 @@ export async function sellWeaponServer(
               currentEmber: Number(nextState.forge_ember),
               currentStone: Number(nextState.transcend_stone),
               removedWeaponId: weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
             }))
           : {
               currentGold: Number(nextState.gold),
               currentEmber: Number(nextState.forge_ember),
               currentStone: Number(nextState.transcend_stone),
               removedWeaponId: weapon.id,
+              records: defaultPlayerRecords(nextRecord),
+              weeklySeasonStats: defaultWeeklySeasonStats(weekly.seasonId, nextState),
+              bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
             },
         display: {
           kind: "sell",
@@ -1217,10 +1427,43 @@ export async function sellWeaponServer(
   });
 }
 
+async function sellWeaponServerRpc(
+  user: PlayerIdentity,
+  payload: SellActionRequest,
+): Promise<ServerGameActionResponse> {
+  const actionId = requireActionId(payload.actionId);
+  const weaponInstanceId = payload.weaponInstanceId?.trim();
+  if (!weaponInstanceId) {
+    throw new GameActionError("weaponInstanceId is required", 400, "invalid_request");
+  }
+
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.rpc("apply_sell_action_v1", {
+    p_user_id: user.id,
+    p_action_id: actionId,
+    p_payload: toJson(payload),
+    p_weapon_instance_id: weaponInstanceId,
+    p_season_id: getCurrentSeasonInfo().seasonId,
+    p_weapon_definitions: hotMutationRpcWeaponDefinitions(),
+  });
+
+  if (error) {
+    const mapped = rpcActionError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GameActionError("Invalid sell RPC response", 500, "server_error");
+  }
+
+  return data as unknown as ServerGameActionResponse;
+}
+
 // Retained temporarily as a parity reference while the optimized sell path is validated.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function sellWeaponServerLegacy(
-  user: User,
+  user: PlayerIdentity,
   payload: SellActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
@@ -1234,21 +1477,21 @@ async function sellWeaponServerLegacy(
     run: async () => {
       const [profile, state, record, weapon, ownedWeaponsBefore] = await Promise.all([
         timer
-          ? timer.time("profile 조회", () => getProfile(user.id))
+          ? timer.time("profile 議고쉶", () => getProfile(user.id))
           : getProfile(user.id),
         timer
-          ? timer.time("player_state 조회", () => getPlayerState(user.id))
+          ? timer.time("player_state 議고쉶", () => getPlayerState(user.id))
           : getPlayerState(user.id),
         timer
-          ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+          ? timer.time("player_records 議고쉶", () => getPlayerRecord(user.id))
           : getPlayerRecord(user.id),
         timer
-          ? timer.time("owned_weapon 조회", () =>
+          ? timer.time("owned_weapon 議고쉶", () =>
               getOwnedWeapon(user.id, payload.weaponInstanceId),
             )
           : getOwnedWeapon(user.id, payload.weaponInstanceId),
         timer
-          ? timer.time("마지막 무기 여부 확인", () =>
+          ? timer.time("留덉?留?臾닿린 ?щ? ?뺤씤", () =>
               getOwnedWeaponsForSnapshot(user.id),
             )
           : getOwnedWeaponsForSnapshot(user.id),
@@ -1270,7 +1513,7 @@ async function sellWeaponServerLegacy(
         );
       }
       const calculation = timer
-        ? timer.timeSync("판매가 계산", () =>
+        ? timer.timeSync("?먮ℓ媛 怨꾩궛", () =>
             computeNormalSellEconomy(def, owned, record, state),
           )
         : computeNormalSellEconomy(def, owned, record, state);
@@ -1356,7 +1599,7 @@ async function sellWeaponServerLegacy(
         actionId: payload.actionId,
         actionType: "sell",
         patch: timer
-          ? timer.timeSync("response result/patch 생성", () => ({
+          ? timer.timeSync("response result/patch ?앹꽦", () => ({
               currentGold: Number(nextState.gold),
               currentEmber: Number(nextState.forge_ember),
               currentStone: Number(nextState.transcend_stone),
@@ -1398,11 +1641,28 @@ async function sellWeaponServerLegacy(
 }
 
 export async function collectForgeServer(
-  user: User,
+  user: PlayerIdentity,
   payload: ForgeCollectActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
   const timer = options.timer;
+  const rpcName = "apply_forge_collect_action_v1";
+  if (
+    process.env.HOT_MUTATION_RPC_DISABLED !== "true" &&
+    !unavailableRpcFunctions.has(rpcName)
+  ) {
+    try {
+      return await (timer
+        ? timer.time("forge collect rpc", () => collectForgeServerRpc(user, payload))
+        : collectForgeServerRpc(user, payload));
+    } catch (error) {
+      if (!isRpcMissingError(error, rpcName)) throw error;
+      unavailableRpcFunctions.add(rpcName);
+      if (!shouldUseLegacyRpcFallback()) throw rpcNotAppliedError(rpcName);
+      logRpcFallback("forgeCollect", error);
+    }
+  }
+
   return runLoggedAction({
     user,
     actionType: "forge_collect",
@@ -1502,12 +1762,56 @@ export async function collectForgeServer(
   });
 }
 
+async function collectForgeServerRpc(
+  user: PlayerIdentity,
+  payload: ForgeCollectActionRequest,
+): Promise<ServerGameActionResponse> {
+  const actionId = requireActionId(payload.actionId);
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.rpc("apply_forge_collect_action_v1", {
+    p_user_id: user.id,
+    p_action_id: actionId,
+    p_payload: toJson(payload),
+    p_season_id: getCurrentSeasonInfo().seasonId,
+    p_now: new Date().toISOString(),
+  });
+
+  if (error) {
+    const mapped = rpcActionError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GameActionError("Invalid forge collect RPC response", 500, "server_error");
+  }
+
+  return data as unknown as ServerGameActionResponse;
+}
+
 export async function upgradeForgeServer(
-  user: User,
+  user: PlayerIdentity,
   payload: ForgeUpgradeActionRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<ServerGameActionResponse> {
   const timer = options.timer;
+  const rpcName = "apply_forge_upgrade_action_v1";
+  if (
+    process.env.HOT_MUTATION_RPC_DISABLED !== "true" &&
+    !unavailableRpcFunctions.has(rpcName)
+  ) {
+    try {
+      return await (timer
+        ? timer.time("forge upgrade rpc", () => upgradeForgeServerRpc(user, payload))
+        : upgradeForgeServerRpc(user, payload));
+    } catch (error) {
+      if (!isRpcMissingError(error, rpcName)) throw error;
+      unavailableRpcFunctions.add(rpcName);
+      if (!shouldUseLegacyRpcFallback()) throw rpcNotAppliedError(rpcName);
+      logRpcFallback("forgeUpgrade", error);
+    }
+  }
+
   return runLoggedAction({
     user,
     actionType: "forge_upgrade",
@@ -1569,8 +1873,33 @@ export async function upgradeForgeServer(
   });
 }
 
+async function upgradeForgeServerRpc(
+  user: PlayerIdentity,
+  payload: ForgeUpgradeActionRequest,
+): Promise<ServerGameActionResponse> {
+  const actionId = requireActionId(payload.actionId);
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.rpc("apply_forge_upgrade_action_v1", {
+    p_user_id: user.id,
+    p_action_id: actionId,
+    p_payload: toJson(payload),
+  });
+
+  if (error) {
+    const mapped = rpcActionError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new GameActionError("Invalid forge upgrade RPC response", 500, "server_error");
+  }
+
+  return data as unknown as ServerGameActionResponse;
+}
+
 export async function submitRankingCandidateServer(
-  user: User,
+  user: PlayerIdentity,
   payload: { actionId: string; weaponInstanceId: string; seasonId: string },
 ): Promise<ServerGameActionResponse> {
   return runLoggedAction({

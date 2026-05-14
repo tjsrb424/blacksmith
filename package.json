@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "perf:api": "node scripts/measure-api-latency.mjs"
+    "perf:api": "node scripts/measure-api-latency.mjs",
+    "perf:sprint23a3": "node scripts/measure-sprint23a3.mjs",
+    "perf:sprint23a5": "node scripts/measure-sprint23a3.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

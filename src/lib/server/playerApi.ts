@@ -1,5 +1,6 @@
 import { requestJson } from "@/lib/server/http";
-import type { BetaPlayerSnapshot, ServerPlayerProfile } from "@/types/server";
+import { getGuestRequestContext } from "@/lib/player/guest";
+import type { BetaPlayerSnapshot, GuestRequestContext, ServerPlayerProfile } from "@/types/server";
 
 const BOOTSTRAP_CACHE_TTL_MS = 45_000;
 const PLAYER_ME_CACHE_TTL_MS = 20_000;
@@ -13,6 +14,7 @@ type CacheEntry<T> = {
 type PlayerApiOptions = {
   cacheKey?: string;
   force?: boolean;
+  guest?: GuestRequestContext;
 };
 
 let bootstrapCache: CacheEntry<BetaPlayerSnapshot> | null = null;
@@ -59,6 +61,15 @@ export async function getCurrentPlayer(): Promise<ServerPlayerProfile> {
 export async function getCurrentPlayerSnapshot(
   options: PlayerApiOptions = {},
 ): Promise<BetaPlayerSnapshot> {
+  const guestContext = options.guest ?? getGuestRequestContext();
+  if (guestContext.mode === "guest") {
+    return bootstrapPlayerSnapshot({
+      ...options,
+      cacheKey: options.cacheKey ?? guestContext.guestId,
+      guest: guestContext,
+    });
+  }
+
   if (!options.force && isFresh(playerSnapshotCache, options.cacheKey)) {
     return playerSnapshotCache!.value;
   }
@@ -106,10 +117,13 @@ export async function bootstrapPlayerSnapshot(
     return bootstrapInFlight;
   }
 
+  const guestContext = options.guest ?? getGuestRequestContext();
+  const hasGuestContext = guestContext.mode === "guest";
   const load = requestJson<BetaPlayerSnapshot>("/api/player/bootstrap", {
     method: "POST",
     apiName: "api/player/bootstrap",
     timeoutMs: 10_000,
+    body: hasGuestContext ? JSON.stringify(guestContext) : undefined,
   })
     .then((snapshot) => {
       const expiresAt = Date.now() + BOOTSTRAP_CACHE_TTL_MS;

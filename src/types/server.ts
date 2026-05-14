@@ -56,6 +56,13 @@ export type PlayerMeResponse = BetaPlayerSnapshot;
 
 export type PlayerBootstrapResponse = BetaPlayerSnapshot;
 
+export type GuestRequestContext = {
+  mode?: "guest";
+  guestId?: string;
+  guestSecret?: string;
+  nickname?: string;
+};
+
 export type NicknameUpdateRequest = {
   nickname: string;
 };
@@ -91,7 +98,7 @@ export type UntrustedRankingCandidateDisplay = {
   rankingValue?: number;
 };
 
-export type RankingCandidateSubmitPayload = {
+export type RankingCandidateSubmitPayload = GuestRequestContext & {
   playerId: string;
   weaponInstanceId: string;
   seasonId: string;
@@ -173,7 +180,7 @@ export type PlayerRecordResponse = {
   serverCalculatedAt: string;
 };
 
-export type GameActionBaseRequest = {
+export type GameActionBaseRequest = GuestRequestContext & {
   playerId?: string;
   actionId: string;
   clientCreatedAt: string;

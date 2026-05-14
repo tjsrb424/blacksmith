@@ -1,4 +1,5 @@
 import { requestJson } from "@/lib/server/http";
+import { getGuestRequestContext } from "@/lib/player/guest";
 import type {
   BuyActionRequest,
   EnhanceActionRequest,
@@ -9,6 +10,13 @@ import type {
   TranscendActionRequest,
 } from "@/types/server";
 
+function withGuestContext<T extends object>(payload: T): T {
+  return {
+    ...getGuestRequestContext(),
+    ...payload,
+  };
+}
+
 export async function enhanceWeapon(
   payload: EnhanceActionRequest,
 ): Promise<ServerGameActionResponse> {
@@ -16,7 +24,7 @@ export async function enhanceWeapon(
     method: "POST",
     apiName: "api/game/enhance",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
@@ -27,7 +35,7 @@ export async function transcendWeapon(
     method: "POST",
     apiName: "api/game/transcend",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
@@ -38,7 +46,7 @@ export async function sellWeapon(
     method: "POST",
     apiName: "api/game/sell",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
@@ -49,7 +57,7 @@ export async function buyWeapon(
     method: "POST",
     apiName: "api/game/buy",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
@@ -60,7 +68,7 @@ export async function collectForge(
     method: "POST",
     apiName: "api/game/forge/collect",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
@@ -71,6 +79,6 @@ export async function upgradeForge(
     method: "POST",
     apiName: "api/game/forge/upgrade",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }

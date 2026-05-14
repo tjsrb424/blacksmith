@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { collectForgeServer } from "@/lib/server/gameActionService";
 import { collectForgeRpc } from "@/lib/server/hotMutationRpc";
 import { attachMutationDebugHeaders } from "@/lib/server/mutationResponse";
+import { resolveRequestPlayer } from "@/lib/server/playerIdentity";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -18,18 +18,18 @@ export async function POST(request: NextRequest) {
     const timer = createServerStepTimer("forgeCollect", { slowStepMs: 700 });
 
     try {
-      const auth = await timer.time("auth", () => requireSupabaseUser());
-      if (!auth.ok) {
-        return attachServerTiming(auth.response, timer.finish());
-      }
-
       const payload = (await timer.time("request parse", () =>
         request.json(),
       )) as ForgeCollectActionRequest;
+      const player = await timer.time("player identity", () =>
+        resolveRequestPlayer(payload),
+      );
+      if (!player.ok) return attachServerTiming(player.response, timer.finish());
+
       const result = await collectForgeRpc(
-        auth.user,
+        player.identity,
         payload,
-        () => collectForgeServer(auth.user, payload, { timer }),
+        () => collectForgeServer(player.identity, payload, { timer }),
         timer,
       );
       const response = timer.timeSync("response serialize", () =>

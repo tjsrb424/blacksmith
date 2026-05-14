@@ -57,6 +57,16 @@ export default function PrivacyPage() {
           tjsrb424@gmail.com 으로 보내주세요.
         </p>
       </PublicSection>
+      <PublicSection title="게스트 플레이 정보">
+        <p>
+          서비스 이용을 위해 닉네임, 게스트 식별자, 게임 진행 정보, 랭킹 정보가 저장될 수 있습니다.
+          게스트 식별자는 계정 없이 플레이 기록을 유지하고 랭킹을 제공하기 위한 임의 식별자입니다.
+        </p>
+        <p>
+          계정 연동 시 게스트 진행 정보가 로그인 계정과 연결될 수 있습니다. 게스트 소유 확인용
+          비밀값은 원문이 아닌 해시 형태로 저장됩니다.
+        </p>
+      </PublicSection>
     </PublicPageLayout>
   );
 }

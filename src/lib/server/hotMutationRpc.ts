@@ -1,9 +1,9 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import { WEAPON_DEFINITIONS } from "@/data/weapons";
 import { getCurrentSeasonInfo } from "@/lib/season";
 import { GameActionError } from "@/lib/server/gameActionService";
+import type { PlayerIdentity } from "@/lib/server/playerRepository";
 import { serverRandomUnit } from "@/lib/server/serverRandom";
 import type { ServerStepTimer } from "@/lib/server/stepLatency";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -121,7 +121,7 @@ async function rpcOrLegacy(
 }
 
 export async function buyWeaponRpc(
-  user: User,
+  user: PlayerIdentity,
   payload: BuyActionRequest,
   legacy: () => Promise<ServerGameActionResponse>,
   timer?: ServerStepTimer,
@@ -141,7 +141,7 @@ export async function buyWeaponRpc(
 }
 
 export async function enhanceWeaponRpc(
-  user: User,
+  user: PlayerIdentity,
   payload: EnhanceActionRequest,
   legacy: () => Promise<ServerGameActionResponse>,
   timer?: ServerStepTimer,
@@ -165,7 +165,7 @@ export async function enhanceWeaponRpc(
 }
 
 export async function sellWeaponRpc(
-  user: User,
+  user: PlayerIdentity,
   payload: SellActionRequest,
   legacy: () => Promise<ServerGameActionResponse>,
   timer?: ServerStepTimer,
@@ -186,7 +186,7 @@ export async function sellWeaponRpc(
 }
 
 export async function collectForgeRpc(
-  user: User,
+  user: PlayerIdentity,
   payload: ForgeCollectActionRequest,
   legacy: () => Promise<ServerGameActionResponse>,
   timer?: ServerStepTimer,
@@ -206,7 +206,7 @@ export async function collectForgeRpc(
 }
 
 export async function upgradeForgeRpc(
-  user: User,
+  user: PlayerIdentity,
   payload: ForgeUpgradeActionRequest,
   legacy: () => Promise<ServerGameActionResponse>,
   timer?: ServerStepTimer,

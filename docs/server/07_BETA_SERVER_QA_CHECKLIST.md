@@ -2,7 +2,7 @@
 
 ## Setup
 
-1. Confirm SQL files `001_schema.sql` through `006_ad_reward_limits.sql` have been applied.
+1. Confirm SQL files `001_schema.sql` through `009_sprint23a5_hot_mutation_rpcs.sql` have been applied.
 2. Confirm `.env.local` has `NEXT_PUBLIC_GAME_MODE=beta`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
 3. Confirm ad env:
    - Public beta before ad approval: `NEXT_PUBLIC_AD_PROVIDER=disabled`

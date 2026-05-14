@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { sellWeaponServer } from "@/lib/server/gameActionService";
 import { sellWeaponRpc } from "@/lib/server/hotMutationRpc";
 import { attachMutationDebugHeaders } from "@/lib/server/mutationResponse";
+import { resolveRequestPlayer } from "@/lib/server/playerIdentity";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -18,18 +18,20 @@ export async function POST(request: NextRequest) {
     const timer = createServerStepTimer("sell", { slowStepMs: 700 });
 
     try {
-      const auth = await timer.time("auth user 조회", () => requireSupabaseUser());
-      if (!auth.ok) {
-        return attachServerTiming(auth.response, timer.finish("sell total"));
-      }
-
       const payload = (await timer.time("request parse", () =>
         request.json(),
       )) as SellActionRequest;
+      const player = await timer.time("player identity", () =>
+        resolveRequestPlayer(payload),
+      );
+      if (!player.ok) {
+        return attachServerTiming(player.response, timer.finish("sell total"));
+      }
+
       const result = await sellWeaponRpc(
-        auth.user,
+        player.identity,
         payload,
-        () => sellWeaponServer(auth.user, payload, { timer }),
+        () => sellWeaponServer(player.identity, payload, { timer }),
         timer,
       );
       const response = timer.timeSync("response serialize", () =>

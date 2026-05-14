@@ -30,7 +30,7 @@ Notes:
 
 ## 2. Supabase
 
-- Apply SQL in order: `001_schema.sql`, `002_rls_policies.sql`, `003_action_indexes.sql`, `004_bootstrap_fix.sql`, `005_ad_reward_logs.sql`, `006_ad_reward_limits.sql`, `007_sprint23a_performance_indexes.sql`.
+- Apply SQL in order: `001_schema.sql`, `002_rls_policies.sql`, `003_action_indexes.sql`, `004_bootstrap_fix.sql`, `005_ad_reward_logs.sql`, `006_ad_reward_limits.sql`, `007_sprint23a_performance_indexes.sql`, `008_sprint23a4_enhance_rpc.sql`, `009_sprint23a5_hot_mutation_rpcs.sql`.
 - Confirm RLS is enabled on player/action/ranking/ad reward tables.
 - Confirm service role key is available only to server route handlers.
 - Confirm `ad_reward_logs` has no client insert/update/delete policies.

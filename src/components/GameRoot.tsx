@@ -14,6 +14,7 @@ import {
   clearPerfEvents,
   createPerfExportBundle,
   getPerfEventsSnapshot,
+  isPerfToolsEnabled,
   perfEventsToCsv,
   perfExportFilename,
   subscribePerfEvents,
@@ -61,9 +62,7 @@ function DevToolsPanel({ screen }: { screen: string }) {
     getPerfEventsSnapshot,
     getPerfEventsSnapshot,
   );
-  const enabled =
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_DEV_TOOLS_ENABLED !== "false";
+  const enabled = isPerfToolsEnabled();
 
   if (!enabled) return null;
 

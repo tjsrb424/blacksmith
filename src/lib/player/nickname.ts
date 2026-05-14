@@ -10,7 +10,7 @@ export function validateNickname(input: string):
   const nickname = normalizeNickname(input);
 
   if (nickname.length < 2 || nickname.length > 12) {
-    return { ok: false, message: "닉네임은 2~12자로 입력해주세요." };
+    return { ok: false, message: "닉네임은 2~12자로 입력하세요." };
   }
 
   if (!NICKNAME_PATTERN.test(nickname)) {

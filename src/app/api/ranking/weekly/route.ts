@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -26,16 +25,12 @@ export async function GET(request: NextRequest) {
     const timer = createServerStepTimer("rankingWeekly", { slowStepMs: 700 });
 
     try {
-      const auth = await timer.time("auth", () => requireSupabaseUser());
-      if (!auth.ok) {
-        return attachServerTiming(auth.response, timer.finish());
-      }
-
-      const { seasonId, category } = timer.timeSync("request parse", () => {
+      const { seasonId, category, playerId } = timer.timeSync("request parse", () => {
         const url = new URL(request.url);
         return {
           seasonId: url.searchParams.get("seasonId")?.trim(),
           category: url.searchParams.get("category"),
+          playerId: url.searchParams.get("playerId")?.trim() || null,
         };
       });
 
@@ -65,7 +60,7 @@ export async function GET(request: NextRequest) {
         getWeeklyRankingRows({
           seasonId,
           category,
-          playerId: auth.user.id,
+          playerId,
         }),
       );
       const response = timer.timeSync("response serialize", () =>

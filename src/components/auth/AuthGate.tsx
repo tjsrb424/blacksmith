@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { GameStartScreen } from "@/components/auth/GameStartScreen";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 import { NicknameSetupModal } from "@/components/auth/NicknameSetupModal";
 import { ApiRequestError } from "@/lib/server/http";
@@ -18,6 +19,12 @@ import {
   bootstrapPlayerSnapshot,
   invalidatePlayerApiCache,
 } from "@/lib/server/playerApi";
+import {
+  getGuestProfile,
+  markAuthenticatedPlay,
+  startGuestPlay,
+  type GuestProfile,
+} from "@/lib/player/guest";
 import {
   diagnosticLog,
   updatePerformanceMetric,
@@ -89,6 +96,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [snapshot, setSnapshot] = useState<BetaPlayerSnapshot | null>(null);
+  const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(() =>
+    getGuestProfile(),
+  );
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AuthStage>("checking_session");
@@ -185,6 +195,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   const sessionUserId = session?.user.id;
 
+  useEffect(() => {
+    if (sessionUserId) {
+      markAuthenticatedPlay();
+      queueMicrotask(() => setGuestProfile(null));
+    }
+  }, [sessionUserId]);
+
+  const startGuest = useCallback((nickname: string) => {
+    setGuestProfile(startGuestPlay(nickname));
+    setError(null);
+    setAuthChecked(true);
+    setAuthStage("ready");
+  }, [setAuthStage]);
+
   const refresh = useCallback(async () => {
     setLoadingSnapshot(true);
     setError(null);
@@ -194,7 +218,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     try {
       const nextSnapshot = await bootstrapPlayerSnapshot({
-        cacheKey: sessionUserId,
+        cacheKey: sessionUserId ?? guestProfile?.guestId,
+        guest: guestProfile
+          ? {
+              mode: "guest",
+              guestId: guestProfile.guestId,
+              guestSecret: guestProfile.guestSecret,
+              nickname: guestProfile.nickname,
+            }
+          : undefined,
       });
       setAuthEvent("bootstrap resolved", {
         elapsedMs: Date.now() - bootstrapStartedAt,
@@ -223,7 +255,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     } finally {
       setLoadingSnapshot(false);
     }
-  }, [sessionUserId, setAuthEvent, setAuthFailure, setAuthStage]);
+  }, [guestProfile, sessionUserId, setAuthEvent, setAuthFailure, setAuthStage]);
 
   const signOutAndReset = useCallback(async () => {
     setAuthEvent("sign_out_requested");
@@ -352,6 +384,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(id);
   }, [mode, refresh, sessionUserId, snapshot?.userId]);
 
+  useEffect(() => {
+    if (mode !== "beta" || !guestProfile || sessionUserId) return;
+    if (
+      bootstrappedUserIdRef.current === guestProfile.guestId &&
+      snapshot?.userId === guestProfile.guestId
+    ) {
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      void refresh();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [guestProfile, mode, refresh, sessionUserId, snapshot?.userId]);
+
   const contextValue = useMemo(
     () => ({ snapshot, refresh }),
     [refresh, snapshot],
@@ -365,11 +411,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!supabaseEnv.ok) {
+  if (!supabaseEnv.ok && authGateMode === "required") {
     return <LoginScreen error={supabaseEnv.message} authGateMode={authGateMode} />;
   }
 
   if (!authChecked) {
+    if (authGateMode !== "required") {
+      if (guestProfile) {
+        return (
+          <AuthLoading
+            stage={stage}
+            stageElapsedMs={stageElapsedMs}
+            debugOrigin={debugOrigin}
+            userAgentShort={userAgentShort}
+            gameMode={mode}
+            authAttempt={authAttempt}
+            lastAuthEvent={lastAuthEvent}
+            lastAuthError={lastAuthError}
+            message="게스트 플레이어를 불러오는 중..."
+          />
+        );
+      }
+      return <GameStartScreen error={authError} onGuestStart={startGuest} />;
+    }
     return (
       <AuthLoading
         stage={stage}
@@ -386,6 +450,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (error && !snapshot && stage === "error") {
+    if (authGateMode !== "required") {
+      return <GameStartScreen error={error} onGuestStart={startGuest} />;
+    }
     return (
       <AuthErrorPanel
         error={error}
@@ -405,7 +472,32 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
-    return <LoginScreen error={authError} authGateMode={authGateMode} />;
+    if (authGateMode === "required") {
+      return <LoginScreen error={authError} authGateMode={authGateMode} />;
+    }
+    if (guestProfile && snapshot?.userId === guestProfile.guestId) {
+      return (
+        <BetaPlayerContext.Provider value={contextValue}>
+          {children}
+        </BetaPlayerContext.Provider>
+      );
+    }
+    if (guestProfile) {
+      return (
+        <AuthLoading
+          stage={stage}
+          stageElapsedMs={stageElapsedMs}
+          debugOrigin={debugOrigin}
+          userAgentShort={userAgentShort}
+          gameMode={mode}
+          authAttempt={authAttempt}
+          lastAuthEvent={lastAuthEvent}
+          lastAuthError={lastAuthError}
+          message="게스트 플레이어를 불러오는 중..."
+        />
+      );
+    }
+    return <GameStartScreen error={authError} onGuestStart={startGuest} />;
   }
 
   if (loadingSnapshot && !snapshot) {

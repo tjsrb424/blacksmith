@@ -7,8 +7,10 @@ import {
 } from "@/lib/server/stepLatency";
 import {
   BootstrapError,
+  bootstrapGuestPlayer,
   bootstrapPlayer,
 } from "@/lib/server/playerRepository";
+import type { GuestRequestContext } from "@/types/server";
 
 export const dynamic = "force-dynamic";
 
@@ -61,12 +63,26 @@ function logBootstrapError(error: unknown, userId?: string) {
   });
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   return withApiLatency("api/player/bootstrap", async () => {
     const timer = createServerStepTimer("playerBootstrap", { slowStepMs: 700 });
     let userId: string | undefined;
 
     try {
+      const payload = (await timer.time("request parse", async () =>
+        request.json().catch(() => ({})),
+      )) as GuestRequestContext;
+
+      if (payload.mode === "guest") {
+        const snapshot = await timer.time("bootstrap guest player", () =>
+          bootstrapGuestPlayer(payload),
+        );
+        const response = timer.timeSync("response serialize", () =>
+          NextResponse.json(snapshot),
+        );
+        return attachServerTiming(response, timer.finish());
+      }
+
       const auth = await timer.time("auth", () => requireSupabaseUser());
       if (!auth.ok) return attachServerTiming(auth.response, timer.finish());
 

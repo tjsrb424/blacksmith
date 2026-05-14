@@ -264,7 +264,7 @@ async function getProfile(userId: string): Promise<ProfileRow> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("profiles")
-    .select("id,nickname,created_at,updated_at")
+    .select("id,auth_user_id,guest_id,guest_secret_hash,nickname,play_mode,linked_at,created_at,updated_at")
     .eq("id", userId)
     .single();
   if (error) throw error;

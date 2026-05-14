@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { actionErrorResponse } from "@/lib/server/gameActionErrorResponse";
 import { enhanceWeaponServer } from "@/lib/server/gameActionService";
 import { enhanceWeaponRpc } from "@/lib/server/hotMutationRpc";
 import { attachMutationDebugHeaders } from "@/lib/server/mutationResponse";
+import { resolveRequestPlayer } from "@/lib/server/playerIdentity";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import {
   attachServerTiming,
@@ -18,18 +18,20 @@ export async function POST(request: NextRequest) {
     const timer = createServerStepTimer("enhance");
 
     try {
-      const auth = await timer.time("auth user 조회", () => requireSupabaseUser());
-      if (!auth.ok) {
-        return attachServerTiming(auth.response, timer.finish("enhance total"));
-      }
-
       const payload = (await timer.time("request parse", () =>
         request.json(),
       )) as EnhanceActionRequest;
+      const player = await timer.time("player identity", () =>
+        resolveRequestPlayer(payload),
+      );
+      if (!player.ok) {
+        return attachServerTiming(player.response, timer.finish("enhance total"));
+      }
+
       const result = await enhanceWeaponRpc(
-        auth.user,
+        player.identity,
         payload,
-        () => enhanceWeaponServer(auth.user, payload, { timer }),
+        () => enhanceWeaponServer(player.identity, payload, { timer }),
         timer,
       );
       const response = timer.timeSync("response serialize", () =>
