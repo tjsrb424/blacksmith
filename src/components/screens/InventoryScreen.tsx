@@ -10,13 +10,18 @@ import { WEAPONS_BY_ID } from "@/data/weapons";
 import { calculateRankingValue } from "@/lib/ranking";
 import { calculateSaleGold } from "@/lib/economy";
 import { formatGold } from "@/lib/format";
-import { gradeLabel } from "@/lib/labels";
 import { useGameStore } from "@/store/gameStore";
 import { cn } from "@/lib/cn";
+import { useLocale } from "@/lib/i18n/useLocale";
+import {
+  getWeaponDisplayName,
+  getWeaponGradeLabel,
+} from "@/lib/i18n/weaponText";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 export function InventoryScreen() {
   useRenderDiagnostics("InventoryScreen");
+  const { locale, t } = useLocale();
   const owned = useGameStore((s) => s.ownedWeapons);
   const equippedId = useGameStore((s) => s.equippedWeaponId);
   const serverActionPending = useGameStore((s) => s.serverActionPending);
@@ -36,13 +41,13 @@ export function InventoryScreen() {
     <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+16px)] pt-6">
       <ScreenBackground screen="inventory" />
       <header className="relative z-10">
-        <h2 className="text-xl font-bold text-amber-50">보관함</h2>
+        <h2 className="text-xl font-bold text-amber-50">{t("inventory.title")}</h2>
         <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-700/24 bg-[rgba(8,6,4,0.56)] px-3 py-1 text-xs text-zinc-400 ring-1 ring-black/20">
-          <span className="text-zinc-500">정렬</span>
-          <span className="font-semibold text-amber-100/90">가치 높은 순</span>
+          <span className="text-zinc-500">{t("inventory.sort")}</span>
+          <span className="font-semibold text-amber-100/90">{t("inventory.sortByValue")}</span>
         </div>
         <p className="mt-2 text-sm text-zinc-400">
-          잠금된 무기와 장착 중인 무기는 판매할 수 없습니다.
+          {t("inventory.sellRestrictionNotice")}
         </p>
       </header>
 
@@ -50,21 +55,22 @@ export function InventoryScreen() {
         {sorted.map((w) => {
           const def = WEAPONS_BY_ID[w.weaponId];
           if (!def) return null;
+          const weaponName = getWeaponDisplayName(locale, def);
           const sell = calculateSaleGold(def, w);
           const rankVal = calculateRankingValue(def, w);
           const isEquipped = w.instanceId === equippedId;
           const isPendingSell = pendingSellWeaponIds.includes(w.instanceId);
           const isActionBlocked = serverActionPending || isPendingSell;
           const cannotSellReason = isPendingSell
-            ? "판매 처리 중입니다."
+            ? t("inventory.sellPending")
             : isEquipped
-              ? "장착 중인 무기는 판매할 수 없습니다."
+              ? t("inventory.cannotSellEquipped")
               : w.locked
-                ? "잠금된 무기는 판매할 수 없습니다."
+                ? t("inventory.cannotSellLocked")
                 : isLastWeapon
-                  ? "마지막 무기는 판매할 수 없습니다."
+                  ? t("inventory.cannotSellLast")
                   : w.durability <= 0
-                    ? "파괴된 무기는 판매할 수 없습니다."
+                    ? t("inventory.cannotSellDestroyed")
                     : null;
           return (
             <li key={w.instanceId}>
@@ -80,7 +86,7 @@ export function InventoryScreen() {
                     <div className="relative h-28 w-full min-w-0 overflow-hidden rounded-xl bg-zinc-950 ring-1 ring-zinc-700/80">
                         <WeaponImage
                           src={def.imagePath}
-                          alt={def.name}
+                          alt={weaponName}
                           className={cn(
                             "h-full w-full object-contain p-2 transition",
                             isPendingSell && "scale-95 opacity-55",
@@ -94,39 +100,40 @@ export function InventoryScreen() {
                       </div>
                     <div className="min-w-0 space-y-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="min-w-0 break-words font-semibold leading-snug text-zinc-100">{def.name}</span>
+                        <span className="min-w-0 break-words font-semibold leading-snug text-zinc-100">{weaponName}</span>
                         {w.locked ? (
                           <StatusBadge tone="locked">
-                            잠금됨
+                            {t("inventory.locked")}
                           </StatusBadge>
                         ) : null}
                         {isEquipped ? (
                           <StatusBadge tone="equipped">
-                            장착중
+                            {t("inventory.equipped")}
                           </StatusBadge>
                         ) : null}
                       </div>
                       <div className="text-xs text-zinc-500">
-                        {gradeLabel(def.grade)} · 티어 {def.tier}
+                        {getWeaponGradeLabel(locale, def.grade)} ·{" "}
+                        {t("weapon.tier", { tier: def.tier })}
                       </div>
                       <div className="numeric-value max-w-full text-left font-mono text-sm text-amber-100">
                         +{w.enhanceLevel}
-                        {w.transcendLevel >= 1 ? ` ★${w.transcendLevel}` : ""} · 판매가{" "}
+                        {w.transcendLevel >= 1 ? ` ★${w.transcendLevel}` : ""} · {t("inventory.salePrice")}{" "}
                         {formatGold(sell)}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {w.enhanceLevel >= 15 && w.transcendLevel === 0 && w.durability > 0 ? (
                           <StatusBadge tone="transcend">
-                            초월 가능
+                            {t("transcend.available")}
                           </StatusBadge>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-zinc-400">
-                        <span>내구도</span>
+                        <span>{t("weapon.durability")}</span>
                         <DurabilityIcons value={w.durability} emphasizeCritical />
                       </div>
                       <div className="numeric-value max-w-full text-left text-[11px] text-zinc-600">
-                        랭킹 가치 {formatGold(rankVal)}
+                        {t("ranking.scoreWithValue", { value: formatGold(rankVal) })}
                       </div>
                       {cannotSellReason && !isPendingSell ? (
                         <div className="rounded-md border border-zinc-700/45 bg-zinc-950/60 px-2 py-1 text-xs font-semibold text-zinc-400 ring-1 ring-black/20">
@@ -134,7 +141,7 @@ export function InventoryScreen() {
                         </div>
                       ) : null}
                       {isPendingSell ? (
-                        <StatusBadge tone="pending">판매 처리 중...</StatusBadge>
+                        <StatusBadge tone="pending">{t("inventory.selling")}</StatusBadge>
                       ) : null}
                     </div>
                     <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
@@ -144,7 +151,7 @@ export function InventoryScreen() {
                         className="min-h-11 w-full min-w-0 px-2 text-xs"
                         onClick={() => equip(w.instanceId)}
                       >
-                        {isEquipped ? "장착중" : "장착"}
+                        {isEquipped ? t("inventory.equipped") : t("inventory.equip")}
                       </FantasyButton>
                       <FantasyButton
                         variant="muted"
@@ -152,7 +159,7 @@ export function InventoryScreen() {
                         disabled={isActionBlocked}
                         onClick={() => toggleWeaponLock(w.instanceId)}
                       >
-                        {w.locked ? "잠금 해제" : "잠금"}
+                        {w.locked ? t("inventory.unlock") : t("inventory.lock")}
                       </FantasyButton>
                     </div>
                   </div>
@@ -165,10 +172,10 @@ export function InventoryScreen() {
                       onClick={() => requestSellWeapon(w.instanceId)}
                     >
                       {isPendingSell
-                        ? "판매 중..."
+                        ? t("inventory.selling")
                         : cannotSellReason
-                          ? "판매 불가"
-                          : "판매"}
+                          ? t("inventory.cannotSell")
+                          : t("inventory.sell")}
                     </FantasyButton>
                   </div>
                 </div>
@@ -179,8 +186,8 @@ export function InventoryScreen() {
         {sorted.length === 0 ? (
           <li>
             <FantasyPanel className="px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-zinc-300">보관 중인 무기가 없습니다.</p>
-              <p className="mt-1 text-xs text-zinc-500">무기상점에서 새 무기를 구매해보세요.</p>
+              <p className="text-sm font-semibold text-zinc-300">{t("inventory.empty")}</p>
+              <p className="mt-1 text-xs text-zinc-500">{t("inventory.emptyPrompt")}</p>
             </FantasyPanel>
           </li>
         ) : null}

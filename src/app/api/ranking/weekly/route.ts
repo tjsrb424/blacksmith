@@ -25,20 +25,23 @@ export async function GET(request: NextRequest) {
     const timer = createServerStepTimer("rankingWeekly", { slowStepMs: 700 });
 
     try {
-      const { seasonId, category, playerId } = timer.timeSync("request parse", () => {
-        const url = new URL(request.url);
-        return {
-          seasonId: url.searchParams.get("seasonId")?.trim(),
-          category: url.searchParams.get("category"),
-          playerId: url.searchParams.get("playerId")?.trim() || null,
-        };
-      });
+      const { seasonId, category, playerId } = timer.timeSync(
+        "request parse",
+        () => {
+          const url = new URL(request.url);
+          return {
+            seasonId: url.searchParams.get("seasonId")?.trim(),
+            category: url.searchParams.get("category"),
+            playerId: url.searchParams.get("playerId")?.trim() || null,
+          };
+        },
+      );
 
       if (!seasonId) {
         const response = NextResponse.json(
           {
             error: "missing_season_id",
-            message: "seasonId is required.",
+            message: "error.missingSeasonId",
           },
           { status: 400 },
         );
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
         const response = NextResponse.json(
           {
             error: "invalid_ranking_category",
-            message: "Unknown weekly ranking category.",
+            message: "error.invalidRankingCategory",
           },
           { status: 400 },
         );
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error: "weekly_ranking_failed",
-          message: "서버 랭킹을 불러오지 못했습니다.",
+          message: "error.weeklyRankingLoadFailed",
         },
         { status: 500 },
       );

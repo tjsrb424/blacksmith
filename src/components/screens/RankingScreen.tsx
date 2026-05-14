@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useBetaPlayer } from "@/components/auth/AuthGate";
 import { FantasyPanel } from "@/components/ui/FantasyPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { formatGold, formatInt } from "@/lib/format";
+import { useLocale } from "@/lib/i18n/useLocale";
+import { getWeaponDisplayNameById } from "@/lib/i18n/weaponText";
 import { getGuestProfile } from "@/lib/player/guest";
 import { getGameMode, type WeeklyRankingAdapterResult, type WorldRecordsAdapterResult } from "@/lib/ranking/rankingAdapter";
 import { mockRankingAdapter } from "@/lib/ranking/mockRankingAdapter";
@@ -17,15 +19,33 @@ import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 type SubTab = "weekly" | "world" | "me";
 
+const MANUAL_RANKING_REFRESH_COOLDOWN_MS = 30_000;
+
 const CATEGORY_META: {
   id: RankingCategory;
-  label: string;
-  scoreLabel: string;
+  labelKey: string;
+  scoreLabelKey: string;
 }[] = [
-  { id: "weeklyStrongestWeapon", label: "최강 무기", scoreLabel: "랭킹 가치" },
-  { id: "weeklyEnhancementKing", label: "강화왕", scoreLabel: "강화 성공" },
-  { id: "weeklyTranscendKing", label: "초월왕", scoreLabel: "초월 성공" },
-  { id: "weeklySalesKing", label: "판매왕", scoreLabel: "시즌 판매" },
+  {
+    id: "weeklyStrongestWeapon",
+    labelKey: "ranking.category.strongestWeapon",
+    scoreLabelKey: "ranking.score.rankingValue",
+  },
+  {
+    id: "weeklyEnhancementKing",
+    labelKey: "ranking.category.enhancementKing",
+    scoreLabelKey: "ranking.score.enhanceSuccess",
+  },
+  {
+    id: "weeklyTranscendKing",
+    labelKey: "ranking.category.transcendKing",
+    scoreLabelKey: "ranking.score.transcendSuccess",
+  },
+  {
+    id: "weeklySalesKing",
+    labelKey: "ranking.category.salesKing",
+    scoreLabelKey: "ranking.score.seasonSales",
+  },
 ];
 
 function formatScore(cat: RankingCategory, row: RankingRowDisplay): string {
@@ -35,7 +55,21 @@ function formatScore(cat: RankingCategory, row: RankingRowDisplay): string {
   return formatInt(Math.round(row.score));
 }
 
-const EMPTY_HOLDER_LABEL = "아직 기록 없음";
+function formatRecentRefresh(
+  timestamp: number | null,
+  now: number,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (!timestamp) return t("ranking.neverUpdated");
+  const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (elapsedSeconds < 5) return t("ranking.justNow");
+  if (elapsedSeconds < 60) return t("ranking.secondsAgo", { seconds: elapsedSeconds });
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) return t("ranking.minutesAgo", { minutes: elapsedMinutes });
+  return t("ranking.hoursAgo", { hours: Math.floor(elapsedMinutes / 60) });
+}
+
+const EMPTY_HOLDER_LABEL = "No record yet";
 
 function isEmptyHolder(name: string): boolean {
   return name.trim() === EMPTY_HOLDER_LABEL;
@@ -74,7 +108,7 @@ function RankBadge({ rank }: { rank: number }) {
     return (
       <span
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/35 to-amber-900/45 text-lg ring-2 ring-amber-400/55 shadow-[0_0_20px_rgba(245,158,11,0.35)]"
-        title="1위"
+        title="Rank 1"
       >
         👑
       </span>
@@ -104,6 +138,7 @@ function RankBadge({ rank }: { rank: number }) {
 export function RankingScreen() {
   useRenderDiagnostics("RankingScreen");
   const [sub, setSub] = useState<SubTab>("weekly");
+  const { locale, t } = useLocale();
   const [weeklyCat, setWeeklyCat] = useState<RankingCategory>(
     "weeklyStrongestWeapon",
   );
@@ -112,6 +147,10 @@ export function RankingScreen() {
     useState<WeeklyRankingAdapterResult | null>(null);
   const [worldResult, setWorldResult] =
     useState<WorldRecordsAdapterResult | null>(null);
+  const [lastRankingLoadedAt, setLastRankingLoadedAt] = useState<number | null>(null);
+  const [lastManualRefreshAt, setLastManualRefreshAt] = useState<number | null>(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -143,12 +182,74 @@ export function RankingScreen() {
     [bestWeaponSnapshot, playerId, records, weeklySeasonStats],
   );
 
+  const cooldownRemainingMs = lastManualRefreshAt
+    ? Math.max(
+        0,
+        MANUAL_RANKING_REFRESH_COOLDOWN_MS - (now - lastManualRefreshAt),
+      )
+    : 0;
+  const cooldownRemainingSeconds = Math.ceil(cooldownRemainingMs / 1000);
+  const canManualRefresh = cooldownRemainingMs <= 0 && !manualRefreshing;
+  const refreshButtonLabel = manualRefreshing
+    ? t("ranking.refreshing")
+    : cooldownRemainingMs > 0
+      ? t("ranking.refreshCooldown", { seconds: cooldownRemainingSeconds })
+      : t("ranking.refresh");
+
+  const loadRanking = useCallback(
+    async (options?: { force?: boolean }) => {
+      const [weekly, world] = await Promise.all([
+        adapter.getWeeklyRanking(
+          weeklyCat,
+          season.seasonId,
+          adapterContext,
+          options,
+        ),
+        adapter.getWorldRecords(adapterContext, options),
+      ]);
+      setWeeklyResult(weekly);
+      setWorldResult(world);
+      setLastRankingLoadedAt(Date.now());
+      if (weekly.error || world.error) {
+        throw new Error(
+          weekly.error || world.error || t("ranking.refreshError"),
+        );
+      }
+    },
+    [adapter, adapterContext, season.seasonId, t, weeklyCat],
+  );
+
+  const manualRefreshRanking = async () => {
+    if (manualRefreshing) return;
+    if (cooldownRemainingMs > 0) {
+      setRefreshMessage(
+        t("ranking.refreshBlocked", { seconds: cooldownRemainingSeconds }),
+      );
+      return;
+    }
+
+    setManualRefreshing(true);
+    setRefreshMessage(null);
+    try {
+      await loadRanking({ force: true });
+      setLastManualRefreshAt(Date.now());
+      setRefreshMessage(t("ranking.refreshSuccess"));
+    } catch {
+      setRefreshMessage(t("ranking.refreshError"));
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     let alive = true;
     void adapter
       .getWeeklyRanking(weeklyCat, season.seasonId, adapterContext)
       .then((result) => {
-        if (alive) setWeeklyResult(result);
+        if (alive) {
+          setWeeklyResult(result);
+          setLastRankingLoadedAt(Date.now());
+        }
       });
     return () => {
       alive = false;
@@ -158,7 +259,10 @@ export function RankingScreen() {
   useEffect(() => {
     let alive = true;
     void adapter.getWorldRecords(adapterContext).then((result) => {
-      if (alive) setWorldResult(result);
+      if (alive) {
+        setWorldResult(result);
+        setLastRankingLoadedAt(Date.now());
+      }
     });
     return () => {
       alive = false;
@@ -169,6 +273,8 @@ export function RankingScreen() {
   const myWeeklyRank = weeklyResult?.playerRank ?? null;
 
   const catMeta = CATEGORY_META.find((c) => c.id === weeklyCat)!;
+  const catLabel = t(catMeta.labelKey);
+  const catScoreLabel = t(catMeta.scoreLabelKey);
   const recordsView = records;
   const bestWeaponSnapshotView = bestWeaponSnapshot;
   const worldRecords = worldResult?.records;
@@ -191,23 +297,55 @@ export function RankingScreen() {
       : "—";
 
   return (
-    <div className="relative mx-auto w-full flex-1 space-y-5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+24px)] pt-5">
+    <div className="relative mx-auto w-full flex-1 space-y-3.5 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+24px)] pt-4">
       <ScreenBackground screen="ranking" />
       <header className="relative z-10 space-y-1.5">
         <h2 className="text-2xl font-black tracking-wide text-amber-50 drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)]">
-          랭킹
+          {t("ranking.title")}
         </h2>
         <p className="text-sm font-medium text-zinc-300/90">
-          이번 시즌 기록과 월드 레코드를 확인하세요.
+          {t("ranking.subtitle")}
         </p>
       </header>
+
+      <div className="relative z-10 rounded-lg border border-zinc-800/65 bg-[rgba(8,6,4,0.46)] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.04)] ring-1 ring-black/20 backdrop-blur-[1px]">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <div className="min-w-0">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+              Sync
+            </p>
+            <p className="mt-0.5 text-[11px] text-zinc-500">
+              {t("ranking.lastUpdated")}: {formatRecentRefresh(lastRankingLoadedAt, now, t)}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!canManualRefresh}
+            onClick={() => void manualRefreshRanking()}
+            className="min-h-8 shrink-0 rounded-md border border-zinc-700/80 bg-zinc-950/35 px-2.5 text-[11px] font-bold text-zinc-300 transition hover:border-amber-500/40 hover:bg-amber-950/18 hover:text-amber-100 disabled:cursor-not-allowed disabled:border-zinc-800/75 disabled:bg-zinc-950/30 disabled:text-zinc-600"
+          >
+            {refreshButtonLabel}
+          </button>
+        </div>
+        {refreshMessage ? (
+          <p
+            className={`mt-1.5 rounded-md border px-2.5 py-1.5 text-[11px] ${
+              refreshMessage === t("ranking.refreshError")
+                ? "border-red-700/35 bg-red-950/24 text-red-100"
+                : "border-zinc-800/70 bg-zinc-950/32 text-zinc-400"
+            }`}
+          >
+            {refreshMessage}
+          </p>
+        ) : null}
+      </div>
 
       <div className="relative z-10 grid grid-cols-3 gap-1 rounded-xl border border-amber-700/25 bg-[rgba(8,6,4,0.76)] p-1 shadow-[inset_0_1px_0_rgba(251,191,36,0.08),0_12px_28px_rgba(0,0,0,0.24)] ring-1 ring-black/30 backdrop-blur-[2px]">
         {(
           [
-            ["weekly", "주간 랭킹"],
-            ["world", "월드 레코드"],
-            ["me", "내 기록"],
+            ["weekly", t("ranking.tabs.weekly")],
+            ["world", t("ranking.tabs.world")],
+            ["me", t("ranking.tabs.me")],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -226,29 +364,43 @@ export function RankingScreen() {
       </div>
 
       {sub === "weekly" ? (
-        <div className="grid gap-4">
-          <aside className="space-y-3">
-            <div className="rounded-xl border border-amber-700/30 bg-[rgba(8,6,4,0.74)] p-3.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)] ring-1 ring-black/25 backdrop-blur-[2px]">
+        <div className="grid gap-2.5">
+          <aside className="space-y-2">
+            <div className="rounded-xl border border-amber-700/30 bg-[rgba(8,6,4,0.74)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)] ring-1 ring-black/25 backdrop-blur-[2px]">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-500/90">
-                    이번 주간 시즌
+                    {t("ranking.currentWeeklySeason")}
                   </div>
-                  <div className="mt-1 font-mono text-lg leading-none text-amber-100">
+                  <div className="mt-1 font-mono text-base leading-none text-amber-100">
                     {season.seasonId}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-[10px] font-semibold text-zinc-500">시즌 종료까지</div>
-                  <div className="numeric-value mt-1 font-mono text-sm font-bold text-sky-200">
+                  <div className="text-[10px] font-semibold text-zinc-500">{t("ranking.seasonEndsIn")}</div>
+                  <div className="numeric-value mt-1 font-mono text-xs font-bold text-sky-200">
                     {formatSeasonCountdown(season.remainingMs)}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-indigo-500/18 bg-indigo-950/16 px-2.5 py-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-semibold text-zinc-500">
+                    {t("ranking.myWeeklyRank", { category: catLabel })}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="font-mono text-lg font-black leading-none text-indigo-100">
+                    {myWeeklyRank != null
+                      ? t("ranking.rankPosition", { rank: myWeeklyRank })
+                      : t("ranking.noRecord")}
                   </div>
                 </div>
               </div>
             </div>
             <div className="hidden">
               <div className="mb-2 text-xs font-semibold text-zinc-500">
-                카테고리
+                {t("ranking.categoryLabel")}
               </div>
               <nav className="flex flex-col gap-1">
                 {CATEGORY_META.map((c) => (
@@ -262,38 +414,41 @@ export function RankingScreen() {
                         : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200"
                     }`}
                   >
-                    {c.label}
+                    {t(c.labelKey)}
                   </button>
                 ))}
               </nav>
             </div>
           </aside>
 
-          <div className="min-w-0 space-y-4">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {CATEGORY_META.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setWeeklyCat(c.id)}
-                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                    weeklyCat === c.id
-                      ? "bg-amber-600/25 text-amber-100 ring-1 ring-amber-400/40"
-                      : "bg-[rgba(6,8,14,0.72)] text-zinc-400 ring-1 ring-zinc-700/80 hover:text-zinc-200"
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
+          <div className="min-w-0 space-y-2.5">
             <FantasyPanel
-              title={`주간 · ${catMeta.label}`}
+              title={t("ranking.weeklyPanelTitle", { category: catLabel })}
               className="overflow-hidden border-amber-700/30 bg-[rgba(8,6,4,0.76)]"
             >
               <div className="mb-4 flex items-center justify-between gap-3 border-b border-amber-900/30 pb-3 text-xs text-zinc-400">
-                <span className="min-w-0">이번 시즌 기준 {catMeta.scoreLabel} 순위입니다.</span>
-                <span className="shrink-0 text-amber-300/75">TOP 기록</span>
+                <span className="min-w-0">
+                  {t("ranking.weeklyPanelDescription", { scoreLabel: catScoreLabel })}
+                </span>
+                <span className="shrink-0 text-amber-300/75">
+                  {t("ranking.topRecords")}
+                </span>
+              </div>
+              <div className="mb-3 flex gap-1.5 overflow-x-auto px-0.5 py-1">
+                {CATEGORY_META.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setWeeklyCat(c.id)}
+                    className={`min-h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[11px] font-semibold leading-none transition ${
+                      weeklyCat === c.id
+                        ? "bg-amber-600/25 text-amber-100 ring-1 ring-amber-400/40"
+                        : "bg-[rgba(6,8,14,0.72)] text-zinc-400 ring-1 ring-zinc-700/80 hover:text-zinc-200"
+                    }`}
+                  >
+                    {t(c.labelKey)}
+                  </button>
+                ))}
               </div>
               <ul className="space-y-2">
                 {mergedWeekly.length > 0 ? mergedWeekly.map((row) => (
@@ -316,12 +471,18 @@ export function RankingScreen() {
                           </span>
                           {row.isPlayer ? (
                             <StatusBadge tone="ranking" className="px-1.5">
-                              나
+                              {t("records.me")}
                             </StatusBadge>
                           ) : null}
                         </div>
                         <div className="mt-1 min-w-0 truncate text-sm text-zinc-400">
-                          <span>{row.weaponName}</span>{" "}
+                          <span>
+                            {getWeaponDisplayNameById(
+                              locale,
+                              row.weaponId,
+                              row.weaponName,
+                            )}
+                          </span>{" "}
                           <span className="font-mono text-zinc-500">
                             +{row.enhanceLevel}
                             {row.transcendLevel >= 1
@@ -335,7 +496,7 @@ export function RankingScreen() {
                           {formatScore(weeklyCat, row)}
                         </div>
                         <div className="text-[10px] text-zinc-600">
-                          {catMeta.scoreLabel}
+                          {catScoreLabel}
                         </div>
                       </div>
                     </div>
@@ -343,32 +504,15 @@ export function RankingScreen() {
                 )) : (
                   <li className="rounded-xl border border-amber-800/20 bg-zinc-950/65 px-4 py-7 text-center ring-1 ring-black/20">
                     <div className="text-sm font-semibold text-zinc-300">
-                      {weeklyResult ? "아직 주간 랭킹 기록이 없습니다." : "랭킹 데이터를 불러오는 중입니다."}
+                      {weeklyResult ? t("ranking.weeklyEmpty") : t("ranking.loadingData")}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      {weeklyResult ? "강화를 진행해 첫 기록을 남겨보세요." : "시즌 기록을 확인하고 있습니다."}
+                      {weeklyResult ? t("ranking.weeklyEmptyDescription") : t("ranking.checkingSeason")}
                     </div>
                   </li>
                 )}
               </ul>
             </FantasyPanel>
-
-            <div className="rounded-xl border border-indigo-600/25 bg-[rgba(18,13,38,0.52)] p-4 ring-1 ring-indigo-800/25">
-              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-200/90">
-                내 예상 순위 ({catMeta.label})
-              </div>
-              <div className="mt-2 flex flex-wrap items-baseline gap-2">
-                <span className="font-mono text-3xl text-indigo-100">
-                  {myWeeklyRank != null ? `${myWeeklyRank}위` : "기록 없음"}
-                </span>
-                {myWeeklyRank != null && myWeeklyRank <= 3 ? (
-                  <span className="text-sm text-amber-300/90">상위권 진입!</span>
-                ) : null}
-              </div>
-              <p className="mt-2 text-xs text-zinc-500">
-                시즌 내 활동이 없으면 목록에 표시되지 않을 수 있습니다.
-              </p>
-            </div>
           </div>
         </div>
       ) : null}
@@ -378,82 +522,98 @@ export function RankingScreen() {
           {worldRecords ? (
             <>
               <RecordCard
-                title="세계 최고가 무기"
-                categoryLabel="랭킹 가치"
-                subject={worldRecords.highestWeapon.weaponName}
+                title={t("records.highestWeapon")}
+                categoryLabel={t("ranking.score.rankingValue")}
+                subject={getWeaponDisplayNameById(
+                  locale,
+                  worldRecords.highestWeapon.weaponId,
+                  worldRecords.highestWeapon.weaponName,
+                )}
                 meta={`+${worldRecords.highestWeapon.enhanceLevel} · ★${worldRecords.highestWeapon.transcendLevel}`}
                 value={formatGold(worldRecords.highestWeapon.rankingValue)}
                 owner={worldRecords.highestWeapon.holderName}
                 isPlayer={worldRecords.highestWeapon.isPlayer}
                 accent="gold"
                 empty={!hasWorldWeaponRecord(worldRecords.highestWeapon)}
-                emptyDescription="가치 기록이 생기면 이곳에 표시됩니다."
+                emptyDescription={t("records.emptyValue")}
               />
 
               <RecordCard
-                title="최고 초월 무기"
-                categoryLabel="초월 단계 우선 · 동률 시 가치"
-                subject={worldRecords.bestTranscend.weaponName}
+                title={t("records.bestTranscendWeapon")}
+                categoryLabel={t("records.transcendCategory")}
+                subject={getWeaponDisplayNameById(
+                  locale,
+                  worldRecords.bestTranscend.weaponId,
+                  worldRecords.bestTranscend.weaponName,
+                )}
                 meta={`★${worldRecords.bestTranscend.transcendLevel}`}
                 value={formatGold(worldRecords.bestTranscend.rankingValue)}
                 owner={worldRecords.bestTranscend.holderName}
                 isPlayer={worldRecords.bestTranscend.isPlayer}
                 accent="purple"
                 empty={!hasWorldWeaponRecord(worldRecords.bestTranscend)}
-                emptyDescription="첫 초월 기록이 생기면 이곳에 표시됩니다."
+                emptyDescription={t("records.emptyTranscend")}
               />
 
               <RecordCard
-                title="최고 판매가"
-                categoryLabel="단일 거래 · 판매 골드"
-                subject={worldRecords.bestSale.weaponName}
+                title={t("records.bestSale")}
+                categoryLabel={t("records.singleSaleGold")}
+                subject={getWeaponDisplayNameById(
+                  locale,
+                  worldRecords.bestSale.weaponId,
+                  worldRecords.bestSale.weaponName,
+                )}
                 value={formatGold(worldRecords.bestSale.gold)}
                 owner={worldRecords.bestSale.holderName}
                 isPlayer={worldRecords.bestSale.isPlayer}
                 accent="blue"
                 empty={!hasWorldSaleRecord(worldRecords.bestSale)}
-                emptyDescription="판매 기록이 생기면 이곳에 표시됩니다."
+                emptyDescription={t("records.emptySale")}
               />
 
               <RecordCard
-                title="최대 강화 시도"
-                categoryLabel="누적 시도 횟수"
+                title={t("records.mostEnhanceAttempts")}
+                categoryLabel={t("records.totalAttempts")}
                 value={formatInt(worldRecords.mostEnhanceAttempts.value)}
                 owner={worldRecords.mostEnhanceAttempts.holderName}
                 isPlayer={worldRecords.mostEnhanceAttempts.isPlayer}
                 accent="bronze"
                 empty={!hasWorldCountRecord(worldRecords.mostEnhanceAttempts)}
-                emptyDescription="강화 시도 기록이 생기면 이곳에 표시됩니다."
+                emptyDescription={t("records.emptyEnhanceAttempts")}
               />
 
               <RecordCard
-                title="최대 초월 성공"
-                categoryLabel="누적 성공 횟수"
+                title={t("records.mostTranscendSuccess")}
+                categoryLabel={t("records.totalSuccesses")}
                 value={formatInt(worldRecords.mostTranscendSuccesses.value)}
                 owner={worldRecords.mostTranscendSuccesses.holderName}
                 isPlayer={worldRecords.mostTranscendSuccesses.isPlayer}
                 accent="purple"
                 empty={!hasWorldCountRecord(worldRecords.mostTranscendSuccesses)}
-                emptyDescription="첫 초월 성공자가 기록됩니다."
+                emptyDescription={t("records.emptyTranscendSuccess")}
               />
 
               <RecordCard
-                title="파괴된 전설"
-                categoryLabel="파괴 기록"
-                subject={worldRecords.destroyedLegend.weaponName}
+                title={t("records.destroyedLegend")}
+                categoryLabel={t("records.destroyRecord")}
+                subject={getWeaponDisplayNameById(
+                  locale,
+                  worldRecords.destroyedLegend.weaponId,
+                  worldRecords.destroyedLegend.weaponName,
+                )}
                 meta={`+${worldRecords.destroyedLegend.enhanceLevel} · ★${worldRecords.destroyedLegend.transcendLevel}`}
                 value={formatGold(worldRecords.destroyedLegend.rankingValue)}
                 owner={worldRecords.destroyedLegend.holderName}
                 isPlayer={worldRecords.destroyedLegend.isPlayer}
                 accent="red"
                 empty={!hasWorldWeaponRecord(worldRecords.destroyedLegend)}
-                emptyDescription="파괴 기록이 생기면 이곳에 표시됩니다."
+                emptyDescription={t("records.emptyDestroy")}
               />
             </>
           ) : (
             <div className="rounded-xl border border-amber-800/20 bg-zinc-950/65 px-4 py-7 text-center ring-1 ring-black/20">
-              <div className="text-sm font-semibold text-zinc-300">월드 레코드를 불러오는 중입니다.</div>
-              <div className="mt-1 text-xs text-zinc-500">기록의 전당을 정리하고 있습니다.</div>
+              <div className="text-sm font-semibold text-zinc-300">{t("records.loadingWorld")}</div>
+              <div className="mt-1 text-xs text-zinc-500">{t("records.arrangingHall")}</div>
             </div>
           )}
         </div>
@@ -461,84 +621,88 @@ export function RankingScreen() {
 
       {sub === "me" ? (
         <div className="grid gap-4">
-          <FantasyPanel title="역대 최고 무기" className="space-y-3 border-amber-600/35 bg-[rgba(8,6,4,0.78)]">
+          <FantasyPanel title={t("records.personalBestWeapon")} className="space-y-3 border-amber-600/35 bg-[rgba(8,6,4,0.78)]">
             {bestWeaponSnapshotView ? (
               <>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="truncate text-lg font-bold text-zinc-50">
-                      {bestWeaponSnapshotView.weaponName}
+                      {getWeaponDisplayNameById(
+                        locale,
+                        bestWeaponSnapshotView.weaponId,
+                        bestWeaponSnapshotView.weaponName,
+                      )}
                     </div>
                     <div className="mt-1 font-mono text-sm text-amber-200/85">
                       +{bestWeaponSnapshotView.enhanceLevel}
                       {bestWeaponSnapshotView.transcendLevel >= 1
                         ? ` · ★${bestWeaponSnapshotView.transcendLevel}`
                         : ""}{" "}
-                      · 내구 {bestWeaponSnapshotView.durability}
+                      · {t("weapon.durability")} {bestWeaponSnapshotView.durability}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-[10px] font-semibold text-zinc-500">랭킹 가치</div>
+                    <div className="text-[10px] font-semibold text-zinc-500">{t("ranking.score.rankingValue")}</div>
                     <div className="numeric-value mt-1 font-mono text-2xl font-black text-amber-300">
                       {formatGold(bestWeaponSnapshotView.rankingValue)}
                     </div>
                   </div>
                 </div>
                 <div className="border-t border-amber-900/25 pt-3 text-xs text-zinc-500">
-                  달성일 {achievedLabel}
+                  {t("records.achievedAt")} {achievedLabel}
                 </div>
               </>
             ) : (
               <div className="rounded-xl border border-amber-800/20 bg-zinc-950/45 p-4">
-                <div className="text-sm font-semibold text-zinc-200">아직 기록 없음</div>
+                <div className="text-sm font-semibold text-zinc-200">{t("ranking.noRecord")}</div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  강화를 진행해 첫 최고 기록을 남겨보세요.
+                  {t("records.emptyPersonalBest")}
                 </p>
                 <span className="numeric-value mt-3 block font-mono text-sm text-amber-200/80">
-                  역대 최고 가치(참고):{" "}
+                  {t("records.personalBestReference")}:{" "}
                   {formatGold(recordsView.personalBestRankingValue)}
                 </span>
               </div>
             )}
           </FantasyPanel>
 
-          <FantasyPanel title="판매 실적" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
-            <StatRow label="최고 단일 판매가" value={formatGold(recordsView.bestSaleGold)} mono />
-            <StatRow label="총 판매 골드" value={formatGold(recordsView.totalSalesGold)} mono />
-            <StatRow label="판매한 무기 수" value={formatInt(recordsView.soldWeaponCount)} mono />
+          <FantasyPanel title={t("records.salesPerformance")} className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
+            <StatRow label={t("records.bestSingleSale")} value={formatGold(recordsView.bestSaleGold)} mono />
+            <StatRow label={t("records.totalSalesGold")} value={formatGold(recordsView.totalSalesGold)} mono />
+            <StatRow label={t("records.soldWeaponCount")} value={formatInt(recordsView.soldWeaponCount)} mono />
           </FantasyPanel>
 
-          <FantasyPanel title="강화 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
-            <StatRow label="강화 시도" value={formatInt(recordsView.totalEnhanceAttempts)} mono />
-            <StatRow label="강화 성공" value={formatInt(recordsView.totalEnhanceSuccesses)} mono />
-            <StatRow label="강화 실패" value={formatInt(recordsView.enhanceFailCount)} mono />
-            <StatRow label="강화 파괴" value={formatInt(recordsView.enhanceDestroyedCount)} mono />
-            <StatRow label="파괴한 무기 (전체)" value={formatInt(recordsView.destroyedWeaponCount)} mono accent />
-            <StatRow label="성공률" value={`${enhanceRate}%`} mono />
-            <StatRow label="역대 최고 강화 단계" value={`+${recordsView.maxEnhanceLevel}`} mono />
+          <FantasyPanel title={t("records.enhanceStats")} className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
+            <StatRow label={t("records.enhanceAttempts")} value={formatInt(recordsView.totalEnhanceAttempts)} mono />
+            <StatRow label={t("records.enhanceSuccesses")} value={formatInt(recordsView.totalEnhanceSuccesses)} mono />
+            <StatRow label={t("records.enhanceFails")} value={formatInt(recordsView.enhanceFailCount)} mono />
+            <StatRow label={t("records.enhanceDestroyed")} value={formatInt(recordsView.enhanceDestroyedCount)} mono />
+            <StatRow label={t("records.destroyedWeaponTotal")} value={formatInt(recordsView.destroyedWeaponCount)} mono accent />
+            <StatRow label={t("enhance.successRate")} value={`${enhanceRate}%`} mono />
+            <StatRow label={t("records.maxEnhanceLevel")} value={`+${recordsView.maxEnhanceLevel}`} mono />
           </FantasyPanel>
 
-          <FantasyPanel title="초월 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
-            <StatRow label="초월 시도" value={formatInt(recordsView.transcendAttemptCount)} mono />
-            <StatRow label="초월 성공" value={formatInt(recordsView.transcendSuccessCount)} mono />
-            <StatRow label="초월 실패" value={formatInt(recordsView.transcendFailCount)} mono />
-            <StatRow label="최고 초월" value={`★${recordsView.maxTranscendLevel}`} mono accent />
+          <FantasyPanel title={t("records.transcendStats")} className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
+            <StatRow label={t("records.transcendAttempts")} value={formatInt(recordsView.transcendAttemptCount)} mono />
+            <StatRow label={t("records.transcendSuccesses")} value={formatInt(recordsView.transcendSuccessCount)} mono />
+            <StatRow label={t("records.transcendFails")} value={formatInt(recordsView.transcendFailCount)} mono />
+            <StatRow label={t("records.maxTranscend")} value={`★${recordsView.maxTranscendLevel}`} mono accent />
             <StatRow
-              label="초월 무기 최고 가치"
+              label={t("records.bestTranscendedWeaponValue")}
               value={formatGold(recordsView.bestTranscendedWeaponValue)}
               mono
             />
-            <StatRow label="초월 실패 파괴" value={formatInt(recordsView.transcendDestroyedCount)} mono accent />
+            <StatRow label={t("records.transcendDestroyed")} value={formatInt(recordsView.transcendDestroyedCount)} mono accent />
           </FantasyPanel>
 
-          <FantasyPanel title="제련로 통계" className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
-            <StatRow label="총 수령 제련의 불씨" value={formatInt(recordsView.totalForgeCollected)} mono />
+          <FantasyPanel title={t("records.forgeStats")} className="space-y-2.5 border-amber-700/25 bg-[rgba(8,6,4,0.74)] text-sm">
+            <StatRow label={t("records.totalForgeCollected")} value={formatInt(recordsView.totalForgeCollected)} mono />
             <StatRow
-              label="광고 보너스 수령량"
+              label={t("records.adBonusCollected")}
               value={formatInt(recordsView.totalForgeAdBonusCollected)}
               mono
             />
-            <StatRow label="제련로 레벨" value={`Lv.${forgeLevel}`} mono accent />
+            <StatRow label={t("records.forgeLevel")} value={`Lv.${forgeLevel}`} mono accent />
           </FantasyPanel>
         </div>
       ) : null}
@@ -553,14 +717,16 @@ function HolderFooter({
   name: string;
   isPlayer: boolean;
 }) {
+  const { t } = useLocale();
+
   return (
     <div className="mt-4 grid grid-cols-[1fr_auto] items-center gap-3 border-t border-zinc-800/80 pt-3 text-xs">
-      <span className="min-w-0 text-zinc-500">보유자</span>
+      <span className="min-w-0 text-zinc-500">{t("records.holder")}</span>
       <span className="flex min-w-0 max-w-[220px] items-center justify-end gap-2 text-right font-medium text-zinc-200">
         <span className="truncate">{name}</span>
         {isPlayer ? (
           <StatusBadge tone="ranking" className="px-1.5">
-            나
+            {t("records.me")}
           </StatusBadge>
         ) : null}
       </span>
@@ -614,6 +780,8 @@ function RecordCard({
   empty: boolean;
   emptyDescription: string;
 }) {
+  const { t } = useLocale();
+
   const accentClass =
     accent === "gold"
       ? {
@@ -665,7 +833,7 @@ function RecordCard({
       <h3 className="mt-1 text-lg font-black text-zinc-50">{title}</h3>
       {empty ? (
         <div className="mt-5 rounded-xl border border-zinc-800/70 bg-zinc-950/48 p-4">
-          <div className="text-sm font-semibold text-zinc-200">아직 기록 없음</div>
+          <div className="text-sm font-semibold text-zinc-200">{t("ranking.noRecord")}</div>
           <div className="mt-1 text-xs leading-relaxed text-zinc-500">{emptyDescription}</div>
         </div>
       ) : (

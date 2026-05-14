@@ -18,7 +18,7 @@ function adRewardErrorResponse(error: unknown) {
     {
       error: code,
       code,
-      message: "광고 보상 상태를 불러오지 못했습니다.",
+      message: "추가 보상 상태를 불러오지 못했습니다.",
       ...(process.env.NODE_ENV === "development" && error instanceof Error
         ? { details: error.message }
         : {}),

@@ -37,7 +37,7 @@ export function ResourcePill({
         <div className="truncate text-[10px] font-semibold leading-none text-zinc-500">
           {displayLabel}
         </div>
-        <div className="numeric-value mt-1 truncate font-mono text-[13px] font-black leading-none text-amber-100">
+        <div className="numeric-value mt-1 truncate font-mono text-[12px] font-black leading-none text-amber-100 sm:text-[13px]">
           {displayValue}
         </div>
       </div>

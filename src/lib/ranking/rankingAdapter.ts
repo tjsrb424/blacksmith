@@ -22,6 +22,10 @@ export type RankingAdapterContext = {
   weeklySeasonStats: WeeklySeasonStats;
 };
 
+export type RankingFetchOptions = {
+  force?: boolean;
+};
+
 export type WeeklyRankingAdapterResult = {
   source: RankingAdapterSource;
   category: RankingCategory;
@@ -55,9 +59,11 @@ export interface RankingAdapter {
     category: RankingCategory,
     seasonId: string,
     context: RankingAdapterContext,
+    options?: RankingFetchOptions,
   ): Promise<WeeklyRankingAdapterResult>;
   getWorldRecords(
     context: RankingAdapterContext,
+    options?: RankingFetchOptions,
   ): Promise<WorldRecordsAdapterResult>;
   getPlayerRecord(
     playerId: string,

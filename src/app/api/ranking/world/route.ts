@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error: "world_ranking_failed",
-          message: "서버 월드 기록을 불러오지 못했습니다.",
+          message: "error.worldRankingLoadFailed",
         },
         { status: 500 },
       );

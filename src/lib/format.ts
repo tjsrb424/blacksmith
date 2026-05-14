@@ -6,7 +6,7 @@ export function formatCompactKoreanNumber(value: number): string {
   if (!Number.isFinite(value)) return "0";
 
   const safeValue = Math.max(0, Math.floor(value));
-  if (safeValue < 1_000_000) {
+  if (safeValue < 100_000) {
     return safeValue.toLocaleString("ko-KR");
   }
 

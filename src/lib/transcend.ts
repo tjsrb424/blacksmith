@@ -55,6 +55,7 @@ export type TranscendAttemptResult =
       transcendLevel: number;
       enhanceLevel: number;
       scrapRewards: ScrapRewards;
+      weaponId?: string;
       weaponName: string;
       stoneCost: number;
     };

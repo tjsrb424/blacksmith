@@ -5,7 +5,7 @@ import Link from "next/link";
 const PUBLIC_LINKS = [
   { href: "/about", label: "게임 소개" },
   { href: "/how-to-play", label: "플레이 방법" },
-  { href: "/beta", label: "베타 안내" },
+  { href: "/beta", label: "서비스 안내" },
   { href: "/privacy", label: "개인정보처리방침" },
   { href: "/terms", label: "이용약관" },
   { href: "/contact", label: "문의" },
@@ -32,7 +32,7 @@ export function PublicFooter({ compact = false }: { compact?: boolean }) {
         ))}
       </nav>
       <p className="mt-4 text-[11px] text-zinc-700">
-        © 세계 최강의 대장장이 beta
+        © 세계 최강의 대장장이
       </p>
     </footer>
   );

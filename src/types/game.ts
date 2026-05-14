@@ -66,6 +66,7 @@ export type EnhanceResult =
       type: "destroyed";
       level: number;
       scrapRewards: ScrapRewards;
+      weaponId?: string;
       weaponName: string;
     };
 
@@ -195,6 +196,7 @@ export type SaleCompleteInfo = {
 export type ModalPayload =
   | {
       kind: "enhance_confirm";
+      weaponId?: string;
       weaponName: string;
       targetLevel: number;
       successRatePercent: number;
@@ -204,12 +206,14 @@ export type ModalPayload =
     }
   | {
       kind: "enhance_success";
+      weaponId?: string;
       result: Extract<EnhanceResult, { type: "success" }>;
       weaponName: string;
       recordBreak?: RecordBreakInfo;
     }
   | {
       kind: "enhance_fail";
+      weaponId?: string;
       result: Extract<EnhanceResult, { type: "fail" }>;
       weaponName: string;
     }
@@ -225,6 +229,7 @@ export type ModalPayload =
     }
   | {
       kind: "buy_success";
+      weaponId?: string;
       weaponName: string;
     }
   | {
@@ -298,6 +303,7 @@ export type ModalPayload =
     }
   | {
       kind: "transcend_success";
+      weaponId?: string;
       weaponName: string;
       weaponImagePath: string;
       beforeStar: number;
@@ -310,6 +316,7 @@ export type ModalPayload =
     }
   | {
       kind: "transcend_fail";
+      weaponId?: string;
       weaponName: string;
       transcendLevel: number;
       beforeDurability: number;

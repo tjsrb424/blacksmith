@@ -6,6 +6,7 @@ import {
   getCachedAdRewardStatusEntry,
   refreshAdRewardStatusEntry,
 } from "@/lib/ads/adRewardStatusCache";
+import { useLocale } from "@/lib/i18n/useLocale";
 import { getGameMode } from "@/lib/supabase/env";
 import type { AdRewardStatusEntry, AdRewardType } from "@/types/ads";
 
@@ -22,6 +23,7 @@ export function AdRewardStatusText({
   rewardType: AdRewardType;
   relatedActionId?: string;
 }) {
+  const { t } = useLocale();
   const key = adRewardStatusCacheKey(rewardType, relatedActionId);
   const [entry, setEntry] = useState<AdRewardStatusEntry | null>(() => {
     return getCachedAdRewardStatusEntry(rewardType, relatedActionId);
@@ -61,8 +63,13 @@ export function AdRewardStatusText({
 
   return (
     <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-      오늘 {entry.dailyUsed}/{entry.dailyLimit}
-      {entry.message ? ` · ${entry.message}` : null}
+      {t("ads.dailyUsage", { used: entry.dailyUsed, limit: entry.dailyLimit })}
+      {entry.message ? (
+        <>
+          {" · "}
+          {entry.message.includes(".") ? t(entry.message) : entry.message}
+        </>
+      ) : null}
     </p>
   );
 }

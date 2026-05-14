@@ -81,6 +81,7 @@ function worldSaleRecord(
   return {
     gold: Number(row?.value ?? 0),
     weaponName: row?.weapon_name ?? "-",
+    weaponId: row?.weapon_id ?? undefined,
     holderName: row ? displayName(row.nickname, row.user_id) : EMPTY_HOLDER,
     isPlayer: Boolean(row && playerId && row.user_id === playerId),
   };
@@ -263,15 +264,52 @@ export async function getWeeklyRankingRows(args: {
   const rows = (data ?? []).map((row, index) =>
     weeklyRowToDisplay(row, index + 1, args.playerId),
   );
-  const playerRank = args.playerId
+  const listedPlayerRank = args.playerId
     ? rows.find((row) => row.userId === args.playerId)?.rank
-    : undefined;
+    : null;
+  let playerRank = listedPlayerRank ?? null;
+
+  if (args.playerId && playerRank == null) {
+    const { data: playerRow, error: playerRowError } = await admin
+      .from("weekly_rankings")
+      .select("score,created_at")
+      .eq("season_id", args.seasonId)
+      .eq("category", args.category)
+      .eq("user_id", args.playerId)
+      .maybeSingle();
+    if (playerRowError) throw playerRowError;
+
+    if (playerRow) {
+      const playerScore = Number(playerRow.score ?? 0);
+      const playerCreatedAt = playerRow.created_at ?? new Date().toISOString();
+      const { count: higherCount, error: higherError } = await admin
+        .from("weekly_rankings")
+        .select("id", { count: "exact", head: true })
+        .eq("season_id", args.seasonId)
+        .eq("category", args.category)
+        .neq("user_id", args.playerId)
+        .gt("score", playerScore);
+      if (higherError) throw higherError;
+
+      const { count: olderTieCount, error: olderTieError } = await admin
+        .from("weekly_rankings")
+        .select("id", { count: "exact", head: true })
+        .eq("season_id", args.seasonId)
+        .eq("category", args.category)
+        .neq("user_id", args.playerId)
+        .eq("score", playerScore)
+        .lt("created_at", playerCreatedAt);
+      if (olderTieError) throw olderTieError;
+
+      playerRank = (higherCount ?? 0) + (olderTieCount ?? 0) + 1;
+    }
+  }
 
   return {
     seasonId: args.seasonId,
     category: args.category,
     rows,
-    playerRank: playerRank ?? null,
+    playerRank,
     serverCalculatedAt: new Date().toISOString(),
   };
 }

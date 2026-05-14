@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import {
@@ -264,7 +264,7 @@ async function getProfile(userId: string): Promise<ProfileRow> {
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin
     .from("profiles")
-    .select("id,auth_user_id,guest_id,guest_secret_hash,nickname,play_mode,linked_at,created_at,updated_at")
+    .select("id,auth_user_id,guest_id,guest_secret_hash,nickname,normalized_nickname,nickname_updated_at,play_mode,status,linked_at,archived_at,deleted_at,created_at,updated_at")
     .eq("id", userId)
     .single();
   if (error) throw error;
@@ -334,13 +334,13 @@ function currentRecords(record: PlayerRecordRow): PlayerRecords {
 
 function displayReward(rewardType: AdRewardType, payload: Record<string, unknown>) {
   if (rewardType === "forgeCollectDouble") {
-    return `제련의 불씨 ${Number(payload.expectedBaseAmount ?? 0) * 2}개`;
+    return `제련 불씨 ${Number(payload.expectedBaseAmount ?? 0) * 2}개`;
   }
   if (rewardType === "sellBonus") {
     return `판매 보상 ${Number(payload.finalGold ?? 0)} 골드`;
   }
   if (rewardType === "destructionScrapDouble") return "파괴 잔해 보상 2배";
-  return "초월석 광고 상자";
+  return "초월 보상 상자";
 }
 
 async function buildPayload(
@@ -597,16 +597,16 @@ export async function getAdRewardStatus(
         cooldown <= 0;
       const message =
         providerUnavailable
-          ? "현재 광고를 사용할 수 없습니다."
+          ? "현재 추가 보상을 사용할 수 없습니다."
           : !isRewardEnabledForBeta(rewardType) || dailyLimit <= 0
-          ? "아직 사용할 수 없는 광고 보상입니다."
-          : dailyUsed >= dailyLimit
-            ? "오늘 광고 보상을 모두 사용했습니다."
-            : cooldown > 0
-              ? `${Math.ceil(cooldown / 60000)}분 후 다시 이용 가능`
-              : activePending
-                ? "진행 중인 광고 보상이 있습니다."
-                : undefined;
+            ? "아직 사용할 수 없는 추가 보상입니다."
+            : dailyUsed >= dailyLimit
+              ? "오늘 추가 보상을 모두 사용했습니다."
+              : cooldown > 0
+                ? `${Math.ceil(cooldown / 60000)}분 후 다시 이용할 수 있습니다.`
+                : activePending
+                  ? "진행 중인 추가 보상이 있습니다."
+                  : undefined;
 
       return {
         rewardType,
@@ -637,17 +637,17 @@ async function completeForgeCollect(
   const payload = log.payload as Record<string, unknown>;
   const [state, record] = await Promise.all([
     timer
-      ? timer.time("player_state 조회", () => getPlayerState(user.id))
+      ? timer.time("player_state 議고쉶", () => getPlayerState(user.id))
       : getPlayerState(user.id),
     timer
-      ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+      ? timer.time("player_records 議고쉶", () => getPlayerRecord(user.id))
       : getPlayerRecord(user.id),
   ]);
   if (state.forge_last_collected_at !== payload.forgeLastCollectedAt) {
     throw new AdRewardError("Forge reward already changed", 409, "stale_reward_intent");
   }
   const { basePending, gained, bonusAmount, nextRecords, collectAt } = timer
-    ? timer.timeSync("reward 지급 계산", () => {
+    ? timer.timeSync("reward 吏湲?怨꾩궛", () => {
         const basePending = Number(payload.expectedBaseAmount ?? 0);
         const gained = Number(payload.finalAmount ?? basePending * 2);
         const bonusAmount = Number(payload.bonusAmount ?? basePending);
@@ -738,7 +738,7 @@ async function completeForgeCollect(
     rewardIntentId: log.id,
     rewardType: "forgeCollectDouble",
     patch: timer
-      ? timer.timeSync("server result/patch 생성", () => ({
+      ? timer.timeSync("server result/patch ?앹꽦", () => ({
           currentGold: Number(nextState.gold),
           currentEmber: Number(nextState.forge_ember),
           currentStone: Number(nextState.transcend_stone),
@@ -781,20 +781,20 @@ async function completeSellBonus(
 ): Promise<AdRewardCompleteResponse> {
   const payload = log.payload as Record<string, unknown>;
   const [profile, state, record, weapon, ownedWeaponsBefore] = await Promise.all([
-    timer ? timer.time("profile 조회", () => getProfile(user.id)) : getProfile(user.id),
+    timer ? timer.time("profile 議고쉶", () => getProfile(user.id)) : getProfile(user.id),
     timer
-      ? timer.time("player_state 조회", () => getPlayerState(user.id))
+      ? timer.time("player_state 議고쉶", () => getPlayerState(user.id))
       : getPlayerState(user.id),
     timer
-      ? timer.time("player_records 조회", () => getPlayerRecord(user.id))
+      ? timer.time("player_records 議고쉶", () => getPlayerRecord(user.id))
       : getPlayerRecord(user.id),
     timer
-      ? timer.time("owned_weapon 조회", () =>
+      ? timer.time("owned_weapon 議고쉶", () =>
           getOwnedWeapon(user.id, String(payload.weaponInstanceId)),
         )
       : getOwnedWeapon(user.id, String(payload.weaponInstanceId)),
     timer
-      ? timer.time("마지막 무기 여부 확인", () => getOwnedWeaponsForSnapshot(user.id))
+      ? timer.time("留덉?留?臾닿린 ?щ? ?뺤씤", () => getOwnedWeaponsForSnapshot(user.id))
       : getOwnedWeaponsForSnapshot(user.id),
   ]);
   assertCanSellOwnedWeaponCount(ownedWeaponsBefore.length);
@@ -808,7 +808,7 @@ async function completeSellBonus(
   }
 
   const calculation = timer
-    ? timer.timeSync("reward 지급 계산", () => {
+    ? timer.timeSync("reward 吏湲?怨꾩궛", () => {
         const baseSaleGold = Number(payload.baseSaleGold ?? 0);
         const finalGold = Number(payload.finalGold ?? 0);
         const rankingValue = Number(payload.rankingValue ?? 0);
@@ -990,7 +990,7 @@ async function completeSellBonus(
     rewardIntentId: log.id,
     rewardType: "sellBonus",
     patch: timer
-      ? timer.timeSync("server result/patch 생성", () => ({
+      ? timer.timeSync("server result/patch ?앹꽦", () => ({
           currentGold: Number(nextState.gold),
           currentEmber: Number(nextState.forge_ember),
           currentStone: Number(nextState.transcend_stone),
@@ -1356,7 +1356,7 @@ export async function completeAdReward(
   const timer = options.timer;
   const admin = getSupabaseAdminClient();
   const { data: log, error } = await (timer
-    ? timer.time("reward intent 조회", async () =>
+    ? timer.time("reward intent 議고쉶", async () =>
         await admin
           .from("ad_reward_logs")
           .select(AD_REWARD_LOG_SELECT)
@@ -1452,7 +1452,7 @@ export async function completeAdReward(
   }
 
   const { data: claimed, error: claimError } = await (timer
-    ? timer.time("pending/processing/completed 상태 claim", async () =>
+    ? timer.time("pending/processing/completed ?곹깭 claim", async () =>
         await admin
           .from("ad_reward_logs")
           .update({ reward_status: "processing" })

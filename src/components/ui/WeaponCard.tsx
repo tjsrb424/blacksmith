@@ -2,11 +2,16 @@
 
 import { memo, type ReactNode } from "react";
 import type { WeaponDefinition } from "@/types/game";
-import { gradeLabel, weaponTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/cn";
 import { formatCompactKoreanNumber, formatGold } from "@/lib/format";
 import { WeaponImage } from "@/components/ui/WeaponImage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useLocale } from "@/lib/i18n/useLocale";
+import {
+  getWeaponDisplayName,
+  getWeaponGradeLabel,
+  getWeaponTypeLabel,
+} from "@/lib/i18n/weaponText";
 import {
   getCardFramePath,
   getRarityArtBackdropClass,
@@ -44,10 +49,12 @@ export const WeaponCard = memo(function WeaponCard({
   maxEnhanceHighlight?: boolean;
 }) {
   useRenderDiagnostics("WeaponCard");
+  const { locale, t } = useLocale();
   const compact = variant === "compact";
   const el = enhanceLevel ?? 0;
   const tl = transcendLevel ?? 0;
   const dur = durability;
+  const weaponName = getWeaponDisplayName(locale, def);
 
   return (
     <article
@@ -74,7 +81,7 @@ export const WeaponCard = memo(function WeaponCard({
             tone="ranking"
             className="absolute left-1.5 top-1.5 z-30 px-1.5 text-[9px] sm:left-2 sm:top-2 sm:text-[10px]"
           >
-            기록 후보
+            {t("ranking.recordCandidate")}
           </StatusBadge>
         ) : null}
         {transcendReady ? (
@@ -82,7 +89,7 @@ export const WeaponCard = memo(function WeaponCard({
             tone="transcend"
             className="absolute right-1.5 top-1.5 z-30 px-1.5 text-[9px] sm:right-2 sm:top-2 sm:text-[10px]"
           >
-            초월 가능
+            {t("transcend.available")}
           </StatusBadge>
         ) : null}
         {equipped ? (
@@ -90,7 +97,7 @@ export const WeaponCard = memo(function WeaponCard({
             tone="equipped"
             className="absolute bottom-1.5 left-1.5 z-30 px-1.5 text-[9px] sm:bottom-2 sm:left-2 sm:text-[10px]"
           >
-            장착 중
+            {t("inventory.equipped")}
           </StatusBadge>
         ) : null}
         {owned ? (
@@ -98,20 +105,20 @@ export const WeaponCard = memo(function WeaponCard({
             tone="owned"
             className="absolute bottom-1.5 right-1.5 z-30 px-1.5 text-[9px] sm:bottom-2 sm:right-2 sm:text-[10px]"
           >
-            보유
+            {t("shop.owned")}
           </StatusBadge>
         ) : null}
         {locked ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/55 backdrop-blur-[1px]">
             <StatusBadge tone="locked" className="px-3 py-1 text-xs">
-              잠금
+              {t("inventory.lock")}
             </StatusBadge>
           </div>
         ) : null}
         {dur !== undefined && dur <= 1 && dur > 0 ? (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-red-950/70 to-transparent py-1.5 text-center sm:py-2">
             <StatusBadge tone="danger" className="text-[9px] sm:text-[10px]">
-              위험
+              {t("common.danger")}
             </StatusBadge>
           </div>
         ) : null}
@@ -123,7 +130,7 @@ export const WeaponCard = memo(function WeaponCard({
         >
           <WeaponArt
             path={def.imagePath}
-            name={def.name}
+            name={weaponName}
             highlight={tl >= 1}
             compact={compact}
           />
@@ -148,7 +155,8 @@ export const WeaponCard = memo(function WeaponCard({
               compact ? "text-[10px]" : "text-xs",
             )}
           >
-            {gradeLabel(def.grade)} · {weaponTypeLabel(def.type)}
+            {getWeaponGradeLabel(locale, def.grade)} ·{" "}
+            {getWeaponTypeLabel(locale, def.type)}
           </div>
           <div
             className={cn(
@@ -156,12 +164,12 @@ export const WeaponCard = memo(function WeaponCard({
               compact ? "line-clamp-2 text-xs" : "wrap-break-word text-base",
             )}
           >
-            {def.name}
+            {weaponName}
           </div>
         </div>
         <div className={cn("flex flex-wrap items-center gap-1.5", compact ? "text-[10px]" : "text-xs")}>
           <span className="rounded-md border border-zinc-700/50 bg-zinc-950/70 px-1.5 py-0.5 font-mono text-zinc-400 ring-1 ring-black/20">
-            티어 {def.tier}
+            {t("weapon.tier", { tier: def.tier })}
           </span>
           {el > 0 || tl > 0 ? (
             <span className="font-mono text-amber-200/95">
@@ -175,9 +183,9 @@ export const WeaponCard = memo(function WeaponCard({
             "numeric-value max-w-full font-mono text-amber-300",
             compact ? "text-[11px]" : "text-sm",
           )}
-          title={`기본가 ${formatGold(def.basePrice)}`}
+          title={t("shop.basePriceWithValue", { value: formatGold(def.basePrice) })}
         >
-          기본가 {formatCompactKoreanNumber(def.basePrice)}G
+          {t("shop.basePriceWithValue", { value: `${formatCompactKoreanNumber(def.basePrice)}G` })}
         </div>
         {footer ? <div className="mt-auto pt-0.5">{footer}</div> : null}
       </div>

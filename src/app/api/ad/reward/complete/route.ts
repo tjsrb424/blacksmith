@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import { AdRewardError, completeAdReward } from "@/lib/server/adRewardService";
@@ -7,26 +8,24 @@ import type { AdRewardCompleteRequest } from "@/types/ads";
 
 export const dynamic = "force-dynamic";
 
+const USER_MESSAGES: Record<string, string> = {
+  ad_not_completed: "추가 보상 확인이 완료되지 않았습니다.",
+  reward_expired: "추가 보상 시간이 만료되었습니다. 다시 시도해주세요.",
+  reward_not_pending: "이미 처리 중이거나 완료된 추가 보상입니다.",
+  provider_mismatch:
+    "보상 제공 정보가 일치하지 않습니다. 새로고침 후 다시 시도해주세요.",
+  stale_reward_intent:
+    "저장된 진행 정보와 현재 화면 정보가 일치하지 않습니다. 새로고침 후 다시 시도해주세요.",
+  weapon_not_found: "무기를 찾을 수 없습니다. 진행 정보를 다시 불러와 주세요.",
+  last_weapon_cannot_sell:
+    "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해 주세요.",
+};
+
 function adRewardErrorResponse(error: unknown, fallback: string) {
   const status = error instanceof AdRewardError ? error.status : 500;
   const code =
     error instanceof AdRewardError ? error.code : "ad_reward_server_error";
-  const message =
-    code === "ad_not_completed"
-      ? "광고 시청이 완료되지 않아 보상이 지급되지 않았습니다."
-      : code === "reward_expired"
-        ? "광고 보상 시간이 만료되었습니다. 다시 시도해주세요."
-        : code === "reward_not_pending"
-          ? "이미 처리 중이거나 완료된 광고 보상입니다."
-          : code === "provider_mismatch"
-            ? "광고 제공자 정보가 일치하지 않습니다. 새로고침 후 다시 시도해주세요."
-            : code === "stale_reward_intent"
-              ? "서버 저장 데이터와 현재 화면 데이터가 일치하지 않습니다. 새로고침 후 다시 시도해주세요."
-              : code === "weapon_not_found"
-                ? "무기를 찾을 수 없습니다. 서버 데이터를 다시 불러와주세요."
-                : code === "last_weapon_cannot_sell"
-                  ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
-                : fallback;
+  const message = USER_MESSAGES[code] ?? fallback;
 
   if (status >= 500) {
     console.error("[ad.reward.complete] failed", error);
@@ -52,7 +51,9 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      const auth = await timer.time("auth user 조회", () => requireSupabaseUser());
+      const auth = await timer.time("auth user lookup", () =>
+        requireSupabaseUser(),
+      );
       if (!auth.ok) {
         timer.finish("ad reward complete total");
         return auth.response;
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       return response;
     } catch (error) {
       timer.finish("ad reward complete total");
-      return adRewardErrorResponse(error, "광고 보상 지급에 실패했습니다.");
+      return adRewardErrorResponse(error, "추가 보상 지급에 실패했습니다.");
     }
   });
 }

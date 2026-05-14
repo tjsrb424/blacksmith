@@ -4,6 +4,7 @@ import type { NextResponse } from "next/server";
 import { requireSupabaseUser } from "@/lib/server/auth";
 import {
   bootstrapGuestPlayer,
+  getAuthenticatedPlayerIdentity,
   type PlayerIdentity,
 } from "@/lib/server/playerRepository";
 import type { GuestRequestContext } from "@/types/server";
@@ -31,9 +32,6 @@ export async function resolveRequestPlayer(
 
   return {
     ok: true,
-    identity: {
-      id: auth.user.id,
-      email: auth.user.email ?? null,
-    },
+    identity: await getAuthenticatedPlayerIdentity(auth.user),
   };
 }

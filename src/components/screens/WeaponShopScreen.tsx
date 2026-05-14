@@ -11,20 +11,23 @@ import { formatCompactKoreanNumber, formatGold } from "@/lib/format";
 import { useGameStore } from "@/store/gameStore";
 import type { WeaponGrade } from "@/types/game";
 import { cn } from "@/lib/cn";
+import { useLocale } from "@/lib/i18n/useLocale";
+import { getWeaponGradeLabel } from "@/lib/i18n/weaponText";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
-const GRADE_FILTERS: Array<{ id: WeaponGrade | "all"; label: string }> = [
-  { id: "all", label: "전체" },
-  { id: "D", label: "D" },
-  { id: "C", label: "C" },
-  { id: "B", label: "B" },
-  { id: "A", label: "A" },
-  { id: "S", label: "S" },
-  { id: "SS", label: "SS" },
+const GRADE_FILTERS: Array<{ id: WeaponGrade | "all" }> = [
+  { id: "all" },
+  { id: "D" },
+  { id: "C" },
+  { id: "B" },
+  { id: "A" },
+  { id: "S" },
+  { id: "SS" },
 ];
 
 export function WeaponShopScreen() {
   useRenderDiagnostics("WeaponShopScreen");
+  const { locale, t } = useLocale();
   const buyWeapon = useGameStore((s) => s.buyWeapon);
   const gold = useGameStore((s) => s.gold);
   const ownedWeapons = useGameStore((s) => s.ownedWeapons);
@@ -73,14 +76,14 @@ export function WeaponShopScreen() {
       <ScreenBackground screen="shop" />
       <header className="relative z-10 space-y-2">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]">
-          무기 상점
+          {t("shop.weaponShop")}
         </h2>
         <p className="text-sm text-zinc-300 drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]">
-          보유 골드{" "}
+          {t("shop.goldOwned")}{" "}
           <span className="numeric-value inline-block max-w-[9rem] align-bottom font-mono text-amber-200" title={formatGold(gold)}>
             {formatCompactKoreanNumber(gold)}G
           </span>{" "}
-          — 카드를 눌러 구매 확인 창을 엽니다.
+          — {t("shop.tapCardToBuy")}
         </p>
       </header>
 
@@ -103,7 +106,7 @@ export function WeaponShopScreen() {
                   : "bg-zinc-950/65 text-zinc-500 ring-zinc-700/70 hover:text-zinc-300",
               )}
             >
-              {g.label}
+              {g.id === "all" ? t("common.all") : getWeaponGradeLabel(locale, g.id)}
               <span className="ml-1 font-mono text-[10px] opacity-80">
                 {countLabel}
               </span>
@@ -139,10 +142,10 @@ export function WeaponShopScreen() {
             inst.durability > 0;
           const isRecommended = def.id === recommendedId && !owned;
           const recommendationLabel = affordable
-            ? "추천 · 구매 가능"
+            ? t("shop.recommendedAffordable")
             : def.id === cheapestUnownedId
-              ? "추천 · 최저가"
-              : "추천 · 성장 후보";
+              ? t("shop.recommendedCheapest")
+              : t("shop.recommendedGrowth");
 
           return (
             <div
@@ -168,11 +171,11 @@ export function WeaponShopScreen() {
                   <div className="space-y-1.5">
                     {owned ? (
                       <div className="flex justify-center">
-                        <StatusBadge tone="owned">보유 중</StatusBadge>
+                        <StatusBadge tone="owned">{t("shop.owned")}</StatusBadge>
                       </div>
                     ) : !affordable ? (
                       <p className="text-center text-[10px] font-semibold text-red-300/90">
-                        부족{" "}
+                        {t("shop.shortage")}{" "}
                         <span
                           className="numeric-value inline-block max-w-full align-bottom font-mono"
                           title={formatGold(shortfall)}
@@ -192,7 +195,7 @@ export function WeaponShopScreen() {
                       disabled={!affordable || owned || serverActionPending}
                       onClick={() => buyWeapon(def.id)}
                     >
-                      {owned ? "보유 중" : affordable ? "구매" : "골드 부족"}
+                      {owned ? t("shop.owned") : affordable ? t("shop.buy") : t("shop.notEnoughGold")}
                     </FantasyButton>
                   </div>
                 }

@@ -15,6 +15,6 @@ export async function POST(request: NextRequest) {
       await submitRankingCandidateServer(player.identity, payload),
     );
   } catch (error) {
-    return actionErrorResponse(error, "랭킹 제출에 실패했습니다.");
+    return actionErrorResponse(error, "error.rankingSubmitFailed");
   }
 }

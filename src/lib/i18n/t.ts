@@ -13,6 +13,8 @@ const MESSAGES: Record<SupportedLocale, LocaleMessages> = {
   "zh-TW": zhTW,
 };
 
+type TranslationParams = Record<string, string | number>;
+
 function readDotPath(messages: LocaleMessages, key: string): string | null {
   let current: unknown = messages;
 
@@ -27,10 +29,22 @@ function readDotPath(messages: LocaleMessages, key: string): string | null {
   return typeof current === "string" ? current : null;
 }
 
-export function t(locale: SupportedLocale, key: string): string {
-  return (
+function interpolate(message: string, params?: TranslationParams): string {
+  if (!params) return message;
+  return message.replace(/\{(\w+)\}/g, (match, paramKey: string) => {
+    const value = params[paramKey];
+    return value == null ? match : String(value);
+  });
+}
+
+export function t(
+  locale: SupportedLocale,
+  key: string,
+  params?: TranslationParams,
+): string {
+  const message =
     readDotPath(MESSAGES[locale], key) ??
     readDotPath(MESSAGES[DEFAULT_LOCALE], key) ??
-    key
-  );
+    key;
+  return interpolate(message, params);
 }

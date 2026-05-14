@@ -21,7 +21,7 @@ export const disabledAdProvider: RewardedAdProvider = {
   id: "disabled",
   isAvailable: () => false,
   loadRewardedAd: async () => {
-    throw new Error("광고를 불러올 수 없습니다.");
+    throw new Error("ads.failedToLoad");
   },
   showRewardedAd: async () => ({
     provider: "disabled",

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useLocale } from "@/lib/i18n/useLocale";
 import type { SideBannerSlotName } from "@/lib/ads/sideAds";
 
 const ADFIT_SCRIPT_ID = "kakao-adfit-ba-script";
@@ -96,6 +97,7 @@ export function AdFitBanner({
   width,
   height,
 }: AdFitBannerProps) {
+  const { t } = useLocale();
   const insRef = useRef<HTMLModElement>(null);
   const [failedUnitId, setFailedUnitId] = useState<string>();
   const scriptFailed = failedUnitId === unitId;
@@ -132,7 +134,7 @@ export function AdFitBanner({
         data-adfit-slot={slotName}
         style={{ width, height }}
       >
-        베타 기간에는 제련로와 랭킹 기록이 수시로 조정될 수 있습니다.
+        {t("ads.sideRailFallback")}
       </div>
     );
   }
@@ -154,7 +156,7 @@ export function AdFitBanner({
       />
       {scriptFailed ? (
         <div className="pointer-events-none px-4 text-center text-[11px] font-semibold leading-5 text-amber-100/56">
-          베타 기간에는 제련로와 랭킹 기록이 수시로 조정될 수 있습니다.
+          {t("ads.sideRailFallback")}
         </div>
       ) : null}
     </div>

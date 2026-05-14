@@ -2,11 +2,22 @@ export const GUEST_PLAY_MODE_KEY = "blacksmith.play_mode";
 export const GUEST_ID_KEY = "blacksmith.guest_id";
 export const GUEST_SECRET_KEY = "blacksmith.guest_secret";
 export const GUEST_NICKNAME_KEY = "blacksmith.guest_nickname";
+export const PENDING_LINK_GUEST_ID_KEY = "blacksmith.pending_link_guest_id";
+export const PENDING_LINK_GUEST_SECRET_KEY = "blacksmith.pending_link_guest_secret";
+export const PENDING_LINK_STARTED_AT_KEY = "blacksmith.pending_link_started_at";
+
+const PENDING_LINK_TTL_MS = 10 * 60 * 1000;
 
 export type GuestProfile = {
   guestId: string;
   guestSecret: string;
   nickname: string;
+};
+
+export type PendingGuestLink = {
+  guestId: string;
+  guestSecret: string;
+  startedAt: number;
 };
 
 function canUseStorage() {
@@ -81,6 +92,65 @@ export function startGuestPlay(nickname: string): GuestProfile {
 export function markAuthenticatedPlay() {
   if (!canUseStorage()) return;
   window.localStorage.setItem(GUEST_PLAY_MODE_KEY, "auth");
+}
+
+export function resumeGuestPlay(): GuestProfile | null {
+  if (!canUseStorage()) return null;
+
+  const guestId = window.localStorage.getItem(GUEST_ID_KEY);
+  const guestSecret = window.localStorage.getItem(GUEST_SECRET_KEY);
+  const nickname = window.localStorage.getItem(GUEST_NICKNAME_KEY);
+  if (!isUuid(guestId) || !guestSecret || !nickname) return null;
+
+  window.localStorage.setItem(GUEST_PLAY_MODE_KEY, "guest");
+  return { guestId, guestSecret, nickname };
+}
+
+export function updateStoredGuestNickname(nickname: string) {
+  if (!canUseStorage()) return;
+  window.localStorage.setItem(GUEST_NICKNAME_KEY, nickname.trim());
+}
+
+export function clearGuestProfile() {
+  if (!canUseStorage()) return;
+  window.localStorage.removeItem(GUEST_PLAY_MODE_KEY);
+  window.localStorage.removeItem(GUEST_ID_KEY);
+  window.localStorage.removeItem(GUEST_SECRET_KEY);
+  window.localStorage.removeItem(GUEST_NICKNAME_KEY);
+}
+
+export function storePendingGuestLink(profile: GuestProfile) {
+  if (!canUseStorage()) return;
+  window.localStorage.setItem(PENDING_LINK_GUEST_ID_KEY, profile.guestId);
+  window.localStorage.setItem(PENDING_LINK_GUEST_SECRET_KEY, profile.guestSecret);
+  window.localStorage.setItem(PENDING_LINK_STARTED_AT_KEY, String(Date.now()));
+}
+
+export function getPendingGuestLink(): PendingGuestLink | null {
+  if (!canUseStorage()) return null;
+
+  const guestId = window.localStorage.getItem(PENDING_LINK_GUEST_ID_KEY);
+  const guestSecret = window.localStorage.getItem(PENDING_LINK_GUEST_SECRET_KEY);
+  const startedAt = Number(
+    window.localStorage.getItem(PENDING_LINK_STARTED_AT_KEY) ?? 0,
+  );
+  if (!isUuid(guestId) || !guestSecret || !Number.isFinite(startedAt)) {
+    clearPendingGuestLink();
+    return null;
+  }
+  if (Date.now() - startedAt > PENDING_LINK_TTL_MS) {
+    clearPendingGuestLink();
+    return null;
+  }
+
+  return { guestId, guestSecret, startedAt };
+}
+
+export function clearPendingGuestLink() {
+  if (!canUseStorage()) return;
+  window.localStorage.removeItem(PENDING_LINK_GUEST_ID_KEY);
+  window.localStorage.removeItem(PENDING_LINK_GUEST_SECRET_KEY);
+  window.localStorage.removeItem(PENDING_LINK_STARTED_AT_KEY);
 }
 
 export function getGuestRequestContext() {

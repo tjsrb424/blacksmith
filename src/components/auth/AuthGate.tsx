@@ -14,27 +14,36 @@ import {
 import { GameStartScreen } from "@/components/auth/GameStartScreen";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 import { NicknameSetupModal } from "@/components/auth/NicknameSetupModal";
+import { ForgeLoading } from "@/components/loading/ForgeLoading";
 import { ApiRequestError } from "@/lib/server/http";
 import {
   bootstrapPlayerSnapshot,
   invalidatePlayerApiCache,
 } from "@/lib/server/playerApi";
 import {
+  clearGuestProfile,
+  clearPendingGuestLink,
+  getPendingGuestLink,
   getGuestProfile,
   markAuthenticatedPlay,
   startGuestPlay,
+  type PendingGuestLink,
   type GuestProfile,
 } from "@/lib/player/guest";
 import {
   diagnosticLog,
   updatePerformanceMetric,
 } from "@/lib/performanceMetrics";
+import { useLocale } from "@/lib/i18n/useLocale";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getGameMode, getSupabaseBrowserEnv } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 import type {
   BetaPlayerSnapshot,
+  LinkGuestCheckResponse,
+  LinkGuestConfirmResponse,
+  PlayerLifecycleSummary,
   NicknameUpdateResponse,
 } from "@/types/server";
 
@@ -59,10 +68,10 @@ const BetaPlayerContext = createContext<BetaPlayerContextValue>({
 
 function getFriendlyLoadError(error: unknown): string {
   if (error instanceof ApiRequestError && error.code === "request_timeout") {
-    return "서버 응답이 지연되고 있습니다. 다시 시도해주세요.";
+    return "error.requestTimeout";
   }
   if (error instanceof Error && error.message) return error.message;
-  return "서버 저장 데이터를 불러오지 못했습니다. 네트워크 상태를 확인해주세요.";
+  return "error.progressLoadFailed";
 }
 
 function getOriginLabel() {
@@ -91,14 +100,13 @@ export function useBetaPlayer() {
 
 export function AuthGate({ children }: { children: ReactNode }) {
   useRenderDiagnostics("AuthGate");
+  const { t } = useLocale();
   const mode = getGameMode();
   const authGateMode = getAuthGateMode();
   const [session, setSession] = useState<Session | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [snapshot, setSnapshot] = useState<BetaPlayerSnapshot | null>(null);
-  const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(() =>
-    getGuestProfile(),
-  );
+  const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AuthStage>("checking_session");
@@ -109,7 +117,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [lastAuthEvent, setLastAuthEvent] = useState("init");
   const [lastAuthError, setLastAuthError] = useState("-");
   const [authAttempt, setAuthAttempt] = useState(0);
+  const [pendingGuestLink, setPendingGuestLink] =
+    useState<PendingGuestLink | null>(null);
+  const [linkChecking, setLinkChecking] = useState(false);
+  const [linkConflict, setLinkConflict] = useState<{
+    guestSummary: PlayerLifecycleSummary;
+    authSummary: PlayerLifecycleSummary;
+  } | null>(null);
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const bootstrappedUserIdRef = useRef<string | null>(null);
+  const pendingLinkRequestRef = useRef<string | null>(null);
   const supabaseEnv = getSupabaseBrowserEnv();
 
   const setAuthStage = useCallback((nextStage: AuthStage) => {
@@ -146,6 +163,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     queueMicrotask(() => {
+      setGuestProfile(getGuestProfile());
+      setPendingGuestLink(getPendingGuestLink());
       const origin = getOriginLabel();
       const ua = getUserAgentShort();
       setDebugOrigin(origin);
@@ -209,6 +228,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthStage("ready");
   }, [setAuthStage]);
 
+  const applySnapshot = useCallback((nextSnapshot: BetaPlayerSnapshot) => {
+    const syncStartedAt = Date.now();
+    setSnapshot(nextSnapshot);
+    useGameStore.getState().syncFromServerPlayerMe(nextSnapshot);
+    bootstrappedUserIdRef.current = nextSnapshot.userId;
+    updatePerformanceMetric({
+      playerSyncElapsedMs: Date.now() - syncStartedAt,
+      lastStoreSyncElapsedMs: Date.now() - syncStartedAt,
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoadingSnapshot(true);
     setError(null);
@@ -235,14 +265,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         bootstrapElapsedMs: Date.now() - bootstrapStartedAt,
       });
       setAuthStage("syncing_store");
-      const syncStartedAt = Date.now();
-      setSnapshot(nextSnapshot);
-      useGameStore.getState().syncFromServerPlayerMe(nextSnapshot);
-      bootstrappedUserIdRef.current = nextSnapshot.userId;
-      updatePerformanceMetric({
-        playerSyncElapsedMs: Date.now() - syncStartedAt,
-        lastStoreSyncElapsedMs: Date.now() - syncStartedAt,
-      });
+      applySnapshot(nextSnapshot);
       setAuthStage("ready");
     } catch (loadError) {
       const message = getFriendlyLoadError(loadError);
@@ -255,7 +278,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     } finally {
       setLoadingSnapshot(false);
     }
-  }, [guestProfile, sessionUserId, setAuthEvent, setAuthFailure, setAuthStage]);
+  }, [
+    applySnapshot,
+    guestProfile,
+    sessionUserId,
+    setAuthEvent,
+    setAuthFailure,
+    setAuthStage,
+  ]);
 
   const signOutAndReset = useCallback(async () => {
     setAuthEvent("sign_out_requested");
@@ -271,6 +301,98 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthChecked(true);
   }, [setAuthEvent, setAuthStage]);
 
+  const finishLinkWithSnapshot = useCallback(
+    (nextSnapshot: BetaPlayerSnapshot, message?: string) => {
+      clearPendingGuestLink();
+      clearGuestProfile();
+      setPendingGuestLink(null);
+      setGuestProfile(null);
+      setLinkConflict(null);
+      setLinkMessage(message ?? null);
+      invalidatePlayerApiCache();
+      applySnapshot(nextSnapshot);
+      setAuthStage("ready");
+      setAuthChecked(true);
+    },
+    [applySnapshot, setAuthStage],
+  );
+
+  const confirmGuestLinkChoice = useCallback(
+    async (choice: "use_auth" | "use_guest" | "cancel") => {
+      if (!pendingGuestLink) return;
+
+      if (choice === "cancel") {
+        await fetch("/api/player/link-guest/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...pendingGuestLink, choice: "cancel" }),
+        }).catch(() => null);
+        clearPendingGuestLink();
+        setPendingGuestLink(null);
+        setLinkConflict(null);
+        setLinkMessage("account.linkCancelled");
+        const supabase = createSupabaseBrowserClient();
+        if (supabase) await supabase.auth.signOut();
+        window.location.assign("/play");
+        return;
+      }
+
+      setLinkChecking(true);
+      setLinkMessage(null);
+      try {
+        const response = await fetch("/api/player/link-guest/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...pendingGuestLink, choice }),
+        });
+        const body = (await response.json()) as LinkGuestConfirmResponse;
+        if (
+          body.status === "linked" ||
+          body.status === "use_auth" ||
+          body.status === "use_guest"
+        ) {
+          if (body.status === "use_auth") {
+            clearPendingGuestLink();
+            setPendingGuestLink(null);
+            setLinkConflict(null);
+            setLinkMessage(body.message);
+            invalidatePlayerApiCache();
+            applySnapshot(body.snapshot);
+            setAuthStage("ready");
+            setAuthChecked(true);
+          } else {
+            finishLinkWithSnapshot(body.snapshot, body.message);
+          }
+          return;
+        }
+        if (body.status === "conflict") {
+          setLinkConflict({
+            guestSummary: body.guestSummary,
+            authSummary: body.authSummary,
+          });
+          setLinkMessage(body.message);
+          return;
+        }
+        throw new Error(body.message);
+      } catch (linkError) {
+        setError(
+          linkError instanceof Error
+            ? linkError.message
+            : "error.accountLinkFailed",
+        );
+        setAuthStage("error");
+      } finally {
+        setLinkChecking(false);
+      }
+    },
+    [
+      applySnapshot,
+      finishLinkWithSnapshot,
+      pendingGuestLink,
+      setAuthStage,
+    ],
+  );
+
   useEffect(() => {
     if (mode !== "beta") {
       queueMicrotask(() => setAuthEvent("local_mode_skip_auth"));
@@ -279,7 +401,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       queueMicrotask(() => {
-        const message = "로그인 설정을 확인하지 못했습니다.";
+        const message = "error.loginSetupCheckFailed";
         setAuthEvent("supabase_client_missing");
         setAuthFailure(message);
         setError(message);
@@ -311,7 +433,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const watchdog = window.setTimeout(() => {
       if (!mounted || finished) return;
       finish("error");
-      const message = "로그인 상태를 확인하지 못했습니다. 다시 시도해주세요.";
+      const message = "error.loginStatusCheckFailed";
       setAuthEvent("getSession timeout", { elapsedMs: Date.now() - startedAt });
       setAuthFailure(message);
       setError(message);
@@ -371,7 +493,98 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [authAttempt, mode, setAuthEvent, setAuthFailure, setAuthStage]);
 
   useEffect(() => {
-    if (mode !== "beta" || !sessionUserId) return;
+    if (mode !== "beta" || !sessionUserId || !pendingGuestLink) return;
+
+    let cancelled = false;
+    const requestKey = `${sessionUserId}:${pendingGuestLink.guestId}:${pendingGuestLink.startedAt}`;
+    if (pendingLinkRequestRef.current === requestKey) return;
+    pendingLinkRequestRef.current = requestKey;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLinkChecking(true);
+      setLinkMessage("account.checkingLinkInfo");
+      setAuthStage("bootstrap_loading");
+    });
+
+    void fetch("/api/player/link-guest/check", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(pendingGuestLink),
+    })
+      .then(async (response) => (await response.json()) as LinkGuestCheckResponse)
+      .then(async (body) => {
+        if (cancelled) return;
+        if (body.status === "can_link") {
+          const response = await fetch("/api/player/link-guest/confirm", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...pendingGuestLink, choice: "link_guest" }),
+          });
+          const confirmBody = (await response.json()) as LinkGuestConfirmResponse;
+          if (
+            confirmBody.status === "linked" ||
+            confirmBody.status === "use_guest"
+          ) {
+            finishLinkWithSnapshot(confirmBody.snapshot, confirmBody.message);
+            return;
+          }
+          if (confirmBody.status === "conflict") {
+            setLinkConflict({
+              guestSummary: confirmBody.guestSummary,
+              authSummary: confirmBody.authSummary,
+            });
+            setLinkMessage(confirmBody.message);
+            return;
+          }
+          throw new Error(confirmBody.message);
+        }
+        if (body.status === "conflict") {
+          setLinkConflict({
+            guestSummary: body.guestSummary,
+            authSummary: body.authSummary,
+          });
+          setLinkMessage(null);
+          return;
+        }
+        if (body.status === "already_linked") {
+          finishLinkWithSnapshot(body.snapshot, "account.alreadyLinked");
+          return;
+        }
+        throw new Error(body.message);
+      })
+      .catch((linkError) => {
+        if (cancelled) return;
+        pendingLinkRequestRef.current = null;
+        setError(
+          linkError instanceof Error
+            ? linkError.message
+            : "error.accountLinkCheckFailed",
+        );
+        clearPendingGuestLink();
+        setPendingGuestLink(null);
+        setAuthStage("error");
+      })
+      .finally(() => {
+        if (!cancelled) setLinkChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (pendingLinkRequestRef.current === requestKey) {
+        pendingLinkRequestRef.current = null;
+      }
+    };
+  }, [
+    finishLinkWithSnapshot,
+    mode,
+    pendingGuestLink,
+    sessionUserId,
+    setAuthStage,
+  ]);
+
+  useEffect(() => {
+    if (mode !== "beta" || !sessionUserId || pendingGuestLink) return;
     if (
       bootstrappedUserIdRef.current === sessionUserId &&
       snapshot?.userId === sessionUserId
@@ -382,7 +595,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       void refresh();
     });
     return () => cancelAnimationFrame(id);
-  }, [mode, refresh, sessionUserId, snapshot?.userId]);
+  }, [mode, pendingGuestLink, refresh, sessionUserId, snapshot?.userId]);
 
   useEffect(() => {
     if (mode !== "beta" || !guestProfile || sessionUserId) return;
@@ -415,6 +628,36 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <LoginScreen error={supabaseEnv.message} authGateMode={authGateMode} />;
   }
 
+  if (linkConflict) {
+    return (
+      <AccountLinkConflictModal
+        guestSummary={linkConflict.guestSummary}
+        authSummary={linkConflict.authSummary}
+        busy={linkChecking}
+        message={linkMessage}
+        onUseAuth={() => void confirmGuestLinkChoice("use_auth")}
+        onUseGuest={() => void confirmGuestLinkChoice("use_guest")}
+        onCancel={() => void confirmGuestLinkChoice("cancel")}
+      />
+    );
+  }
+
+  if (pendingGuestLink && (linkChecking || sessionUserId)) {
+    return (
+      <AuthLoading
+        stage={stage}
+        stageElapsedMs={stageElapsedMs}
+        debugOrigin={debugOrigin}
+        userAgentShort={userAgentShort}
+        gameMode={mode}
+        authAttempt={authAttempt}
+        lastAuthEvent={lastAuthEvent}
+        lastAuthError={lastAuthError}
+        message={t("account.checkingLinkInfo")}
+      />
+    );
+  }
+
   if (!authChecked) {
     if (authGateMode !== "required") {
       if (guestProfile) {
@@ -428,7 +671,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             authAttempt={authAttempt}
             lastAuthEvent={lastAuthEvent}
             lastAuthError={lastAuthError}
-            message="게스트 플레이어를 불러오는 중..."
+            message={t("loading.progressLoading")}
           />
         );
       }
@@ -444,7 +687,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         authAttempt={authAttempt}
         lastAuthEvent={lastAuthEvent}
         lastAuthError={lastAuthError}
-        message="로그인 상태 확인 중..."
+        message={t("loading.forgePreparing")}
       />
     );
   }
@@ -493,7 +736,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           authAttempt={authAttempt}
           lastAuthEvent={lastAuthEvent}
           lastAuthError={lastAuthError}
-          message="게스트 플레이어를 불러오는 중..."
+          message={t("loading.progressLoading")}
         />
       );
     }
@@ -511,7 +754,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         authAttempt={authAttempt}
         lastAuthEvent={lastAuthEvent}
         lastAuthError={lastAuthError}
-        message="서버 프로필 불러오는 중..."
+        message={t("loading.forgePreparing")}
       />
     );
   }
@@ -533,17 +776,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   );
 }
 
-function AuthLoading({
-  message,
-  stage,
-  stageElapsedMs,
-  debugOrigin,
-  userAgentShort,
-  gameMode,
-  authAttempt,
-  lastAuthEvent,
-  lastAuthError,
-}: {
+function AuthLoading({ message }: {
   message: string;
   stage: AuthStage;
   stageElapsedMs: number;
@@ -554,24 +787,157 @@ function AuthLoading({
   lastAuthEvent: string;
   lastAuthError: string;
 }) {
+  return <ForgeLoading title={message} />;
+}
+
+function formatSummaryNumber(value: number) {
+  return new Intl.NumberFormat("ko-KR").format(Math.max(0, Math.floor(value)));
+}
+
+function AccountLinkConflictModal({
+  guestSummary,
+  authSummary,
+  busy,
+  message,
+  onUseAuth,
+  onUseGuest,
+  onCancel,
+}: {
+  guestSummary: PlayerLifecycleSummary;
+  authSummary: PlayerLifecycleSummary;
+  busy: boolean;
+  message: string | null;
+  onUseAuth: () => void;
+  onUseGuest: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useLocale();
+  const [confirmUseGuest, setConfirmUseGuest] = useState(false);
+  const summaryCard = (
+    title: string,
+    summary: PlayerLifecycleSummary,
+    tone: "guest" | "auth",
+  ) => (
+    <div className="rounded-lg border border-amber-900/35 bg-zinc-950/64 p-3">
+      <p
+        className={`text-xs font-black uppercase tracking-[0.16em] ${
+          tone === "guest" ? "text-amber-300" : "text-sky-300"
+        }`}
+      >
+        {title}
+      </p>
+      <p className="mt-2 text-base font-black text-zinc-100">
+        {summary.nickname || t("account.unnamed")}
+      </p>
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-400">
+        <div>
+          <dt>{t("records.maxEnhanceLevel")}</dt>
+          <dd className="font-bold text-zinc-100">+{summary.highestEnhance}</dd>
+        </div>
+        <div>
+          <dt>{t("shop.goldOwned")}</dt>
+          <dd className="font-bold text-zinc-100">
+            {formatSummaryNumber(summary.gold)}
+          </dd>
+        </div>
+        <div>
+          <dt>{t("records.personalBestReference")}</dt>
+          <dd className="font-bold text-zinc-100">
+            {formatSummaryNumber(summary.bestWeaponValue)}
+          </dd>
+        </div>
+        <div>
+          <dt>{t("ranking.score.rankingValue")}</dt>
+          <dd className="font-bold text-zinc-100">
+            {formatSummaryNumber(summary.rankingScore)}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-center text-sm text-zinc-500">
-      <div>
-        <p>{message}</p>
-        {process.env.NODE_ENV !== "production" ? (
-          <div className="mt-2 space-y-1 font-mono text-xs text-zinc-700">
-            <p>{stage}</p>
-            <p>{stageElapsedMs}ms</p>
-            <p>{debugOrigin}</p>
-            <p>mode: {gameMode}</p>
-            <p>ua: {userAgentShort}</p>
-            <p>attempt: {authAttempt}</p>
-            <p>event: {lastAuthEvent}</p>
-            <p>error: {lastAuthError}</p>
+    <main className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-zinc-100">
+      <section className="w-full max-w-xl rounded-xl border border-amber-500/30 bg-zinc-950/95 p-5 shadow-2xl">
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-300/75">
+          Account Link
+        </p>
+        <h1 className="mt-2 text-xl font-black text-amber-50">
+          {t("account.linkConflictTitle")}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">
+          {t("account.linkConflictBody")}
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {summaryCard(t("account.guestRecord"), guestSummary, "guest")}
+          {summaryCard(t("account.googleRecord"), authSummary, "auth")}
+        </div>
+        {message ? (
+          <p className="mt-3 rounded-md border border-amber-700/35 bg-amber-950/24 px-3 py-2 text-xs text-amber-100">
+            {message.includes(".") ? t(message) : message}
+          </p>
+        ) : null}
+        <div className="mt-5 grid gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onUseAuth}
+            className="rounded-lg border border-sky-500/35 bg-sky-950/24 px-4 py-3 text-sm font-bold text-sky-100 transition hover:border-sky-300/60 disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {t("account.useGoogleRecord")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmUseGuest(true)}
+            className="rounded-lg border border-amber-500/45 bg-amber-500/16 px-4 py-3 text-sm font-black text-amber-100 transition hover:border-amber-300/70 disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {t("account.useGuestRecord")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {t("common.cancel")}
+          </button>
+        </div>
+        {confirmUseGuest ? (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 px-4 backdrop-blur-sm">
+            <section className="w-full max-w-sm rounded-lg border border-red-500/36 bg-zinc-950 p-4 shadow-2xl">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300/75">
+                Confirm
+              </p>
+              <h2 className="mt-2 text-lg font-black text-red-50">
+                {t("account.confirmUseGuestTitle")}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-red-100/80">
+                {t("account.confirmUseGuestBody")}
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setConfirmUseGuest(false)}
+                  className="h-10 rounded-md border border-zinc-700 bg-zinc-950/55 text-sm font-bold text-zinc-300 transition hover:border-zinc-500 disabled:opacity-55"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onUseGuest}
+                  className="h-10 rounded-md border border-red-400/60 bg-red-700/78 text-sm font-black text-white transition hover:bg-red-600 disabled:opacity-55"
+                >
+                  {t("account.link")}
+                </button>
+              </div>
+            </section>
           </div>
         ) : null}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
 
@@ -602,11 +968,18 @@ function AuthErrorPanel({
   onReloadServer: () => void;
   onSignOut: () => void;
 }) {
+  const { t } = useLocale();
+  const displayError = error.includes(".") ? t(error) : error;
+
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-zinc-100">
       <section className="w-full max-w-md rounded-xl border border-red-800/60 bg-red-950/25 p-5 shadow-2xl">
-        <h1 className="text-lg font-bold text-red-100">서버 연결 오류</h1>
-        <p className="mt-2 text-sm leading-6 text-red-200/90">{error}</p>
+        <h1 className="text-lg font-bold text-red-100">
+          {t("error.progressConnectionTitle")}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-red-200/90">
+          {displayError}
+        </p>
         {process.env.NODE_ENV !== "production" ? (
           <div className="mt-3 space-y-1 font-mono text-xs text-red-200/50">
             <p>stage: {stage}</p>
@@ -625,21 +998,21 @@ function AuthErrorPanel({
             className="rounded-lg bg-red-900/70 px-4 py-3 text-sm font-semibold text-red-50"
             onClick={onRetry}
           >
-            다시 시도
+            {t("common.retry")}
           </button>
           <button
             type="button"
             className="rounded-lg border border-red-800/70 px-4 py-3 text-sm font-semibold text-red-100"
             onClick={onReloadServer}
           >
-            서버 데이터 다시 불러오기
+            {t("error.reloadProgress")}
           </button>
           <button
             type="button"
             className="rounded-lg border border-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-200"
             onClick={onSignOut}
           >
-            로그아웃하고 다시 로그인
+            {t("account.logoutAndLoginAgain")}
           </button>
         </div>
       </section>

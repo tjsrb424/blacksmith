@@ -18,7 +18,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
-  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -37,24 +36,36 @@ body {
   scrollbar-width: none;
 }
 
-button,
-[role="button"],
-article,
-img,
-svg,
-canvas {
+.game-no-select {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-button,
-[role="button"] {
+.game-no-select img,
+.game-no-select svg,
+.game-no-select canvas {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.game-no-select button,
+.game-no-select [role="button"] {
   touch-action: manipulation;
 }
 
-img {
-  -webkit-user-drag: none;
+.game-no-select input,
+.game-no-select textarea,
+.game-no-select select,
+.game-no-select [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  -webkit-tap-highlight-color: initial;
 }
 
 ::selection {
@@ -78,6 +89,38 @@ img {
   animation-name: forge-ember-float;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
+}
+
+@keyframes forge-loader-hammer {
+  0%,
+  100% {
+    transform: rotate(-18deg) translateY(0);
+  }
+  48% {
+    transform: rotate(12deg) translateY(3px);
+  }
+  64% {
+    transform: rotate(-8deg) translateY(-1px);
+  }
+}
+
+@keyframes forge-loader-bar {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(330%);
+  }
+}
+
+.forge-loader-hammer {
+  display: inline-block;
+  transform-origin: 50% 82%;
+  animation: forge-loader-hammer 1.05s ease-in-out infinite;
+}
+
+.forge-loader-bar {
+  animation: forge-loader-bar 1.35s ease-in-out infinite;
 }
 
 .game-viewport {
@@ -127,6 +170,38 @@ img {
   border-radius: 999px;
 }
 
+.settings-scroll {
+  scrollbar-color: rgba(245, 158, 11, 0.72) rgba(12, 8, 5, 0.72);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.settings-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.settings-scroll::-webkit-scrollbar-track {
+  background:
+    linear-gradient(180deg, rgba(120, 53, 15, 0.2), rgba(0, 0, 0, 0.72)),
+    rgba(12, 8, 5, 0.72);
+  border-left: 1px solid rgba(245, 158, 11, 0.18);
+}
+
+.settings-scroll::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgba(252, 211, 77, 0.88), rgba(180, 83, 9, 0.9)),
+    #b45309;
+  border: 2px solid rgba(12, 8, 5, 0.86);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 251, 235, 0.28);
+}
+
+.settings-scroll::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(254, 240, 138, 0.95), rgba(217, 119, 6, 0.95)),
+    #d97706;
+}
+
 .bottom-nav {
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -136,7 +211,7 @@ img {
   min-width: 0;
   overflow: hidden;
   text-align: right;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
 }
 

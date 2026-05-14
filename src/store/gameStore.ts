@@ -168,32 +168,32 @@ function serverErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   return error instanceof Error
     ? error.message
-    : "서버 요청에 실패했습니다. 잠시 후 다시 시도해주세요.";
+    : "error.generic";
 }
 
 function sellErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
     if (error.code === "last_weapon_cannot_sell") {
-      return "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요.";
+      return "inventory.lastWeaponCannotSellLong";
     }
     if (error.code === "weapon_not_found") {
-      return "판매할 무기를 찾을 수 없습니다. 서버 데이터를 다시 불러와주세요.";
+      return "error.weaponNotFound";
     }
     if (error.code === "weapon_already_sold") {
-      return "이미 판매된 무기입니다. 서버 데이터를 다시 불러와주세요.";
+      return "error.weaponAlreadySold";
     }
     if (error.code === "request_timeout") {
-      return "서버 응답이 지연되고 있습니다. 다시 시도해주세요.";
+      return "error.requestTimeout";
     }
   }
-  return "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+  return "error.generic";
 }
 
 function isAdRewardUserError(error: unknown): boolean {
   if (error instanceof ApiRequestError) {
     return error.code?.startsWith("ad_") ?? false;
   }
-  return error instanceof Error && error.message.includes("광고");
+  return error instanceof Error && error.message.startsWith("ads.");
 }
 
 function adProgressModal(status: AdRewardFlowStatus): ModalState {
@@ -220,7 +220,11 @@ function patchFromServerAction(
     case "buy":
       return {
         ...base,
-        modal: { kind: "buy_success", weaponName: display.weaponName },
+        modal: {
+          kind: "buy_success",
+          weaponId: display.weaponId,
+          weaponName: display.weaponName,
+        },
       };
     case "enhance": {
       const recordBreak = display.recordBreak
@@ -231,6 +235,7 @@ function patchFromServerAction(
           ...base,
           modal: {
             kind: "enhance_success",
+            weaponId: display.weaponId,
             weaponName: display.weaponName,
             result: display.result,
             recordBreak,
@@ -242,6 +247,7 @@ function patchFromServerAction(
           ...base,
           modal: {
             kind: "enhance_fail",
+            weaponId: display.weaponId,
             weaponName: display.weaponName,
             result: display.result,
           },
@@ -265,6 +271,7 @@ function patchFromServerAction(
           ...base,
           modal: {
             kind: "transcend_success",
+            weaponId: display.weaponId,
             weaponName: display.weaponName,
             weaponImagePath: display.weaponImagePath,
             beforeStar: display.result.beforeTranscend,
@@ -282,6 +289,7 @@ function patchFromServerAction(
           ...base,
           modal: {
             kind: "transcend_fail",
+            weaponId: display.weaponId,
             weaponName: display.weaponName,
             transcendLevel: display.result.transcendLevel,
             beforeDurability: display.result.beforeDurability,
@@ -575,11 +583,11 @@ async function runAdRewardAction(params: {
   const renderStart = getRenderCount("ModalRoot");
   params.set({
     serverActionPending: true,
-    serverActionMessage: "보상 확인 중...",
+    serverActionMessage: "loading.rewardChecking",
     modal: {
       kind: "ad_reward_progress",
       phase: "preparing",
-      message: "보상 확인 중...",
+      message: "loading.rewardChecking",
     },
   });
 
@@ -595,7 +603,7 @@ async function runAdRewardAction(params: {
           modal: adProgressModal(status),
           serverActionMessage:
             status.phase === "completing"
-              ? "보상 확인 중..."
+              ? "loading.rewardChecking"
               : status.message,
         }),
       onTiming: (event) => {
@@ -695,7 +703,7 @@ async function runAdRewardAction(params: {
       modal: isAdRewardUserError(error)
         ? {
             kind: "ad_reward_progress",
-            phase: message.includes("불러올") ? "unavailable" : "notCompleted",
+            phase: message === "ads.failedToLoad" ? "unavailable" : "notCompleted",
             message,
           }
         : {
@@ -916,7 +924,7 @@ export const useGameStore = create<GameStore>()(
         invalidatePlayerApiCache();
         set({
           serverActionPending: true,
-          serverActionMessage: "서버 데이터 다시 불러오는 중...",
+          serverActionMessage: "loading.reloadServerData",
         });
         try {
           const snapshot = await getCurrentPlayerSnapshot({ force: true });
@@ -1088,7 +1096,7 @@ export const useGameStore = create<GameStore>()(
           if (state.serverActionPending) return;
           set({
             serverActionPending: true,
-            serverActionMessage: "구매 처리 중...",
+            serverActionMessage: "loading.purchaseProcessing",
           });
           void buyWeaponApi({
             ...newActionMeta(),
@@ -1144,7 +1152,7 @@ export const useGameStore = create<GameStore>()(
           gold: state.gold - price,
           ownedWeapons,
           records: bumpWeeklyBest(state.records, ownedWeapons),
-          modal: { kind: "buy_success", weaponName: def.name },
+          modal: { kind: "buy_success", weaponId: def.id, weaponName: def.name },
         });
       },
 
@@ -1185,8 +1193,7 @@ export const useGameStore = create<GameStore>()(
           set({
             modal: {
               kind: "server_error",
-              message:
-                "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요.",
+              message: "inventory.lastWeaponCannotSellLong",
             },
           });
           return;
@@ -1232,7 +1239,7 @@ export const useGameStore = create<GameStore>()(
             pendingSellWeaponIds: [...state.pendingSellWeaponIds, instanceId],
             serverActionPending: true,
             serverActionMessage:
-              mode === "adBonus" ? "광고 판매 처리 중..." : "판매 처리 중...",
+              mode === "adBonus" ? "loading.adSellProcessing" : "loading.sellProcessing",
           });
           const action =
             mode === "adBonus"
@@ -1352,6 +1359,7 @@ export const useGameStore = create<GameStore>()(
           modal: {
             kind: "sell_success",
             info: {
+              weaponId: def.id,
               weaponName: def.name,
               enhanceLevel: live.enhanceLevel,
               transcendLevel: live.transcendLevel,
@@ -1418,6 +1426,7 @@ export const useGameStore = create<GameStore>()(
           set({
             modal: {
               kind: "enhance_confirm",
+              weaponId: def.id,
               weaponName: def.name,
               targetLevel,
               successRatePercent: rate * 100,
@@ -1486,7 +1495,7 @@ export const useGameStore = create<GameStore>()(
           });
           waitMessageTimer = setTimeout(() => {
             if (get().serverActionPending) {
-              set({ serverActionMessage: "결과 확인 중..." });
+              set({ serverActionMessage: "loading.resultChecking" });
             }
           }, slowMessageMs);
           void (async () => {
@@ -1707,6 +1716,7 @@ export const useGameStore = create<GameStore>()(
             weeklySeasonStats,
             modal: {
               kind: "enhance_success",
+              weaponId: def.id,
               weaponName: def.name,
               result,
               recordBreak,
@@ -1732,6 +1742,7 @@ export const useGameStore = create<GameStore>()(
             records: nextRecords,
             modal: {
               kind: "enhance_fail",
+              weaponId: def.id,
               weaponName: def.name,
               result,
             },
@@ -1782,6 +1793,7 @@ export const useGameStore = create<GameStore>()(
               type: "destroyed",
               level: result.level,
               scrapRewards: scrap,
+              weaponId: def.id,
               weaponName: def.name,
             },
           },
@@ -1980,6 +1992,7 @@ export const useGameStore = create<GameStore>()(
             weeklySeasonStats,
             modal: {
               kind: "transcend_success",
+              weaponId: def.id,
               weaponName: def.name,
               weaponImagePath: def.imagePath,
               beforeStar: result.beforeTranscend,
@@ -2009,6 +2022,7 @@ export const useGameStore = create<GameStore>()(
             records: nextRecords,
             modal: {
               kind: "transcend_fail",
+              weaponId: def.id,
               weaponName: def.name,
               transcendLevel: result.transcendLevel,
               beforeDurability: result.beforeDurability,
@@ -2059,6 +2073,7 @@ export const useGameStore = create<GameStore>()(
               type: "destroyed",
               level: result.enhanceLevel,
               scrapRewards: scrap,
+              weaponId: def.id,
               weaponName: result.weaponName,
             },
           },
@@ -2094,7 +2109,7 @@ export const useGameStore = create<GameStore>()(
           if (!withAd) {
             set({
               serverActionPending: true,
-              serverActionMessage: "수령 중...",
+              serverActionMessage: "loading.collecting",
             });
           }
           void action
@@ -2225,7 +2240,7 @@ export const useGameStore = create<GameStore>()(
           if (state.serverActionPending) return;
           set({
             serverActionPending: true,
-            serverActionMessage: "업그레이드 중...",
+            serverActionMessage: "loading.upgrading",
           });
           void upgradeForgeApi({
             ...newActionMeta(),
@@ -2267,9 +2282,8 @@ export const useGameStore = create<GameStore>()(
           set({
             modal: {
               kind: "server_error",
-              title: "광고 보상 준비 중",
-              message:
-                "파괴 잔해 2배 보상은 서버 rewardIntent 구조만 준비되어 있습니다. 다음 Sprint에서 파괴 action과 연결합니다.",
+              title: "ads.rewardPreparing",
+              message: "ads.destroyRewardPreparing",
             },
           });
           return;

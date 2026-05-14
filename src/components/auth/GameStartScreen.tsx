@@ -4,15 +4,18 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { SideBannerSlot } from "@/components/ads/SideBannerSlot";
 import { BACKGROUND_ASSETS } from "@/data/assets";
+import { useLocale } from "@/lib/i18n/useLocale";
+import { type NicknameValidationReason, validateNickname } from "@/lib/player/nickname";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
+import type { NicknameValidateResponse } from "@/types/server";
 
 const NICKNAME_SUGGESTIONS = [
   "불꽃장인",
   "강철망치",
   "전설대장장이",
-  "용광로왕",
   "황금모루",
+  "용광로왕",
 ] as const;
 
 type GameStartScreenProps = {
@@ -53,41 +56,57 @@ function StartSideRail({ side }: { side: "left" | "right" }) {
   );
 }
 
-function validateStartNickname(input: string) {
-  const nickname = input.trim();
-  if (nickname.length < 2 || nickname.length > 12) {
-    return { ok: false as const, message: "닉네임은 2~12자로 입력하세요." };
-  }
-  if (!/[^\s]/.test(nickname)) {
-    return { ok: false as const, message: "공백만으로는 시작할 수 없습니다." };
-  }
-  return { ok: true as const, nickname };
+function nicknameReasonKey(reason: NicknameValidationReason) {
+  return `nickname.${reason}`;
 }
 
 export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
   const [nickname, setNickname] = useState("");
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [guestStarting, setGuestStarting] = useState(false);
   const showDesktopSideRails = useDesktopSideRails();
   const env = getSupabaseBrowserEnv();
   const [suggestion, setSuggestion] = useState<string>(NICKNAME_SUGGESTIONS[0]);
+  const { t } = useLocale();
 
-  function submitGuest(event: FormEvent<HTMLFormElement>) {
+  async function submitGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = validateStartNickname(nickname || suggestion);
+    if (guestStarting) return;
+
+    const result = validateNickname(nickname || suggestion);
     if (!result.ok) {
-      setMessage(result.message);
+      setMessage(t(nicknameReasonKey(result.reason)));
       return;
     }
+
+    setGuestStarting(true);
     setMessage(null);
-    onGuestStart(result.nickname);
+    try {
+      const response = await fetch("/api/player/nickname/validate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ nickname: result.nickname }),
+      });
+      const body = (await response.json()) as NicknameValidateResponse;
+      if (!response.ok || !body.ok) {
+        setMessage(body.ok ? t("error.nicknameValidateFailed") : t(nicknameReasonKey(body.reason)));
+        return;
+      }
+
+      onGuestStart(body.nickname);
+    } catch {
+      setMessage(t("error.nicknameValidateTryAgain"));
+    } finally {
+      setGuestStarting(false);
+    }
   }
 
   async function onGoogleSignIn() {
     setMessage(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setMessage(env.ok ? "Google 로그인 준비에 실패했습니다." : env.message);
+      setMessage(env.ok ? t("error.googleLoginSetup") : env.message);
       return;
     }
 
@@ -100,12 +119,12 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
 
     if (signInError) {
       setGoogleLoading(false);
-      setMessage("Google 로그인에 실패했습니다. 잠시 후 다시 시도하세요.");
+      setMessage(t("error.googleLoginFailed"));
     }
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#050506] text-zinc-100">
+    <main className="game-no-select relative min-h-dvh overflow-hidden bg-[#050506] text-zinc-100">
       {showDesktopSideRails ? (
         <>
           <StartSideRail side="left" />
@@ -117,6 +136,7 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
         <img
           src={BACKGROUND_ASSETS.forge}
           alt=""
+          draggable={false}
           className="h-full w-full object-cover opacity-54 saturate-[0.9]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,3,4,0.62),rgba(5,5,6,0.72)_42%,rgba(3,3,4,0.95))]" />
@@ -132,7 +152,7 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
             세계 최강의 대장장이
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm font-medium leading-6 text-zinc-200/92 sm:text-base">
-            불꽃과 강철로 무기를 벼리고, 최고가의 전설을 만들어 랭킹에 도전하세요.
+            {t("start.subtitle")}
           </p>
 
           <form
@@ -141,7 +161,7 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
           >
             <label className="block">
               <span className="text-xs font-bold text-amber-100">
-                닉네임
+                {t("start.nickname")}
               </span>
               <input
                 value={nickname}
@@ -149,16 +169,18 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
                   setNickname(event.target.value);
                   if (message) setMessage(null);
                 }}
+                disabled={guestStarting}
                 maxLength={12}
                 autoComplete="nickname"
-                className="mt-2 h-13 w-full rounded-md border border-amber-700/38 bg-zinc-950/86 px-4 text-base font-bold text-amber-50 outline-none transition placeholder:text-zinc-600 focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/18"
-                placeholder="닉네임을 입력하세요"
+                className="mt-2 h-13 w-full rounded-md border border-amber-700/38 bg-zinc-950/86 px-4 text-base font-bold text-amber-50 outline-none transition placeholder:text-zinc-600 focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/18 disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder={t("start.nicknamePlaceholder")}
               />
             </label>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
               <button
                 type="button"
-                className="rounded px-1 py-1 font-semibold text-amber-200/86 hover:text-amber-100"
+                disabled={guestStarting}
+                className="rounded px-1 py-1 font-semibold text-amber-200/86 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-55"
                 onClick={() => {
                   const next =
                     NICKNAME_SUGGESTIONS[
@@ -169,28 +191,29 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
                   setMessage(null);
                 }}
               >
-                추천: {suggestion}
+                {t("start.recommend", { nickname: suggestion })}
               </button>
-              <span className="text-zinc-500">2~12자</span>
+              <span className="text-zinc-500">{t("start.nicknameRule")}</span>
             </div>
 
             {message ? (
               <p className="mt-3 rounded-md border border-red-700/45 bg-red-950/38 px-3 py-2 text-sm text-red-100">
-                {message}
+                {message.includes(".") ? t(message) : message}
               </p>
             ) : null}
 
             <button
               type="submit"
-              className="mt-4 h-13 w-full rounded-md bg-[linear-gradient(180deg,#facc15,#f59e0b_58%,#b45309)] px-4 text-base font-black text-zinc-950 shadow-[0_14px_34px_rgba(245,158,11,0.32)] transition hover:brightness-110 active:translate-y-px"
+              disabled={guestStarting}
+              className="mt-4 h-13 w-full rounded-md bg-[linear-gradient(180deg,#facc15,#f59e0b_58%,#b45309)] px-4 text-base font-black text-zinc-950 shadow-[0_14px_34px_rgba(245,158,11,0.32)] transition hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
             >
-              시작하기
+              {guestStarting ? t("common.checking") : t("common.start")}
             </button>
 
             <div className="mt-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-amber-900/35" />
               <span className="text-[11px] font-medium text-zinc-500">
-                선택
+                {t("common.optional")}
               </span>
               <div className="h-px flex-1 bg-amber-900/35" />
             </div>
@@ -204,11 +227,11 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
               <span className="flex size-5 items-center justify-center rounded-full bg-white text-xs font-black text-blue-600">
                 G
               </span>
-              {googleLoading ? "Google로 이동 중..." : "Google 로그인"}
+              {googleLoading ? t("start.googleMoving") : t("start.googleLogin")}
             </button>
 
             <p className="mt-3 text-center text-xs leading-5 text-zinc-500">
-              로그인 없이 바로 플레이할 수 있습니다. 계정 연동은 나중에도 가능합니다.
+              {t("start.guestNotice")}
             </p>
           </form>
         </div>
@@ -216,13 +239,13 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
         <footer className="mt-7 w-full text-xs text-zinc-500">
           <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <Link href="/how-to-play" className="hover:text-amber-200">
-              게임 가이드
+              {t("links.gameGuide")}
             </Link>
             <Link href="/terms" className="hover:text-amber-200">
-              이용약관
+              {t("links.terms")}
             </Link>
             <Link href="/privacy" className="hover:text-amber-200">
-              개인정보처리방침
+              {t("links.privacy")}
             </Link>
           </nav>
         </footer>

@@ -62,7 +62,7 @@ import type {
 } from "@/types/supabase";
 
 const PROFILE_SELECT =
-  "id,auth_user_id,guest_id,guest_secret_hash,nickname,play_mode,linked_at,created_at,updated_at";
+  "id,auth_user_id,guest_id,guest_secret_hash,nickname,normalized_nickname,nickname_updated_at,play_mode,status,linked_at,archived_at,deleted_at,created_at,updated_at";
 const PLAYER_STATE_SELECT =
   "id,user_id,gold,forge_ember,transcend_stone,forge_level,forge_last_collected_at,current_season_id,stats,created_at,updated_at";
 const PLAYER_RECORD_SELECT =
@@ -406,7 +406,7 @@ export async function buyWeaponServer(
               currentStone: Number(state.transcend_stone),
               changedWeapon: insertedWeapon,
             },
-        display: { kind: "buy", weaponName: def.name },
+        display: { kind: "buy", weaponId: def.id, weaponName: def.name },
       };
     },
   });
@@ -763,6 +763,7 @@ export async function enhanceWeaponServer(
             type: "destroyed",
             level: owned.enhanceLevel,
             scrapRewards: scrap,
+            weaponId: def.id,
             weaponName: def.name,
           };
           nextRecords = {
@@ -946,6 +947,7 @@ export async function enhanceWeaponServer(
             },
         display: {
           kind: "enhance",
+          weaponId: def.id,
           weaponName: def.name,
           result,
           recordBreak,
@@ -1068,6 +1070,7 @@ export async function transcendWeaponServer(
             transcendLevel: owned.transcendLevel,
             enhanceLevel: owned.enhanceLevel,
             scrapRewards: scrap,
+            weaponId: def.id,
             weaponName: def.name,
             stoneCost,
           };
@@ -1165,6 +1168,7 @@ export async function transcendWeaponServer(
         snapshot: await getPlayerSnapshot(user),
         display: {
           kind: "transcend",
+          weaponId: def.id,
           weaponName: def.name,
           weaponImagePath: def.imagePath,
           result: displayResult,

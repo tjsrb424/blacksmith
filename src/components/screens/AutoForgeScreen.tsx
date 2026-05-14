@@ -14,18 +14,22 @@ import {
 } from "@/lib/forge";
 import { formatGold, formatInt } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { useLocale } from "@/lib/i18n/useLocale";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
-function formatMaxAccumLabel(minutes: number): string {
+function formatMaxAccumLabel(
+  minutes: number,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h <= 0) return `${minutes}분`;
-  if (m === 0) return `${h}시간`;
-  return `${h}시간 ${m}분`;
+  if (h <= 0) return t("time.minutes", { minutes });
+  if (m === 0) return t("time.hours", { hours: h });
+  return t("time.hoursMinutes", { hours: h, minutes: m });
 }
 
 function ForgeProgressBar({
@@ -55,6 +59,7 @@ function ForgeProgressBar({
 
 export function AutoForgeScreen() {
   useRenderDiagnostics("AutoForgeScreen");
+  const { t } = useLocale();
   const forgeLevel = useGameStore((s) => s.forgeLevel);
   const forgeLastCollectAt = useGameStore((s) => s.forgeLastCollectAt);
   const ember = useGameStore((s) => s.ember);
@@ -98,11 +103,11 @@ export function AutoForgeScreen() {
       <ScreenBackground screen="forge" />
       <header className="relative z-10">
         <h2 className="text-xl font-bold text-amber-50 drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)]">
-          제련로
+          {t("forge.title")}
         </h2>
         <p className="mt-1 text-sm text-zinc-300 drop-shadow-[0_1px_8px_rgba(0,0,0,0.65)]">
-          시간이 지나면 제련의 불씨가 쌓입니다. 최대 누적{" "}
-          <span className="text-amber-200/90">{formatMaxAccumLabel(snap.maxAccumulateMinutes)}</span>
+          {t("forge.description")}{" "}
+          <span className="text-amber-200/90">{formatMaxAccumLabel(snap.maxAccumulateMinutes, t)}</span>
         </p>
       </header>
 
@@ -118,11 +123,11 @@ export function AutoForgeScreen() {
                 Auto Forge
               </div>
               <div className="mt-1 text-lg font-bold text-amber-50">
-                제련로 Lv.{forgeLevel}
+                {t("forge.level", { level: forgeLevel })}
               </div>
             </div>
             <div className="rounded-lg bg-black/28 px-3 py-2 text-right ring-1 ring-amber-700/25">
-              <div className="text-[10px] text-zinc-500">분당</div>
+              <div className="text-[10px] text-zinc-500">{t("forge.perMinute")}</div>
               <div className="font-mono text-sm text-amber-200">
                 {formatInt(snap.ratePerMinute)}
               </div>
@@ -135,11 +140,12 @@ export function AutoForgeScreen() {
               <img
                 src={CURRENCY_ICONS.ember}
                 alt=""
+                draggable={false}
                 className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(251,146,60,0.5)]"
               />
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/65">
-              미수령 불씨
+              {t("forge.pendingEmber")}
             </div>
             <div className="numeric-value mx-auto mt-1 max-w-full text-center font-mono text-5xl font-black text-orange-200 drop-shadow-[0_0_24px_rgba(251,146,60,0.42)]">
               {formatInt(pending)}
@@ -148,7 +154,7 @@ export function AutoForgeScreen() {
 
           <div className="space-y-2 rounded-xl bg-black/24 p-3 ring-1 ring-amber-900/24">
             <div className="flex justify-between gap-2 text-sm text-zinc-300">
-              <span>보관량</span>
+              <span>{t("forge.storage")}</span>
               <span
                 className={cn(
                   "numeric-value max-w-[12rem] font-mono",
@@ -160,14 +166,14 @@ export function AutoForgeScreen() {
             </div>
             <ForgeProgressBar pct={pct} full={full} warnBand={warnBand} />
             <p className="text-[11px] text-zinc-500">
-              최대 누적 {formatMaxAccumLabel(snap.maxAccumulateMinutes)} · 가득 차면 추가 생산이 중단됩니다.
+              {t("forge.maxAccumNotice", { time: formatMaxAccumLabel(snap.maxAccumulateMinutes, t) })}
             </p>
             {full ? (
               <p className="rounded-lg bg-red-950/35 p-2.5 text-xs leading-relaxed text-red-100 ring-1 ring-red-500/25">
-                제련로가 가득 찼습니다. 지금 수령하면 생산 손실을 막을 수 있습니다.
+                {t("forge.fullWarning")}
               </p>
             ) : warnBand ? (
-              <p className="text-xs text-amber-300/95">보관량이 높습니다. 수령을 권장합니다.</p>
+              <p className="text-xs text-amber-300/95">{t("forge.highStorageWarning")}</p>
             ) : null}
           </div>
 
@@ -178,16 +184,16 @@ export function AutoForgeScreen() {
               onClick={() => collect(false)}
             >
               <span className="text-[17px] font-black leading-none tracking-wide text-amber-50 drop-shadow-[0_1px_8px_rgba(0,0,0,0.55)]">
-                수령하기
+                {t("forge.collect")}
               </span>
             </FantasyButton>
             {isRewardAdDisabled ? (
               <div className="rounded-xl border border-zinc-800/80 bg-black/24 px-3 py-3 text-center ring-1 ring-zinc-900/60">
                 <div className="flex justify-center">
-                  <StatusBadge tone="pending">광고 준비 중</StatusBadge>
+                  <StatusBadge tone="pending">{t("reward.preparing")}</StatusBadge>
                 </div>
                 <div className="mt-1 text-[11px] text-zinc-600">
-                  기본 수령은 정상 이용 가능합니다.
+                  {t("reward.basicAvailable")}
                 </div>
               </div>
             ) : (
@@ -197,7 +203,7 @@ export function AutoForgeScreen() {
                 disabled={pending <= 0 || serverActionPending}
                 onClick={() => collect(true)}
               >
-                <span className="text-sm font-black">2배 수령</span>
+                <span className="text-sm font-black">{t("forge.doubleCollect")}</span>
                 <span className="numeric-value max-w-full font-mono text-[11px] text-amber-100/85">
                   {formatInt(pending * 2)}
                 </span>
@@ -206,7 +212,7 @@ export function AutoForgeScreen() {
           </div>
           {isRewardAdDisabled ? (
             <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-              광고 보상은 준비 중입니다. 기본 수령은 정상 이용할 수 있습니다.
+              {t("reward.extraPreparing")}
             </p>
           ) : (
             <AdRewardStatusText rewardType="forgeCollectDouble" />
@@ -214,7 +220,7 @@ export function AutoForgeScreen() {
 
           <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
             <div className="rounded-xl bg-black/24 p-3 ring-1 ring-zinc-700/50">
-              <div className="text-zinc-500">기본 수령</div>
+              <div className="text-zinc-500">{t("forge.basicCollect")}</div>
               <div className="numeric-value mt-1 font-mono text-amber-100">{formatInt(pending)}</div>
             </div>
             <div
@@ -225,7 +231,7 @@ export function AutoForgeScreen() {
                   : "bg-violet-950/16 ring-violet-700/30",
               )}
             >
-              <div className="text-zinc-500">광고 2배</div>
+              <div className="text-zinc-500">{t("forge.adDouble")}</div>
               <div className="numeric-value mt-1 font-mono text-violet-100">{formatInt(pending * 2)}</div>
             </div>
           </div>
@@ -233,35 +239,35 @@ export function AutoForgeScreen() {
       </section>
 
       <div className="relative z-10 grid gap-3">
-        <FantasyPanel title="생산 정보" className="space-y-2 text-sm">
+        <FantasyPanel title={t("forge.productionInfo")} className="space-y-2 text-sm">
           <div className="stat-row">
-            <span className="text-zinc-500">분당 생산</span>
-            <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerMinute)} / 분</span>
+            <span className="text-zinc-500">{t("forge.productionPerMinute")}</span>
+            <span className="numeric-value font-mono text-amber-100">{t("forge.perMinuteValue", { amount: formatInt(snap.ratePerMinute) })}</span>
           </div>
           <div className="stat-row">
-            <span className="text-zinc-500">시간당 생산</span>
-            <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerHour)} / 시</span>
+            <span className="text-zinc-500">{t("forge.productionPerHour")}</span>
+            <span className="numeric-value font-mono text-amber-100">{t("forge.perHourValue", { amount: formatInt(snap.ratePerHour) })}</span>
           </div>
           <div className="stat-row">
-            <span className="text-zinc-500">보유 불씨</span>
+            <span className="text-zinc-500">{t("currency.emberOwned")}</span>
             <span className="numeric-value font-mono text-zinc-200">{formatInt(ember)}</span>
           </div>
         </FantasyPanel>
 
-        <FantasyPanel title="업그레이드" className="space-y-3 text-sm">
+        <FantasyPanel title={t("forge.upgrade")} className="space-y-3 text-sm">
           <div className="space-y-2">
             <div className="stat-row">
-              <span className="text-zinc-500">현재 생산</span>
-              <span className="numeric-value font-mono text-amber-100">{formatInt(snap.ratePerMinute)} / 분</span>
+              <span className="text-zinc-500">{t("forge.currentProduction")}</span>
+              <span className="numeric-value font-mono text-amber-100">{t("forge.perMinuteValue", { amount: formatInt(snap.ratePerMinute) })}</span>
             </div>
             <div className="stat-row">
-              <span className="text-zinc-500">다음 생산</span>
+              <span className="text-zinc-500">{t("forge.nextProduction")}</span>
               <span className="numeric-value font-mono text-amber-100">
-                {forgeLevel >= 10 ? "MAX" : `${formatInt(nextRate)} / 분`}
+                {forgeLevel >= 10 ? "MAX" : t("forge.perMinuteValue", { amount: formatInt(nextRate) })}
               </span>
             </div>
             <div className="stat-row">
-              <span className="text-zinc-500">비용</span>
+              <span className="text-zinc-500">{t("enhance.cost")}</span>
               <span className="numeric-value font-mono text-amber-200">
                 {forgeLevel >= 10 ? "—" : formatGold(upgradeCost)}
               </span>
@@ -273,11 +279,11 @@ export function AutoForgeScreen() {
             disabled={forgeLevel >= 10 || !canAffordUpgrade || serverActionPending}
             onClick={() => requestUpgrade()}
           >
-            {forgeLevel >= 10 ? "최대 레벨" : "업그레이드"}
+            {forgeLevel >= 10 ? t("forge.maxLevel") : t("forge.upgrade")}
           </FantasyButton>
           {!canAffordUpgrade && forgeLevel < 10 ? (
             <div className="flex justify-center">
-              <StatusBadge tone="shortage">골드 부족</StatusBadge>
+              <StatusBadge tone="shortage">{t("shop.notEnoughGold")}</StatusBadge>
             </div>
           ) : null}
         </FantasyPanel>

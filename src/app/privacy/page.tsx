@@ -4,7 +4,7 @@ import { PublicPageLayout, PublicSection } from "@/components/public/PublicPageL
 export const metadata: Metadata = {
   title: "개인정보처리방침 | 세계 최강의 대장장이",
   description:
-    "세계 최강의 대장장이 베타 서비스의 개인정보 수집, 이용, 보관, 제3자 서비스 이용 안내입니다.",
+    "세계 최강의 대장장이 서비스 이용과 관련해 처리되는 정보와 이용 목적을 안내합니다.",
 };
 
 export default function PrivacyPage() {
@@ -12,59 +12,90 @@ export default function PrivacyPage() {
     <PublicPageLayout
       eyebrow="Privacy"
       title="개인정보처리방침"
-      description="본 문서는 베타 서비스용 초안이며 정식 출시 전 보완될 수 있습니다."
+      description="본 문서는 세계 최강의 대장장이 서비스 이용과 관련해 처리되는 정보와 이용 목적을 안내합니다."
     >
       <PublicSection title="수집하는 정보">
-        <p>
-          Google 로그인으로부터 제공되는 기본 계정 식별 정보, Supabase Auth
-          사용자 ID, 닉네임, 게임 진행 데이터, 보유 무기, 강화 수치, 내구도,
-          보유 재화, 제련로 상태, 랭킹 기록, 월드레코드 기록, 광고 보상
-          요청/완료 로그를 저장할 수 있습니다.
-        </p>
-        <p>
-          접속 오류 확인과 성능 진단을 위해 최소한의 이벤트 로그가 사용될 수
-          있습니다.
-        </p>
+        <p>서비스 이용 과정에서 다음 정보가 저장될 수 있습니다.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>닉네임</li>
+          <li>게스트 식별자</li>
+          <li>계정 연동 시 제공되는 기본 계정 식별 정보</li>
+          <li>게임 진행 정보</li>
+          <li>보유 무기, 강화 수치, 내구도, 보유 재화</li>
+          <li>제련로 상태</li>
+          <li>랭킹 및 월드레코드 기록</li>
+          <li>오류 확인과 서비스 개선을 위한 최소한의 이용 기록</li>
+        </ul>
       </PublicSection>
+
       <PublicSection title="수집하지 않는 정보">
         <p>
-          현재 결제 정보, 주민등록번호 등 민감한 개인정보, Google 비밀번호,
-          개인 Google Drive, Gmail, 연락처 정보는 수집하지 않습니다.
+          서비스는 Google 비밀번호, 개인 메일, 연락처, 결제 정보, 주민등록번호
+          등 민감한 정보를 수집하지 않습니다.
         </p>
       </PublicSection>
+
       <PublicSection title="정보 이용 목적">
+        <p>수집된 정보는 다음 목적으로 사용됩니다.</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>게임 진행 저장</li>
+          <li>계정 연동 및 이어하기 제공</li>
+          <li>랭킹 및 월드레코드 표시</li>
+          <li>부정 이용 방지</li>
+          <li>오류 확인과 서비스 개선</li>
+          <li>문의 대응</li>
+        </ul>
         <p>
-          수집한 정보는 로그인 및 계정 식별, 게임 진행 저장, 랭킹/월드레코드
-          표시, 부정 이용과 중복 보상 방지, 서비스 개선과 오류 확인, 베타 테스트
-          품질 개선에 사용됩니다.
+          닉네임은 랭킹 등 게임 내 표시 목적으로 사용될 수 있으며, 부적절한
+          닉네임은 제한될 수 있습니다.
         </p>
       </PublicSection>
-      <PublicSection title="제3자 서비스">
-        <p>
-          본 서비스는 Supabase, Vercel, Google OAuth, Google AdSense를 사용할 수
-          있으며, 향후 H5 Games Ads 또는 기타 광고 서비스가 추가될 수 있습니다.
-        </p>
-      </PublicSection>
-      <PublicSection title="보관 기간">
-        <p>
-          정보는 베타 테스트 기간 동안 보관될 수 있습니다. 유저 요청 시 삭제를
-          검토할 수 있으며, 운영 정책에 따라 보관 기준은 변경될 수 있습니다.
-        </p>
-      </PublicSection>
-      <PublicSection title="문의">
-        <p>
-          개인정보 관련 문의는 <a className="text-amber-200 underline" href="/contact">문의 페이지</a> 또는
-          tjsrb424@gmail.com 으로 보내주세요.
-        </p>
-      </PublicSection>
+
       <PublicSection title="게스트 플레이 정보">
         <p>
-          서비스 이용을 위해 닉네임, 게스트 식별자, 게임 진행 정보, 랭킹 정보가 저장될 수 있습니다.
-          게스트 식별자는 계정 없이 플레이 기록을 유지하고 랭킹을 제공하기 위한 임의 식별자입니다.
+          계정 없이 플레이할 수 있도록 게스트 식별자와 게임 진행 정보가 저장될
+          수 있습니다.
         </p>
         <p>
-          계정 연동 시 게스트 진행 정보가 로그인 계정과 연결될 수 있습니다. 게스트 소유 확인용
-          비밀값은 원문이 아닌 해시 형태로 저장됩니다.
+          계정 연동 시 게스트 진행 정보가 Google 계정과 연결될 수 있습니다.
+          이미 저장된 계정 기록이 있는 경우 사용자가 선택한 기록을 기준으로
+          이어서 플레이할 수 있습니다.
+        </p>
+      </PublicSection>
+
+      <PublicSection title="기록 초기화와 삭제">
+        <p>
+          사용자는 서비스 내 기능 또는 문의를 통해 게스트 기록 초기화나 계정
+          데이터 삭제를 요청할 수 있습니다. 계정 데이터 삭제는 Google 계정 자체
+          삭제가 아니라, 이 게임에 저장된 진행 정보 삭제를 의미합니다.
+        </p>
+        <p>
+          부정 이용 방지와 서비스 안정성을 위해 필요한 최소한의 기록은 일정 기간
+          보관될 수 있습니다.
+        </p>
+      </PublicSection>
+
+      <PublicSection title="외부 서비스 이용">
+        <p>
+          서비스 운영을 위해 외부 인증, 호스팅, 데이터 저장, 광고 또는 분석
+          서비스가 사용될 수 있습니다.
+        </p>
+      </PublicSection>
+
+      <PublicSection title="보관 기간">
+        <p>
+          정보는 서비스 제공과 운영에 필요한 기간 동안 보관될 수 있습니다. 삭제
+          요청이나 문의는 문의 페이지 또는 이메일을 통해 접수할 수 있습니다.
+        </p>
+      </PublicSection>
+
+      <PublicSection title="문의">
+        <p>
+          개인정보 관련 문의는{" "}
+          <a className="text-amber-200 underline" href="/contact">
+            문의 페이지
+          </a>
+          또는 tjsrb424@gmail.com 으로 보내주세요.
         </p>
       </PublicSection>
     </PublicPageLayout>

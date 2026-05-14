@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { SettingsButton } from "@/components/settings/SettingsButton";
 import { ResourcePill } from "@/components/ui/ResourcePill";
 import { CURRENCY_ICONS } from "@/data/assets";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
+import { useLocale } from "@/lib/i18n/useLocale";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
@@ -25,6 +27,7 @@ function CurrencyIcon({
     <img
       src={src}
       alt=""
+      draggable={false}
       className="h-6 w-6 object-contain"
       title={label}
       onError={() => setFailed(true)}
@@ -32,8 +35,13 @@ function CurrencyIcon({
   );
 }
 
-export function TopResourceBar() {
+export function TopResourceBar({
+  onOpenSettings,
+}: {
+  onOpenSettings?: () => void;
+}) {
   useRenderDiagnostics("TopResourceBar");
+  const { t } = useLocale();
   const gold = useGameStore((s) => s.gold);
   const ember = useGameStore((s) => s.ember);
   const stone = useGameStore((s) => s.transcendStone);
@@ -44,17 +52,17 @@ export function TopResourceBar() {
   return (
     <header className="resource-header relative z-40 shrink-0 border-b border-amber-900/25 bg-[rgba(5,5,8,0.82)] backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-2.5 py-1.5">
-        <div className="grid min-w-0 grid-cols-3 gap-1.5">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-1.5">
           <ResourcePill
-            icon={<CurrencyIcon src={CURRENCY_ICONS.gold} emoji="G" label="골드" />}
-            label="골드"
+            icon={<CurrencyIcon src={CURRENCY_ICONS.gold} emoji="G" label={t("currency.gold")} />}
+            label={t("currency.gold")}
             value={gold}
             onPlus={showMockHint ? () => mockAdReward("gold") : undefined}
           />
           <ResourcePill
-            icon={<CurrencyIcon src={CURRENCY_ICONS.ember} emoji="E" label="제련의 불씨" />}
-            label="제련의 불씨"
-            shortLabel="불씨"
+            icon={<CurrencyIcon src={CURRENCY_ICONS.ember} emoji="E" label={t("currency.ember")} />}
+            label={t("currency.ember")}
+            shortLabel={t("currency.emberShort")}
             value={ember}
             onPlus={showMockHint ? () => mockAdReward("ember") : undefined}
           />
@@ -63,14 +71,15 @@ export function TopResourceBar() {
               <CurrencyIcon
                 src={CURRENCY_ICONS.transcendStone}
                 emoji="S"
-                label="초월석"
+                label={t("currency.transcendStone")}
               />
             }
-            label="초월석"
-            shortLabel="초월"
+            label={t("currency.transcendStone")}
+            shortLabel={t("currency.transcendStoneShort")}
             value={stone}
             onPlus={showMockHint ? () => mockAdReward("stone") : undefined}
           />
+          {onOpenSettings ? <SettingsButton onClick={onOpenSettings} /> : null}
         </div>
         {showMockHint ? (
           <p className="mt-1 min-w-0 truncate text-[10px] leading-none text-zinc-600">

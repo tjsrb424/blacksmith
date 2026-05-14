@@ -12,7 +12,6 @@ import { BlacksmithResultFx } from "@/components/effects/BlacksmithResultFx";
 import type { BlacksmithFxKind } from "@/components/effects/BlacksmithResultFx";
 import { ForgeGlow, type ForgeAuraMode } from "@/components/effects/ForgeGlow";
 import { CURRENCY_ICONS } from "@/data/assets";
-import { gradeLabel } from "@/lib/labels";
 import {
   formatGold,
   formatInt,
@@ -33,10 +32,16 @@ import {
 } from "@/lib/transcend";
 import { useGameStore } from "@/store/gameStore";
 import { cn } from "@/lib/cn";
+import { useLocale } from "@/lib/i18n/useLocale";
+import {
+  getWeaponDisplayName,
+  getWeaponGradeLabel,
+} from "@/lib/i18n/weaponText";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
 export function BlacksmithScreen() {
   useRenderDiagnostics("BlacksmithScreen");
+  const { locale, t } = useLocale();
   const modal = useGameStore((s) => s.modal);
   const equippedId = useGameStore((s) => s.equippedWeaponId);
   const owned = useGameStore((s) => s.ownedWeapons);
@@ -82,7 +87,9 @@ export function BlacksmithScreen() {
   const equipped = owned.find((w) => w.instanceId === equippedId) ?? null;
   const def = equipped ? WEAPONS_BY_ID[equipped.weaponId] : null;
 
-  const stageWeaponName = def?.name ?? "무기 없음";
+  const stageWeaponName = def
+    ? getWeaponDisplayName(locale, def)
+    : t("blacksmith.noWeapon");
   const enhanceLevel = equipped?.enhanceLevel ?? 0;
   const transcendLevel = equipped?.transcendLevel ?? 0;
   const durability = equipped?.durability ?? 0;
@@ -170,13 +177,13 @@ export function BlacksmithScreen() {
         {!def || !equipped ? (
           <>
             <p className="text-base font-medium text-zinc-300">
-              장착한 무기가 없습니다.
+              {t("blacksmith.noEquippedWeapon")}
             </p>
             <p className="mt-2 text-sm text-zinc-500">
-              상점에서 무기를 구매해 강화해보세요.
+              {t("blacksmith.buyWeaponPrompt")}
             </p>
             <FantasyButton className="mt-4 min-h-12" onClick={() => setTab("shop")}>
-              무기상점으로
+              {t("shop.goToShop")}
             </FantasyButton>
           </>
         ) : (
@@ -203,7 +210,7 @@ export function BlacksmithScreen() {
               >
                 <WeaponImage
                   src={def.imagePath}
-                  alt={def.name}
+                  alt={stageWeaponName}
                   className="relative z-10 max-h-[min(21vw,82px)] w-auto object-contain drop-shadow-[0_0_22px_rgba(251,146,60,0.42)] sm:max-h-[145px]"
                 />
               </motion.div>
@@ -226,22 +233,22 @@ export function BlacksmithScreen() {
               </motion.div>
               {rankingCandidate ? (
                 <StatusBadge tone="ranking" className="mt-1 px-1.5 text-[9px]">
-                  기록 후보
+                  {t("ranking.recordCandidate")}
                 </StatusBadge>
               ) : null}
               {isMaxEnhance && transcendLevel === 0 ? (
                 <StatusBadge tone="transcend" className="mt-1.5">
-                  초월 가능
+                  {t("transcend.available")}
                 </StatusBadge>
               ) : null}
               {isMaxEnhance && transcendLevel >= 10 ? (
                 <StatusBadge tone="recommended" className="mt-1.5">
-                  최종 초월 달성
+                  {t("transcend.maxReached")}
                 </StatusBadge>
               ) : null}
               {durability <= 1 && equipped && equipped.durability > 0 ? (
                 <p className="mt-1 rounded-lg border border-red-500/24 bg-red-950/42 px-2.5 py-1 text-[10px] font-semibold text-red-200 ring-1 ring-red-500/18">
-                  위험: 다음 실패 시 파괴 가능
+                  {t("enhance.destroyRisk")}
                 </p>
               ) : null}
             </div>
@@ -252,29 +259,31 @@ export function BlacksmithScreen() {
   );
 
   const infoPanel = (
-    <FantasyPanel title="무기 정보" className="h-full p-2 [&>h3]:mb-1">
+    <FantasyPanel title={t("blacksmith.weaponInfo")} className="h-full p-2 [&>h3]:mb-1">
       {!def || !equipped ? (
         <p className="text-sm text-zinc-400">
-          장착한 무기가 없습니다. 보관함에서 장착하거나 상점에서 구매하세요.
+          {t("blacksmith.equipOrBuyPrompt")}
         </p>
       ) : (
         <dl className="space-y-1 text-xs sm:text-sm">
           <div className="stat-row">
-            <dt className="text-zinc-500">등급</dt>
-            <dd className="text-zinc-100">{gradeLabel(def.grade)}</dd>
+            <dt className="text-zinc-500">{t("weapon.grade")}</dt>
+            <dd className="text-zinc-100">
+              {getWeaponGradeLabel(locale, def.grade)}
+            </dd>
           </div>
           <div className="stat-row">
-            <dt className="text-zinc-500">내구도</dt>
+            <dt className="text-zinc-500">{t("weapon.durability")}</dt>
             <dd className="flex items-center justify-end gap-2">
               <DurabilityIcons value={durability} emphasizeCritical />
             </dd>
           </div>
           <div className="stat-row">
-            <dt className="text-zinc-500">판매가</dt>
+            <dt className="text-zinc-500">{t("inventory.salePrice")}</dt>
             <dd className="numeric-value font-mono text-sky-300">{formatGold(saleGold)}</dd>
           </div>
           <div className="stat-row">
-            <dt className="text-zinc-500">랭킹 가치</dt>
+            <dt className="text-zinc-500">{t("ranking.score.rankingValue")}</dt>
             <dd className="numeric-value font-mono text-zinc-400">{formatGold(rankingVal)}</dd>
           </div>
         </dl>
@@ -283,30 +292,31 @@ export function BlacksmithScreen() {
   );
 
   const enhancePanel = (
-    <FantasyPanel title="강화" className="h-full p-2 [&>h3]:mb-1">
+    <FantasyPanel title={t("enhance.title")} className="h-full p-2 [&>h3]:mb-1">
       {def && equipped ? (
         <div className="space-y-2">
           {!isMaxEnhance ? (
             <>
               <dl className="space-y-1 text-xs sm:text-sm">
                 <div className="stat-row">
-                  <dt className="text-zinc-500">다음 단계</dt>
+                  <dt className="text-zinc-500">{t("enhance.nextLevel")}</dt>
                   <dd className="numeric-value font-mono text-zinc-100">+{targetLevel}</dd>
                 </div>
                 <div className="stat-row">
-                  <dt className="text-zinc-500">성공률</dt>
+                  <dt className="text-zinc-500">{t("enhance.successRate")}</dt>
                   <dd className="numeric-value font-mono text-emerald-300">
                     {formatPercent(successRate)}
                   </dd>
                 </div>
                 <div className="stat-row">
-                  <dt className="text-zinc-500">비용</dt>
+                  <dt className="text-zinc-500">{t("enhance.cost")}</dt>
                   <dd className="flex min-w-0 items-center justify-end text-amber-200">
                     <span className="inline-flex min-w-0 items-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={CURRENCY_ICONS.ember}
                         alt=""
+                        draggable={false}
                         className="h-4 w-4 shrink-0 object-contain"
                       />
                       <span className="numeric-value font-mono">{formatInt(cost)}</span>
@@ -314,18 +324,18 @@ export function BlacksmithScreen() {
                   </dd>
                 </div>
                 <div className="stat-row">
-                  <dt className="text-zinc-500">실패 시</dt>
+                  <dt className="text-zinc-500">{t("enhance.onFail")}</dt>
                   <dd className="whitespace-nowrap text-right text-[11px] text-zinc-300">
                     {failDurability
-                      ? "내구도 -1 (+8 이상 구간)"
-                      : "내구도 유지 (+0~+7)"}
+                      ? t("enhance.durabilityMinusProtected")
+                      : t("enhance.durabilityKept")}
                   </dd>
                 </div>
               </dl>
               {isEnhancing ? (
                 <div className="rounded-xl border border-amber-600/45 bg-gradient-to-br from-amber-950/55 to-zinc-950/40 px-4 py-3 text-center ring-1 ring-amber-500/25">
                   <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-200/95">
-                    {targetLevel >= 8 ? "제련 중..." : "강화중..."}
+                    {targetLevel >= 8 ? t("enhance.forging") : t("enhance.enhancing")}
                   </div>
                   <div className="mt-2 flex justify-center gap-1.5">
                     {[0, 1, 2].map((i) => (
@@ -357,19 +367,19 @@ export function BlacksmithScreen() {
                   className="enhance-button__label text-[18px] font-black leading-none tracking-wide drop-shadow-[0_1px_8px_rgba(0,0,0,0.55)]"
                   style={{ color: "#fff7e8" }}
                 >
-                  {durability <= 1 && failDurability ? "위험 강화" : "강화하기"}
+                  {durability <= 1 && failDurability ? t("enhance.riskyAction") : t("enhance.action")}
                 </span>
               </FantasyButton>
             </>
           ) : (
             <div className="rounded-lg bg-zinc-900/60 p-3 text-center text-sm text-zinc-400 ring-1 ring-amber-900/40">
-              최대 강화 달성 (+15)
+              {t("enhance.maxLevel")}
             </div>
           )}
         </div>
       ) : (
         <FantasyButton className="min-h-12 w-full" onClick={() => setTab("shop")}>
-          무기 구매하기
+          {t("shop.buyWeapon")}
         </FantasyButton>
       )}
     </FantasyPanel>
@@ -377,59 +387,59 @@ export function BlacksmithScreen() {
 
   const transcendPanel = (
     <FantasyPanel
-      title="초월"
+      title={t("transcend.title")}
       className={`h-full ${isMaxEnhance ? "ring-1 ring-violet-600/30" : ""}`}
     >
       {def && equipped && isMaxEnhance ? (
         transcendLevel >= 10 ? (
           <div className="space-y-3 text-center text-sm text-zinc-400">
-            <p className="font-semibold text-amber-100/90">최종 초월 달성</p>
-            <p className="text-xs">★10 — 더 이상 초월할 수 없습니다.</p>
+            <p className="font-semibold text-amber-100/90">{t("transcend.maxReached")}</p>
+            <p className="text-xs">{t("transcend.noMore")}</p>
             <FantasyButton
               variant="danger"
               className="min-h-12 w-full focus-visible:ring-2 focus-visible:ring-amber-400/80"
               disabled={durability <= 0 || isEnhancing || isLastWeapon || serverActionPending}
               title={
                 isLastWeapon
-                  ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
+                  ? t("inventory.lastWeaponCannotSellLong")
                   : undefined
               }
               onClick={() => requestSellEquipped()}
             >
-              판매하기
+              {t("inventory.sell")}
             </FantasyButton>
           </div>
         ) : (
           <div className="space-y-4">
             <dl className="space-y-2 text-sm">
               <div className="stat-row">
-                <dt className="text-zinc-500">현재</dt>
+                <dt className="text-zinc-500">{t("common.current")}</dt>
                 <dd className="numeric-value font-mono text-violet-200">
                   ★{transcendLevel}
                 </dd>
               </div>
               <div className="stat-row">
-                <dt className="text-zinc-500">다음</dt>
+                <dt className="text-zinc-500">{t("common.next")}</dt>
                 <dd className="numeric-value font-mono text-fuchsia-200">★{nextStar}</dd>
               </div>
               <div className="stat-row">
-                <dt className="text-zinc-500">성공률</dt>
+                <dt className="text-zinc-500">{t("enhance.successRate")}</dt>
                 <dd className="numeric-value font-mono text-emerald-300">
                   {formatPercent(nextTranscendRate)}
                 </dd>
               </div>
               <div className="stat-row">
-                <dt className="text-zinc-500">필요 초월석</dt>
+                <dt className="text-zinc-500">{t("transcend.requiredStone")}</dt>
                 <dd className="numeric-value font-mono text-violet-200">
-                  {formatInt(nextTranscendCost)}개 (보유 {formatInt(transcendStone)})
+                  {t("transcend.stoneOwned", { cost: formatInt(nextTranscendCost), owned: formatInt(transcendStone) })}
                 </dd>
               </div>
               <div className="stat-row">
-                <dt className="text-zinc-500">실패 시</dt>
-                <dd className="whitespace-nowrap text-right text-xs text-zinc-400">내구도 -1 · 단계 유지</dd>
+                <dt className="text-zinc-500">{t("enhance.onFail")}</dt>
+                <dd className="whitespace-nowrap text-right text-xs text-zinc-400">{t("transcend.failEffect")}</dd>
               </div>
               <div className="stat-row border-t border-zinc-800 pt-2">
-                <dt className="text-zinc-500">예상 랭킹 가치</dt>
+                <dt className="text-zinc-500">{t("transcend.expectedRankingValue")}</dt>
                 <dd className="numeric-value font-mono text-xs text-emerald-300/95">
                   {formatGold(previewNext)}
                 </dd>
@@ -437,7 +447,7 @@ export function BlacksmithScreen() {
             </dl>
             {durability <= 1 ? (
               <p className="rounded-lg bg-red-950/35 p-2 text-[11px] leading-relaxed text-red-200 ring-1 ring-red-500/30">
-                다음 실패 시 파괴 위험 — 내구도가 1입니다.
+                {t("transcend.destroyRisk")}
               </p>
             ) : null}
             <FantasyButton
@@ -447,15 +457,15 @@ export function BlacksmithScreen() {
             >
               {!canTranscend
                 ? transcendStone < nextTranscendCost
-                  ? "초월석 부족"
-                  : "초월 불가"
-                : "초월하기"}
+                  ? t("transcend.notEnoughStone")
+                  : t("transcend.unavailable")
+                : t("transcend.action")}
             </FantasyButton>
           </div>
         )
       ) : (
         <p className="text-sm text-zinc-500">
-          +15 강화 후 초월을 시도할 수 있습니다.
+          {t("transcend.availableAfter")}
         </p>
       )}
     </FantasyPanel>
@@ -488,12 +498,12 @@ export function BlacksmithScreen() {
               }
               title={
                 isLastWeapon
-                  ? "마지막 무기는 판매할 수 없습니다. 상점에서 다른 무기를 구매한 뒤 판매해주세요."
+                  ? t("inventory.lastWeaponCannotSellLong")
                   : undefined
               }
               onClick={() => requestSellEquipped()}
             >
-            판매하기
+            {t("inventory.sell")}
           </FantasyButton>
           <FantasyButton
             variant="ghost"
@@ -501,7 +511,7 @@ export function BlacksmithScreen() {
             disabled={isEnhancing || serverActionPending}
             onClick={() => setTab("shop")}
           >
-            무기 상점으로
+            {t("shop.goToShop")}
           </FantasyButton>
         </div>
       ) : null}

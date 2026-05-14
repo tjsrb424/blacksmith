@@ -8,6 +8,7 @@ import type {
   PlayerRecordAdapterResult,
   RankingAdapter,
   RankingAdapterContext,
+  RankingFetchOptions,
   RankingAdapterSource,
   RankingSubmissionAdapterResult,
   WeeklyRankingAdapterResult,
@@ -31,8 +32,17 @@ type CacheEntry<T> = {
 const cache = new Map<string, CacheEntry<unknown>>();
 const inFlight = new Map<string, Promise<unknown>>();
 
-async function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
+async function cached<T>(
+  key: string,
+  loader: () => Promise<T>,
+  options?: RankingFetchOptions,
+): Promise<T> {
   const now = Date.now();
+  if (options?.force) {
+    cache.delete(key);
+    inFlight.delete(key);
+  }
+
   const entry = cache.get(key);
   if (entry && entry.expiresAt > now) {
     updatePerformanceMetric({ rankingCacheStatus: "hit" });
@@ -85,6 +95,7 @@ export class ServerRankingAdapter implements RankingAdapter {
     category: RankingCategory,
     seasonId: string,
     context: RankingAdapterContext,
+    options?: RankingFetchOptions,
   ): Promise<WeeklyRankingAdapterResult> {
     try {
       const response = await cached(
@@ -95,6 +106,7 @@ export class ServerRankingAdapter implements RankingAdapter {
             seasonId,
             playerId: context.playerId,
           }),
+        options,
       );
       return {
         source: this.id,
@@ -115,6 +127,7 @@ export class ServerRankingAdapter implements RankingAdapter {
 
   async getWorldRecords(
     context: RankingAdapterContext,
+    options?: RankingFetchOptions,
   ): Promise<WorldRecordsAdapterResult> {
     try {
       return {
@@ -122,6 +135,7 @@ export class ServerRankingAdapter implements RankingAdapter {
         records: await cached(
           `world:${context.playerId ?? "guest"}`,
           () => fetchWorldRecords(context.playerId),
+          options,
         ),
       };
     } catch (error) {

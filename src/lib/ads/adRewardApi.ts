@@ -72,8 +72,7 @@ export async function completeAdReward(
   const timing = options?.onTiming;
 
   if (!provider.isAvailable()) {
-    const message =
-      "광고를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.";
+    const message = "ads.failedToLoad";
     report?.({ phase: "unavailable", message });
     await markIncompleteReward(intent, {
       provider: provider.id,
@@ -84,12 +83,12 @@ export async function completeAdReward(
     throw new Error(message);
   }
 
-  report?.({ phase: "loading", message: "광고 보상 준비 중..." });
+  report?.({ phase: "loading", message: "ads.preparingReward" });
   timing?.("provider_load_start");
   await provider.loadRewardedAd(intent.rewardType);
   timing?.("provider_load_end");
 
-  report?.({ phase: "showing", message: "광고 재생 중..." });
+  report?.({ phase: "showing", message: "ads.playing" });
   timing?.("provider_show_start");
   const providerResult = await provider.showRewardedAd(intent);
   timing?.("rewarded_event");
@@ -99,8 +98,8 @@ export async function completeAdReward(
       providerResult.outcome === "failed" &&
       providerResult.error !== "closed_without_reward";
     const message = failedToLoad
-      ? "광고를 불러올 수 없습니다. 잠시 후 다시 시도해주세요."
-      : "광고 시청이 완료되지 않아 보상이 지급되지 않았습니다.";
+      ? "ads.failedToLoad"
+      : "ads.notCompleted";
     report?.({
       phase: failedToLoad ? "unavailable" : "notCompleted",
       message,
@@ -109,7 +108,7 @@ export async function completeAdReward(
     throw new Error(message);
   }
 
-  report?.({ phase: "completing", message: "서버에서 보상 확인 중..." });
+  report?.({ phase: "completing", message: "ads.confirmingReward" });
   timing?.("complete_api_start");
   const response = await requestJson<AdRewardCompleteResponse>(
     "/api/ad/reward/complete",

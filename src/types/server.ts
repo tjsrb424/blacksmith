@@ -65,10 +65,137 @@ export type GuestRequestContext = {
 
 export type NicknameUpdateRequest = {
   nickname: string;
+  mode?: "guest" | "authenticated";
+  guestId?: string;
+  guestSecret?: string;
 };
 
 export type NicknameUpdateResponse = {
   profile: ProfileRow;
+  snapshot?: BetaPlayerSnapshot;
+};
+
+export type NicknameUpdateErrorResponse = {
+  ok: false;
+  error: string;
+  message: string;
+  reason:
+    | "too_short"
+    | "too_long"
+    | "invalid_characters"
+    | "profanity"
+    | "reserved"
+    | "duplicate"
+    | "cooldown";
+  cooldownRemainingMs?: number;
+  cooldownRemainingSeconds?: number;
+};
+
+export type NicknameValidateRequest = {
+  nickname: string;
+};
+
+export type NicknameValidateResponse =
+  | {
+      ok: true;
+      nickname: string;
+      normalizedNickname: string;
+    }
+  | {
+      ok: false;
+      reason:
+        | "too_short"
+        | "too_long"
+        | "invalid_characters"
+        | "profanity"
+        | "reserved"
+        | "duplicate"
+        | "cooldown";
+      message: string;
+    };
+
+export type PlayerLifecycleStatus =
+  | "active"
+  | "guest"
+  | "linked"
+  | "archived"
+  | "deleted";
+
+export type PlayerLifecycleSummary = {
+  playerId: string;
+  nickname: string | null;
+  playMode: "auth" | "guest";
+  status: PlayerLifecycleStatus;
+  highestEnhance: number;
+  gold: number;
+  bestWeaponValue: number;
+  rankingScore: number;
+  updatedAt: string | null;
+};
+
+export type LinkGuestCheckRequest = {
+  guestId?: string;
+  guestSecret?: string;
+};
+
+export type LinkGuestCheckResponse =
+  | {
+      status: "can_link";
+      guestSummary: PlayerLifecycleSummary;
+      authSummary?: null;
+    }
+  | {
+      status: "conflict";
+      guestSummary: PlayerLifecycleSummary;
+      authSummary: PlayerLifecycleSummary;
+    }
+  | {
+      status: "already_linked";
+      guestSummary: PlayerLifecycleSummary;
+      snapshot: BetaPlayerSnapshot;
+    }
+  | {
+      status: "invalid_guest";
+      message: string;
+    };
+
+export type LinkGuestConfirmChoice = "link_guest" | "use_auth" | "use_guest" | "cancel";
+
+export type LinkGuestConfirmRequest = LinkGuestCheckRequest & {
+  choice: LinkGuestConfirmChoice;
+};
+
+export type LinkGuestConfirmResponse =
+  | {
+      status: "linked" | "use_auth" | "use_guest";
+      message: string;
+      snapshot: BetaPlayerSnapshot;
+      guestSummary?: PlayerLifecycleSummary;
+      authSummary?: PlayerLifecycleSummary;
+    }
+  | {
+      status: "conflict";
+      message: string;
+      guestSummary: PlayerLifecycleSummary;
+      authSummary: PlayerLifecycleSummary;
+    }
+  | {
+      status: "cancelled";
+      message: string;
+    }
+  | {
+      status: "invalid_guest";
+      message: string;
+    };
+
+export type GuestResetRequest = {
+  guestId?: string;
+  guestSecret?: string;
+};
+
+export type LifecycleActionResponse = {
+  ok: true;
+  message: string;
 };
 
 export type ServerPlayerProfile = {
@@ -149,6 +276,7 @@ export type WorldWeaponRecord = {
 export type WorldSaleRecord = {
   gold: number;
   weaponName: string;
+  weaponId?: string;
   holderName: string;
   isPlayer: boolean;
 };
@@ -214,16 +342,19 @@ export type ForgeUpgradeActionRequest = GameActionBaseRequest;
 export type ServerActionDisplay =
   | {
       kind: "buy";
+      weaponId?: string;
       weaponName: string;
     }
   | {
       kind: "enhance";
+      weaponId?: string;
       weaponName: string;
       result: EnhanceResult;
       recordBreak?: RecordBreakInfo;
     }
   | {
       kind: "transcend";
+      weaponId?: string;
       weaponName: string;
       weaponImagePath: string;
       result: TranscendAttemptResult;

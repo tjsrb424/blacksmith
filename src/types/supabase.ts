@@ -12,8 +12,13 @@ export type ProfileRow = {
   guest_id: string | null;
   guest_secret_hash: string | null;
   nickname: string | null;
+  normalized_nickname: string | null;
+  nickname_updated_at: string | null;
   play_mode: "auth" | "guest";
+  status: "active" | "guest" | "linked" | "archived" | "deleted";
   linked_at: string | null;
+  archived_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -136,8 +141,13 @@ export type Database = {
           guest_id?: string | null;
           guest_secret_hash?: string | null;
           nickname?: string | null;
+          normalized_nickname?: string | null;
+          nickname_updated_at?: string | null;
           play_mode?: "auth" | "guest";
+          status?: "active" | "guest" | "linked" | "archived" | "deleted";
           linked_at?: string | null;
+          archived_at?: string | null;
+          deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
         },
@@ -146,8 +156,13 @@ export type Database = {
           guest_id?: string | null;
           guest_secret_hash?: string | null;
           nickname?: string | null;
+          normalized_nickname?: string | null;
+          nickname_updated_at?: string | null;
           play_mode?: "auth" | "guest";
+          status?: "active" | "guest" | "linked" | "archived" | "deleted";
           linked_at?: string | null;
+          archived_at?: string | null;
+          deleted_at?: string | null;
           updated_at?: string;
         }
       >;

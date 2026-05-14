@@ -8,6 +8,7 @@ import { WeaponShopScreen } from "@/components/screens/WeaponShopScreen";
 import { AutoForgeScreen } from "@/components/screens/AutoForgeScreen";
 import { InventoryScreen } from "@/components/screens/InventoryScreen";
 import { RankingScreen } from "@/components/screens/RankingScreen";
+import { SettingsModal } from "@/components/settings/SettingsModal";
 import { EnhanceAnimationOrchestrator } from "@/components/effects/EnhanceAnimationOrchestrator";
 import { navTabToScreenKey, preloadBootstrapAssets } from "@/lib/preloadAssets";
 import {
@@ -28,6 +29,7 @@ import {
 import { getCurrentSeasonInfo } from "@/lib/season";
 import { preloadSounds, unlockAudio } from "@/lib/sound";
 import { getGameMode } from "@/lib/supabase/env";
+import { useLocale } from "@/lib/i18n/useLocale";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
@@ -441,6 +443,7 @@ function DevToolsPanel({ screen }: { screen: string }) {
 }
 
 function ServerActionOverlay() {
+  const { t } = useLocale();
   const pending = useGameStore((s) => s.serverActionPending);
   const message = useGameStore((s) => s.serverActionMessage);
   const isEnhancing = useGameStore((s) => s.isEnhancing);
@@ -448,9 +451,9 @@ function ServerActionOverlay() {
   if (!pending || !message || isEnhancing) return null;
 
   return (
-    <div className="game-fixed-overlay pointer-events-auto fixed left-1/2 top-1/2 z-[45] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-black/25 px-4 backdrop-blur-[1px]">
+    <div className="game-no-select game-fixed-overlay pointer-events-auto fixed left-1/2 top-1/2 z-[45] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-black/25 px-4 backdrop-blur-[1px]">
       <div className="rounded-lg border border-amber-500/30 bg-zinc-950/90 px-4 py-3 text-center text-sm font-semibold text-amber-100 shadow-2xl">
-        {message}
+        {message.includes(".") ? t(message) : message}
       </div>
     </div>
   );
@@ -458,8 +461,10 @@ function ServerActionOverlay() {
 
 export function GameRoot() {
   useRenderDiagnostics("GameRoot");
+  const { t } = useLocale();
   const [hydrated, setHydrated] = useState(false);
   const [hydrateSlow, setHydrateSlow] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const tab = useGameStore((s) => s.activeTab);
   const equippedWeaponId = useGameStore((s) => {
     const row = s.ownedWeapons.find((o) => o.instanceId === s.equippedWeaponId);
@@ -552,14 +557,14 @@ export function GameRoot() {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[#070708] px-4 text-center text-sm text-zinc-500">
         <div>
-          <p>저장 데이터를 불러오는 중...</p>
+          <p>{t("loading.savedData")}</p>
           {hydrateSlow ? (
             <button
               type="button"
               className="mt-4 rounded-lg border border-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300"
               onClick={() => setHydrated(true)}
             >
-              저장 데이터 없이 계속
+              {t("loading.continueWithoutSavedData")}
             </button>
           ) : null}
         </div>
@@ -569,13 +574,14 @@ export function GameRoot() {
 
   return (
     <>
-      <AppShell>
+      <AppShell onOpenSettings={() => setSettingsOpen(true)}>
         {tab === "blacksmith" ? <BlacksmithScreen /> : null}
         {tab === "shop" ? <WeaponShopScreen /> : null}
         {tab === "forge" ? <AutoForgeScreen /> : null}
         {tab === "inventory" ? <InventoryScreen /> : null}
         {tab === "ranking" ? <RankingScreen /> : null}
       </AppShell>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <ModalRoot />
       <EnhanceAnimationOrchestrator />
       <ServerActionOverlay />

@@ -3,6 +3,7 @@
 import type { NavTab } from "@/types/game";
 import { TAB_ICONS } from "@/data/assets";
 import { cn } from "@/lib/cn";
+import { useLocale } from "@/lib/i18n/useLocale";
 import {
   diagnosticLog,
   updatePerformanceMetric,
@@ -15,15 +16,15 @@ import { startTransition, useState } from "react";
 
 const TABS: Array<{
   id: NavTab;
-  label: string;
+  labelKey: string;
   iconKey: keyof typeof TAB_ICONS;
   emoji: string;
 }> = [
-  { id: "blacksmith", label: "대장간", iconKey: "blacksmith", emoji: "⚒️" },
-  { id: "shop", label: "무기상점", iconKey: "shop", emoji: "🛒" },
-  { id: "forge", label: "제련로", iconKey: "forge", emoji: "🔥" },
-  { id: "inventory", label: "보관함", iconKey: "inventory", emoji: "🎒" },
-  { id: "ranking", label: "랭킹", iconKey: "ranking", emoji: "🏆" },
+  { id: "blacksmith", labelKey: "nav.blacksmith", iconKey: "blacksmith", emoji: "⚒️" },
+  { id: "shop", labelKey: "nav.shop", iconKey: "shop", emoji: "🛒" },
+  { id: "forge", labelKey: "nav.forge", iconKey: "forge", emoji: "🔥" },
+  { id: "inventory", labelKey: "nav.inventory", iconKey: "inventory", emoji: "🎒" },
+  { id: "ranking", labelKey: "nav.ranking", iconKey: "ranking", emoji: "🏆" },
 ];
 
 export function BottomTabs() {
@@ -31,28 +32,29 @@ export function BottomTabs() {
   const tab = useGameStore((s) => s.activeTab);
   const setTab = useGameStore((s) => s.setActiveTab);
   const isEnhancing = useGameStore((s) => s.isEnhancing);
+  const { t: translate } = useLocale();
 
   return (
     <nav className="bottom-nav relative z-40 shrink-0 border-t border-amber-900/30 bg-[rgba(5,5,8,0.8)] backdrop-blur-sm">
       <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-1 py-2">
-        {TABS.map((t) => (
+        {TABS.map((item) => (
           <TabButton
-            key={t.id}
-            active={tab === t.id}
+            key={item.id}
+            active={tab === item.id}
             disabled={isEnhancing}
-            label={t.label}
-            iconSrc={TAB_ICONS[t.iconKey]}
-            emoji={t.emoji}
+            label={translate(item.labelKey)}
+            iconSrc={TAB_ICONS[item.iconKey]}
+            emoji={item.emoji}
             onClick={() => {
-              if (tab === t.id) return;
+              if (tab === item.id) return;
               const startedAt = performance.now();
-              diagnosticLog("tab", "click", { from: tab, to: t.id });
+              diagnosticLog("tab", "click", { from: tab, to: item.id });
               updatePerformanceMetric({
-                tabTarget: t.id,
-                currentScreen: t.id,
+                tabTarget: item.id,
+                currentScreen: item.id,
               });
-              preloadScreenBackground(navTabToScreenKey(t.id));
-              startTransition(() => setTab(t.id));
+              preloadScreenBackground(navTabToScreenKey(item.id));
+              startTransition(() => setTab(item.id));
               requestAnimationFrame(() => {
                 updatePerformanceMetric({
                   tabSwitchElapsedMs: Math.round(performance.now() - startedAt),
