@@ -59,7 +59,9 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
   const [guestStarting, setGuestStarting] = useState(false);
   const showDesktopSideRails = useDesktopSideRails();
   const env = getSupabaseBrowserEnv();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
+  const eyebrowTrackingClass =
+    locale === "en" ? "tracking-[0.26em]" : "tracking-[0.08em]";
 
   async function submitGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -136,14 +138,14 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
 
       <section className="relative z-10 mx-auto flex min-h-dvh w-full max-w-3xl flex-col items-center justify-center px-5 py-8 text-center">
         <div className="w-full">
-          <p className="text-xs font-bold uppercase tracking-[0.26em] text-amber-300/90">
-            Premium Forge RPG
+          <p className={`text-xs font-bold uppercase ${eyebrowTrackingClass} text-amber-300/90`}>
+            {t("login.eyebrow")}
           </p>
           <h1 className="mt-4 text-4xl font-black leading-tight text-amber-50 drop-shadow-[0_3px_18px_rgba(0,0,0,0.78)] sm:text-6xl">
-            세계 최강의 대장장이
+            {t("login.title")}
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm font-medium leading-6 text-zinc-200/92 sm:text-base">
-            {t("start.subtitle")}
+            {t("login.subtitle")}
           </p>
 
           <form

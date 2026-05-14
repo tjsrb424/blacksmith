@@ -498,6 +498,9 @@
     "cooldown": "You can change your nickname again shortly."
   },
   "login": {
+    "eyebrow": "FORGE LEGEND RPG",
+    "title": "World’s Greatest Blacksmith",
+    "subtitle": "Forge steel and flame into a legend, then challenge the rankings.",
     "requiredDescription": "Sign in to use your saved progress.",
     "optionalDescription": "You can play without signing in. Link an account to keep your progress available later.",
     "sending": "Sending...",

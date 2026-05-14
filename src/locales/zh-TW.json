@@ -498,6 +498,9 @@
     "cooldown": "稍後即可再次變更暱稱。"
   },
   "login": {
+    "eyebrow": "傳說鍛造 RPG",
+    "title": "世界最強鍛造師",
+    "subtitle": "以鋼鐵與火焰鍛造傳說，挑戰排行榜。",
     "requiredDescription": "需要登入才能使用進度資訊。",
     "optionalDescription": "不登入也可以遊玩。連結帳號後，可以繼續使用進度資訊。",
     "sending": "傳送中...",
