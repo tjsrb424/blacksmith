@@ -30,8 +30,8 @@ create table if not exists public.profiles (
 create table if not exists public.player_states (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  gold bigint not null default 5000 check (gold >= 0),
-  forge_ember bigint not null default 2000 check (forge_ember >= 0),
+  gold bigint not null default 2500 check (gold >= 0),
+  forge_ember bigint not null default 3000 check (forge_ember >= 0),
   transcend_stone bigint not null default 0 check (transcend_stone >= 0),
   forge_level int not null default 1 check (forge_level between 1 and 10),
   forge_last_collected_at timestamptz not null default now(),

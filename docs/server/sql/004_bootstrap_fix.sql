@@ -8,8 +8,8 @@ alter table public.profiles
 
 alter table public.player_states
   add column if not exists user_id uuid references auth.users(id) on delete cascade,
-  add column if not exists gold bigint not null default 5000 check (gold >= 0),
-  add column if not exists forge_ember bigint not null default 2000 check (forge_ember >= 0),
+  add column if not exists gold bigint not null default 2500 check (gold >= 0),
+  add column if not exists forge_ember bigint not null default 3000 check (forge_ember >= 0),
   add column if not exists transcend_stone bigint not null default 0 check (transcend_stone >= 0),
   add column if not exists forge_level int not null default 1 check (forge_level between 1 and 10),
   add column if not exists forge_last_collected_at timestamptz not null default now(),

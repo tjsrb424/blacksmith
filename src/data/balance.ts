@@ -2,8 +2,8 @@
 
 export const SAVE_STORAGE_KEY = "world-best-blacksmith-save-v1";
 
-export const INITIAL_GOLD = 5_000;
-export const INITIAL_EMBER = 2_000;
+export const INITIAL_GOLD = 2_500;
+export const INITIAL_EMBER = 3_000;
 export const INITIAL_TRANSCEND_STONE = 0;
 
 export const BASE_WEAPON_PRICE_FORMULA = {
