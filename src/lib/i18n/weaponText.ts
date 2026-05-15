@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/t";
-import type { SupportedLocale } from "@/lib/i18n/locales";
+import { SUPPORTED_LOCALES, type SupportedLocale } from "@/lib/i18n/locales";
+import { WEAPON_DEFINITIONS } from "@/data/weapons";
 import type { WeaponDefinition, WeaponGrade, WeaponType } from "@/types/game";
 
 type WeaponDisplaySource =
@@ -18,14 +19,31 @@ function translatedOrNull(locale: SupportedLocale, key: string) {
   return value === key ? null : value;
 }
 
+function resolveWeaponIdByDisplayName(name?: string | null): string | null {
+  const normalizedName = name?.trim();
+  if (!normalizedName) return null;
+
+  for (const def of WEAPON_DEFINITIONS) {
+    if (def.name === normalizedName) return def.id;
+    for (const locale of SUPPORTED_LOCALES) {
+      if (translatedOrNull(locale, `weapons.names.${def.id}`) === normalizedName) {
+        return def.id;
+      }
+    }
+  }
+
+  return null;
+}
+
 export function getWeaponDisplayName(
   locale: SupportedLocale,
   weapon: WeaponDisplaySource,
 ): string {
-  const weaponId =
-    weapon && "weaponId" in weapon ? weapon.weaponId : weapon?.id;
   const fallback =
     weapon && "weaponName" in weapon ? weapon.weaponName : weapon?.name;
+  const weaponId =
+    (weapon && "weaponId" in weapon ? weapon.weaponId : weapon?.id) ??
+    resolveWeaponIdByDisplayName(fallback);
 
   if (weaponId) {
     const translated = translatedOrNull(locale, `weapons.names.${weaponId}`);

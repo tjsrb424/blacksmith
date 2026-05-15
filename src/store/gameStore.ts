@@ -348,6 +348,7 @@ function modalFromEnhanceResponse(response: ServerGameActionResponse): ModalStat
   if (display.result.type === "success") {
     return {
       kind: "enhance_success",
+      weaponId: display.weaponId,
       weaponName: display.weaponName,
       result: display.result,
       recordBreak,
@@ -357,6 +358,7 @@ function modalFromEnhanceResponse(response: ServerGameActionResponse): ModalStat
   if (display.result.type === "fail") {
     return {
       kind: "enhance_fail",
+      weaponId: display.weaponId,
       weaponName: display.weaponName,
       result: display.result,
     };
