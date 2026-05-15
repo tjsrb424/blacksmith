@@ -459,7 +459,11 @@ function ServerActionOverlay() {
   );
 }
 
-export function GameRoot() {
+export function GameRoot({
+  isCrazyGamesMode = false,
+}: {
+  isCrazyGamesMode?: boolean;
+}) {
   useRenderDiagnostics("GameRoot");
   const { t } = useLocale();
   const [hydrated, setHydrated] = useState(false);
@@ -574,14 +578,21 @@ export function GameRoot() {
 
   return (
     <>
-      <AppShell onOpenSettings={() => setSettingsOpen(true)}>
+      <AppShell
+        onOpenSettings={() => setSettingsOpen(true)}
+        showAds={!isCrazyGamesMode}
+      >
         {tab === "blacksmith" ? <BlacksmithScreen /> : null}
         {tab === "shop" ? <WeaponShopScreen /> : null}
         {tab === "forge" ? <AutoForgeScreen /> : null}
         {tab === "inventory" ? <InventoryScreen /> : null}
         {tab === "ranking" ? <RankingScreen /> : null}
       </AppShell>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        isCrazyGamesMode={isCrazyGamesMode}
+      />
       <ModalRoot />
       <EnhanceAnimationOrchestrator />
       <ServerActionOverlay />

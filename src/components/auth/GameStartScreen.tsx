@@ -13,6 +13,7 @@ import type { NicknameValidateResponse } from "@/types/server";
 type GameStartScreenProps = {
   error?: string | null;
   onGuestStart: (nickname: string) => void;
+  isCrazyGamesMode?: boolean;
 };
 
 function useDesktopSideRails() {
@@ -52,12 +53,17 @@ function nicknameReasonKey(reason: NicknameValidationReason) {
   return `nickname.${reason}`;
 }
 
-export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
+export function GameStartScreen({
+  error,
+  onGuestStart,
+  isCrazyGamesMode = false,
+}: GameStartScreenProps) {
   const [nickname, setNickname] = useState("");
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [guestStarting, setGuestStarting] = useState(false);
-  const showDesktopSideRails = useDesktopSideRails();
+  const desktopSideRailsEnabled = useDesktopSideRails();
+  const showDesktopSideRails = desktopSideRailsEnabled && !isCrazyGamesMode;
   const env = getSupabaseBrowserEnv();
   const { locale, t } = useLocale();
   const eyebrowTrackingClass =
@@ -187,28 +193,34 @@ export function GameStartScreen({ error, onGuestStart }: GameStartScreenProps) {
               {guestStarting ? t("common.checking") : t("common.start")}
             </button>
 
-            <div className="mt-4 flex items-center gap-3">
-              <div className="h-px flex-1 bg-amber-900/35" />
-              <span className="text-[11px] font-medium text-zinc-500">
-                {t("common.optional")}
-              </span>
-              <div className="h-px flex-1 bg-amber-900/35" />
-            </div>
+            {!isCrazyGamesMode ? (
+              <>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-amber-900/35" />
+                  <span className="text-[11px] font-medium text-zinc-500">
+                    {t("common.optional")}
+                  </span>
+                  <div className="h-px flex-1 bg-amber-900/35" />
+                </div>
 
-            <button
-              type="button"
-              disabled={googleLoading || !env.ok}
-              onClick={() => void onGoogleSignIn()}
-              className="mx-auto mt-3 flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-700/75 bg-zinc-950/58 px-4 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="flex size-5 items-center justify-center rounded-full bg-white text-xs font-black text-blue-600">
-                G
-              </span>
-              {googleLoading ? t("start.googleMoving") : t("start.googleLogin")}
-            </button>
+                <button
+                  type="button"
+                  disabled={googleLoading || !env.ok}
+                  onClick={() => void onGoogleSignIn()}
+                  className="mx-auto mt-3 flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-700/75 bg-zinc-950/58 px-4 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full bg-white text-xs font-black text-blue-600">
+                    G
+                  </span>
+                  {googleLoading ? t("start.googleMoving") : t("start.googleLogin")}
+                </button>
+              </>
+            ) : null}
 
             <p className="mt-3 text-center text-xs leading-5 text-zinc-500">
-              {t("start.guestNotice")}
+              {isCrazyGamesMode
+                ? t("login.crazyGamesSaveNotice")
+                : t("start.guestNotice")}
             </p>
           </form>
         </div>

@@ -98,7 +98,13 @@ export function useBetaPlayer() {
   return useContext(BetaPlayerContext);
 }
 
-export function AuthGate({ children }: { children: ReactNode }) {
+export function AuthGate({
+  children,
+  isCrazyGamesMode = false,
+}: {
+  children: ReactNode;
+  isCrazyGamesMode?: boolean;
+}) {
   useRenderDiagnostics("AuthGate");
   const { t } = useLocale();
   const mode = getGameMode();
@@ -625,7 +631,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!supabaseEnv.ok && authGateMode === "required") {
-    return <LoginScreen error={supabaseEnv.message} authGateMode={authGateMode} />;
+    return (
+      <LoginScreen
+        error={supabaseEnv.message}
+        authGateMode={authGateMode}
+        isCrazyGamesMode={isCrazyGamesMode}
+      />
+    );
   }
 
   if (linkConflict) {
@@ -675,7 +687,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
           />
         );
       }
-      return <GameStartScreen error={authError} onGuestStart={startGuest} />;
+      return (
+        <GameStartScreen
+          error={authError}
+          onGuestStart={startGuest}
+          isCrazyGamesMode={isCrazyGamesMode}
+        />
+      );
     }
     return (
       <AuthLoading
@@ -694,7 +712,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (error && !snapshot && stage === "error") {
     if (authGateMode !== "required") {
-      return <GameStartScreen error={error} onGuestStart={startGuest} />;
+      return (
+        <GameStartScreen
+          error={error}
+          onGuestStart={startGuest}
+          isCrazyGamesMode={isCrazyGamesMode}
+        />
+      );
     }
     return (
       <AuthErrorPanel
@@ -716,7 +740,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (!session) {
     if (authGateMode === "required") {
-      return <LoginScreen error={authError} authGateMode={authGateMode} />;
+      return (
+        <LoginScreen
+          error={authError}
+          authGateMode={authGateMode}
+          isCrazyGamesMode={isCrazyGamesMode}
+        />
+      );
     }
     if (guestProfile && snapshot?.userId === guestProfile.guestId) {
       return (
@@ -740,7 +770,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
         />
       );
     }
-    return <GameStartScreen error={authError} onGuestStart={startGuest} />;
+    return (
+      <GameStartScreen
+        error={authError}
+        onGuestStart={startGuest}
+        isCrazyGamesMode={isCrazyGamesMode}
+      />
+    );
   }
 
   if (loadingSnapshot && !snapshot) {

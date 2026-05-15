@@ -10,6 +10,7 @@ import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
 type LoginScreenProps = {
   error?: string | null;
   authGateMode?: "required" | "optional" | "disabled";
+  isCrazyGamesMode?: boolean;
 };
 
 function isMagicLinkRateLimit(message: string) {
@@ -31,6 +32,7 @@ function authErrorKey(error?: string | null) {
 export function LoginScreen({
   error,
   authGateMode = "optional",
+  isCrazyGamesMode = false,
 }: LoginScreenProps) {
   const { t } = useLocale();
   const [email, setEmail] = useState("");
@@ -133,66 +135,72 @@ export function LoginScreen({
             {t("game.title")}
           </h1>
           <p className="text-sm leading-6 text-zinc-400">
-            {authGateMode === "required"
+            {isCrazyGamesMode
+              ? t("login.crazyGamesSaveNotice")
+              : authGateMode === "required"
               ? t("login.requiredDescription")
               : t("login.optionalDescription")}
           </p>
         </div>
 
         <div className="mt-6 space-y-5">
-          <FantasyButton
-            type="button"
-            className="w-full gap-3 bg-zinc-50 text-zinc-950 ring-zinc-200 hover:bg-white"
-            disabled={
-              googleLoading || magicStatus === "sending" || Boolean(envError)
-            }
-            onClick={() => void onGoogleSignIn()}
-          >
-            <span className="inline-flex size-6 items-center justify-center rounded-full bg-white text-base font-bold text-blue-600 ring-1 ring-zinc-200">
-              G
-            </span>
-            {googleLoading ? t("start.googleMoving") : t("start.googleContinue")}
-          </FantasyButton>
-
-          <div className="flex items-center gap-3 text-xs text-zinc-500">
-            <div className="h-px flex-1 bg-zinc-800" />
-            <span>{t("common.or")}</span>
-            <div className="h-px flex-1 bg-zinc-800" />
-          </div>
-
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <label className="block space-y-2 text-sm">
-              <span className="font-medium text-zinc-300">
-                {t("login.emailLinkLabel")}
-              </span>
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+          {!isCrazyGamesMode ? (
+            <>
+              <FantasyButton
+                type="button"
+                className="w-full gap-3 bg-zinc-50 text-zinc-950 ring-zinc-200 hover:bg-white"
                 disabled={
-                  magicStatus === "sending" || googleLoading || Boolean(envError)
+                  googleLoading || magicStatus === "sending" || Boolean(envError)
                 }
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-zinc-100 outline-none ring-amber-500/0 transition placeholder:text-zinc-600 focus:border-amber-600/70 focus:ring-2 focus:ring-amber-500/20"
-                placeholder="you@example.com"
-              />
-            </label>
+                onClick={() => void onGoogleSignIn()}
+              >
+                <span className="inline-flex size-6 items-center justify-center rounded-full bg-white text-base font-bold text-blue-600 ring-1 ring-zinc-200">
+                  G
+                </span>
+                {googleLoading ? t("start.googleMoving") : t("start.googleContinue")}
+              </FantasyButton>
 
-            <FantasyButton
-              type="submit"
-              variant="secondary"
-              className="w-full"
-              disabled={
-                magicStatus === "sending" ||
-                cooldown > 0 ||
-                googleLoading ||
-                Boolean(envError)
-              }
-            >
-              {magicButtonLabel}
-            </FantasyButton>
-          </form>
+              <div className="flex items-center gap-3 text-xs text-zinc-500">
+                <div className="h-px flex-1 bg-zinc-800" />
+                <span>{t("common.or")}</span>
+                <div className="h-px flex-1 bg-zinc-800" />
+              </div>
+
+              <form className="space-y-4" onSubmit={onSubmit}>
+                <label className="block space-y-2 text-sm">
+                  <span className="font-medium text-zinc-300">
+                    {t("login.emailLinkLabel")}
+                  </span>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    disabled={
+                      magicStatus === "sending" || googleLoading || Boolean(envError)
+                    }
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-zinc-100 outline-none ring-amber-500/0 transition placeholder:text-zinc-600 focus:border-amber-600/70 focus:ring-2 focus:ring-amber-500/20"
+                    placeholder="you@example.com"
+                  />
+                </label>
+
+                <FantasyButton
+                  type="submit"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={
+                    magicStatus === "sending" ||
+                    cooldown > 0 ||
+                    googleLoading ||
+                    Boolean(envError)
+                  }
+                >
+                  {magicButtonLabel}
+                </FantasyButton>
+              </form>
+            </>
+          ) : null}
         </div>
 
         {displayEnvError ? (

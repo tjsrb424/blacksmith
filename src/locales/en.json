@@ -507,7 +507,8 @@
     "resendCooldown": "Resend in {seconds}s",
     "getLink": "Get login link",
     "emailLinkLabel": "Get a login link by email",
-    "linkSent": "Login link sent. Please check your email."
+    "linkSent": "Login link sent. Please check your email.",
+    "crazyGamesSaveNotice": "Your progress is saved automatically on CrazyGames."
   },
   "weapons": {
     "names": {

@@ -507,7 +507,8 @@
     "resendCooldown": "{seconds} 秒後可重新傳送",
     "getLink": "取得登入連結",
     "emailLinkLabel": "透過電子郵件取得登入連結",
-    "linkSent": "登入連結已送出。請確認電子郵件。"
+    "linkSent": "登入連結已送出。請確認電子郵件。",
+    "crazyGamesSaveNotice": "進度會自動儲存在 CrazyGames。"
   },
   "weapons": {
     "names": {

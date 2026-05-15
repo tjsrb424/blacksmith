@@ -70,11 +70,14 @@ function SideRail({ side }: { side: "left" | "right" }) {
 export function AppShell({
   children,
   onOpenSettings,
+  showAds = true,
 }: {
   children: ReactNode;
   onOpenSettings?: () => void;
+  showAds?: boolean;
 }) {
-  const showDesktopSideRails = useDesktopSideRails();
+  const desktopSideRailsEnabled = useDesktopSideRails();
+  const showDesktopSideRails = desktopSideRailsEnabled && showAds;
 
   return (
     <div className="app-shell overflow-hidden bg-[#050506] text-zinc-100">

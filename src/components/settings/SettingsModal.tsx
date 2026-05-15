@@ -30,6 +30,7 @@ import type {
 type SettingsModalProps = {
   open: boolean;
   onClose: () => void;
+  isCrazyGamesMode?: boolean;
 };
 
 type DangerAction = "guest_reset" | "logout" | "account_delete";
@@ -52,7 +53,11 @@ function nicknameReasonKey(reason: NicknameValidationReason) {
   return `nickname.${reason}`;
 }
 
-export function SettingsModal({ open, onClose }: SettingsModalProps) {
+export function SettingsModal({
+  open,
+  onClose,
+  isCrazyGamesMode = false,
+}: SettingsModalProps) {
   const { snapshot, refresh } = useBetaPlayer();
   const { locale, setLocale, t } = useLocale();
   const env = getSupabaseBrowserEnv();
@@ -387,9 +392,12 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 ) : null}
               </div>
               <p className="mt-3 text-xs leading-5 text-zinc-500">
-                {t("account.linkDescription")}
+                {isCrazyGamesMode
+                  ? t("login.crazyGamesSaveNotice")
+                  : t("account.linkDescription")}
               </p>
-              <div className="mt-4">
+              {!isCrazyGamesMode ? (
+                <div className="mt-4">
                 {isAuthenticated ? (
                   <button
                     type="button"
@@ -412,7 +420,8 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                     {accountBusy ? t("start.googleMoving") : t("account.linkGoogle")}
                   </button>
                 )}
-              </div>
+                </div>
+              ) : null}
               {accountMessage ? (
                 <p className="mt-3 rounded-md border border-red-700/35 bg-red-950/32 px-3 py-2 text-xs text-red-100">
                   {accountMessage}
