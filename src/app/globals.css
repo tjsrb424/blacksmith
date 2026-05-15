@@ -144,6 +144,11 @@ body {
   width: 100vw;
 }
 
+.app-shell-layout-centered {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
 .desktop-side-rail {
   width: 100%;
 }
@@ -269,6 +274,11 @@ body {
   .app-shell-layout {
     grid-template-columns: minmax(180px, 1fr) 430px minmax(180px, 1fr);
     width: 100%;
+  }
+
+  .app-shell-layout-centered {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100vw;
   }
 }
 

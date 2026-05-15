@@ -78,11 +78,14 @@ export function AppShell({
 }) {
   const desktopSideRailsEnabled = useDesktopSideRails();
   const showDesktopSideRails = desktopSideRailsEnabled && showAds;
+  const layoutClassName = showAds
+    ? "app-shell-layout relative z-10 mx-auto"
+    : "app-shell-layout app-shell-layout-centered relative z-10 mx-auto";
 
   return (
     <div className="app-shell overflow-hidden bg-[#050506] text-zinc-100">
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%),linear-gradient(90deg,rgba(0,0,0,0.72),transparent_38%,transparent_62%,rgba(0,0,0,0.72))]" />
-      <div className="app-shell-layout relative z-10 mx-auto">
+      <div className={layoutClassName}>
         {showDesktopSideRails ? <SideRail side="left" /> : null}
         <div className="game-no-select game-viewport relative mx-auto flex min-h-0 flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)]">
           <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)]" />
