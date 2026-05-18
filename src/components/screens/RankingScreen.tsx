@@ -13,6 +13,7 @@ import { getGameMode, type WeeklyRankingAdapterResult, type WorldRecordsAdapterR
 import { mockRankingAdapter } from "@/lib/ranking/mockRankingAdapter";
 import { serverRankingAdapter } from "@/lib/ranking/serverRankingAdapter";
 import { formatSeasonCountdown, getCurrentSeasonInfo } from "@/lib/season";
+import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 import type { RankingCategory, RankingRowDisplay } from "@/types/game";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
@@ -70,6 +71,25 @@ function formatRecentRefresh(
 }
 
 const EMPTY_HOLDER_LABEL = "No record yet";
+const CRAZYGAMES_RECORDS_KEY = "blacksmith_cg_records";
+
+type CrazyGamesLocalRecords = {
+  bestWeaponName: string;
+  highestEnhancement: number;
+  bestSaleValue: number;
+  bestTranscendLevel: number;
+  bestRankingValue: number;
+  updatedAt: number;
+};
+
+const CHALLENGE_TARGETS = [
+  { title: "Bronze Smith", value: 10_000 },
+  { title: "Iron Smith", value: 50_000 },
+  { title: "Steel Smith", value: 100_000 },
+  { title: "Royal Smith", value: 500_000 },
+  { title: "Legendary Smith", value: 1_000_000 },
+  { title: "Mythic Smith", value: 5_000_000 },
+] as const;
 
 function isEmptyHolder(name: string): boolean {
   return name.trim() === EMPTY_HOLDER_LABEL;
@@ -136,6 +156,192 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export function RankingScreen() {
+  const isCrazyGamesMode = useIsCrazyGamesMode();
+
+  if (isCrazyGamesMode) {
+    return <CrazyGamesRankingScreen />;
+  }
+
+  return <StandardRankingScreen />;
+}
+
+function writeCrazyGamesRecords(records: CrazyGamesLocalRecords | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!records) {
+      window.localStorage.removeItem(CRAZYGAMES_RECORDS_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      CRAZYGAMES_RECORDS_KEY,
+      JSON.stringify({ ...records, updatedAt: records.updatedAt || Date.now() }),
+    );
+  } catch {
+    // Embedded game surfaces can deny storage access; the UI still works from store state.
+  }
+}
+
+function CrazyGamesRankingScreen() {
+  useRenderDiagnostics("CrazyGamesRankingScreen");
+  const records = useGameStore((s) => s.records);
+  const bestWeaponSnapshot = useGameStore((s) => s.bestWeaponSnapshot);
+
+  const localRecords = useMemo<CrazyGamesLocalRecords | null>(() => {
+    const hasPlayedForRecord =
+      records.totalEnhanceAttempts > 0 ||
+      records.bestSaleGold > 0 ||
+      records.soldWeaponCount > 0 ||
+      records.transcendAttemptCount > 0 ||
+      records.maxEnhanceLevel > 0 ||
+      records.maxTranscendLevel > 0;
+
+    if (!hasPlayedForRecord) {
+      return null;
+    }
+
+    return {
+      bestWeaponName: bestWeaponSnapshot
+        ? getWeaponDisplayNameById(
+            "en",
+            bestWeaponSnapshot.weaponId,
+            bestWeaponSnapshot.weaponName,
+          )
+        : "Unknown Weapon",
+      highestEnhancement: Math.max(
+        records.maxEnhanceLevel,
+        bestWeaponSnapshot?.enhanceLevel ?? 0,
+      ),
+      bestSaleValue: records.bestSaleGold,
+      bestTranscendLevel: Math.max(
+        records.maxTranscendLevel,
+        bestWeaponSnapshot?.transcendLevel ?? 0,
+      ),
+      bestRankingValue: Math.max(
+        records.personalBestRankingValue,
+        bestWeaponSnapshot?.rankingValue ?? 0,
+        records.weeklyBestValue,
+      ),
+      updatedAt: 0,
+    };
+  }, [bestWeaponSnapshot, records]);
+
+  useEffect(() => {
+    writeCrazyGamesRecords(localRecords);
+  }, [localRecords]);
+
+  const reachedValue = localRecords?.bestRankingValue ?? 0;
+  const hasRecord = Boolean(localRecords);
+
+  return (
+    <div className="relative mx-auto w-full flex-1 space-y-4 px-3 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+24px)] pt-4">
+      <ScreenBackground screen="ranking" />
+      <header className="relative z-10 space-y-1.5">
+        <h2 className="text-2xl font-black tracking-wide text-amber-50 drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)]">
+          Ranking
+        </h2>
+        <p className="text-sm font-medium text-zinc-300/90">
+          Track your local records and chase clear challenge targets.
+        </p>
+      </header>
+
+      <FantasyPanel title="My Records" className="relative z-10 space-y-3 border-amber-600/35 bg-[rgba(8,6,4,0.78)]">
+        {hasRecord && localRecords ? (
+          <>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-950/12 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300/78">
+                Best Weapon
+              </div>
+              <div className="mt-1 truncate text-lg font-black text-amber-50">
+                {localRecords.bestWeaponName}
+              </div>
+            </div>
+            <div className="grid gap-2 text-sm">
+              <StatRow
+                label="Highest Enhancement"
+                value={`+${localRecords.highestEnhancement}`}
+                mono
+              />
+              <StatRow
+                label="Best Sale Value"
+                value={formatGold(localRecords.bestSaleValue)}
+                mono
+              />
+              <StatRow
+                label="Best Transcend Level"
+                value={`Lv.${localRecords.bestTranscendLevel}`}
+                mono
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-zinc-800/70 bg-zinc-950/48 p-4 text-center">
+            <div className="text-sm font-bold text-zinc-100">No record yet.</div>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+              Forge your first weapon to set a record.
+            </p>
+          </div>
+        )}
+      </FantasyPanel>
+
+      <FantasyPanel title="Challenge Board" className="relative z-10 space-y-3 border-amber-700/25 bg-[rgba(8,6,4,0.74)]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-2 border-b border-zinc-800/70 pb-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+          <span>Challenge Target</span>
+          <span className="text-right">Target Value</span>
+          <span className="text-right">Reached</span>
+        </div>
+        <ol className="space-y-2">
+          {CHALLENGE_TARGETS.map((target, index) => {
+            const reached = reachedValue >= target.value;
+            return (
+              <li
+                key={target.title}
+                className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-3 py-3 ${
+                  reached
+                    ? "border-emerald-500/28 bg-emerald-950/16"
+                    : "border-zinc-800/75 bg-zinc-950/50"
+                }`}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/30 font-mono text-xs font-black text-zinc-300 ring-1 ring-zinc-700/70">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-zinc-100">
+                    {target.title}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-zinc-500">
+                    Target Value {formatGold(target.value)}
+                  </div>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+                    reached
+                      ? "bg-emerald-500/16 text-emerald-200 ring-1 ring-emerald-400/24"
+                      : "bg-zinc-900 text-zinc-500 ring-1 ring-zinc-700/70"
+                  }`}
+                >
+                  {reached ? "Reached" : "Locked"}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </FantasyPanel>
+
+      <FantasyPanel title="Global Ranking" className="relative z-10 space-y-3 border-sky-500/25 bg-[rgba(6,10,16,0.72)]">
+        <div className="rounded-xl border border-sky-500/20 bg-sky-950/16 p-4 text-center">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-300/75">
+            Coming Soon
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-sky-50">
+            Sign in with CrazyGames to compete globally after leaderboard integration.
+          </p>
+        </div>
+      </FantasyPanel>
+    </div>
+  );
+}
+
+function StandardRankingScreen() {
   useRenderDiagnostics("RankingScreen");
   const [sub, setSub] = useState<SubTab>("weekly");
   const { locale, t } = useLocale();
