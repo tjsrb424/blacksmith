@@ -44,7 +44,6 @@ import {
 } from "@/lib/transcend";
 import {
   computePendingForgeEmber,
-  formatOfflineDuration,
   getForgeEmberPerMinute,
   getForgeSnapshot,
 } from "@/lib/forge";
@@ -2193,7 +2192,6 @@ export const useGameStore = create<GameStore>()(
           modal: {
             kind: "offline_forge_reward",
             offlineDurationMs: snap.elapsedMs,
-            offlineDurationLabel: formatOfflineDuration(snap.elapsedMs),
             forgeLevel: state.forgeLevel,
             ratePerMinute: snap.ratePerMinute,
             maxAccumulateMinutes: snap.maxAccumulateMinutes,

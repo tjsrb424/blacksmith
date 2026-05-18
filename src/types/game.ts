@@ -235,7 +235,6 @@ export type ModalPayload =
   | {
       kind: "offline_forge_reward";
       offlineDurationMs: number;
-      offlineDurationLabel: string;
       forgeLevel: number;
       ratePerMinute: number;
       maxAccumulateMinutes: number;

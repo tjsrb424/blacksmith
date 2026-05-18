@@ -107,17 +107,3 @@ export function getForgeSnapshot(args: {
     isFull,
   };
 }
-
-/** 오프라인 모달 등에 사용 — 경과 시간 표시 */
-export function formatOfflineDuration(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const parts: string[] = [];
-  if (h > 0) parts.push(`${h}시간`);
-  if (m > 0) parts.push(`${m}분`);
-  if (h === 0 && m === 0 && s > 0) parts.push(`${s}초`);
-  if (parts.length === 0) return "1분 미만";
-  return parts.join(" ");
-}

@@ -28,6 +28,22 @@ import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 
+type TranslationFn = ReturnType<typeof useLocale>["t"];
+
+function formatOfflineDurationLabel(ms: number, t: TranslationFn): string {
+  const totalMinutes = Math.max(1, Math.floor(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return t("time.hoursMinutes", { hours, minutes });
+  }
+  if (hours > 0) {
+    return t("time.hours", { hours });
+  }
+  return t("time.minutes", { minutes: totalMinutes });
+}
+
 function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
   const { t } = useLocale();
 
@@ -757,7 +773,7 @@ export function ModalRoot() {
                   <p className="text-sm text-zinc-400">
                     {t("modal.offlineElapsed")}:{" "}
                     <span className="font-mono text-amber-200/90">
-                      {modal.offlineDurationLabel}
+                      {formatOfflineDurationLabel(modal.offlineDurationMs, t)}
                     </span>
                   </p>
                   <div className="space-y-2 rounded-xl bg-zinc-900/60 p-3 text-sm ring-1 ring-amber-900/40">
