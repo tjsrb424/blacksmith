@@ -145,7 +145,10 @@ body {
 }
 
 .app-shell-layout-centered {
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  grid-template-columns: none;
   justify-items: center;
 }
 
@@ -277,7 +280,8 @@ body {
   }
 
   .app-shell-layout-centered {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    grid-template-columns: none;
     width: 100vw;
   }
 }

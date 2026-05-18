@@ -1,3 +1,5 @@
+import { isCrazyGamesBuild } from "@/lib/distribution";
+
 export type SideAdProviderId = "disabled" | "adfit";
 
 export type SideBannerSlotName = "side-banner-left" | "side-banner-right";
@@ -14,6 +16,7 @@ const SIDE_AD_WIDTH = 160;
 const SIDE_AD_HEIGHT = 600;
 
 function getSideAdProvider(): SideAdProviderId {
+  if (isCrazyGamesBuild()) return "disabled";
   return process.env.NEXT_PUBLIC_SIDE_AD_PROVIDER === "adfit"
     ? "adfit"
     : "disabled";

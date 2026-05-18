@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { PublicFooter } from "@/components/public/PublicFooter";
 import { FantasyButton } from "@/components/ui/FantasyButton";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 import { useLocale } from "@/lib/i18n/useLocale";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
@@ -34,6 +35,7 @@ export function LoginScreen({
   authGateMode = "optional",
   isCrazyGamesMode = false,
 }: LoginScreenProps) {
+  const crazyGamesMode = isCrazyGamesMode || isCrazyGamesBuild();
   const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -60,6 +62,7 @@ export function LoginScreen({
   }, [cooldown, magicStatus, t]);
 
   async function onGoogleSignIn() {
+    if (crazyGamesMode) return;
     setMessage(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
@@ -135,7 +138,7 @@ export function LoginScreen({
             {t("game.title")}
           </h1>
           <p className="text-sm leading-6 text-zinc-400">
-            {isCrazyGamesMode
+            {crazyGamesMode
               ? t("login.crazyGamesSaveNotice")
               : authGateMode === "required"
               ? t("login.requiredDescription")
@@ -144,7 +147,7 @@ export function LoginScreen({
         </div>
 
         <div className="mt-6 space-y-5">
-          {!isCrazyGamesMode ? (
+          {!crazyGamesMode ? (
             <>
               <FantasyButton
                 type="button"

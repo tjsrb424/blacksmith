@@ -35,6 +35,7 @@ import {
   updatePerformanceMetric,
 } from "@/lib/performanceMetrics";
 import { useLocale } from "@/lib/i18n/useLocale";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getGameMode, getSupabaseBrowserEnv } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
@@ -107,6 +108,7 @@ export function AuthGate({
 }) {
   useRenderDiagnostics("AuthGate");
   const { t } = useLocale();
+  const crazyGamesMode = isCrazyGamesMode || isCrazyGamesBuild();
   const mode = getGameMode();
   const authGateMode = getAuthGateMode();
   const [session, setSession] = useState<Session | null>(null);
@@ -622,7 +624,7 @@ export function AuthGate({
     [refresh, snapshot],
   );
 
-  if (mode !== "beta") {
+  if (crazyGamesMode || mode !== "beta") {
     return (
       <BetaPlayerContext.Provider value={contextValue}>
         {children}
@@ -635,7 +637,7 @@ export function AuthGate({
       <LoginScreen
         error={supabaseEnv.message}
         authGateMode={authGateMode}
-        isCrazyGamesMode={isCrazyGamesMode}
+        isCrazyGamesMode={crazyGamesMode}
       />
     );
   }
@@ -691,7 +693,7 @@ export function AuthGate({
         <GameStartScreen
           error={authError}
           onGuestStart={startGuest}
-          isCrazyGamesMode={isCrazyGamesMode}
+          isCrazyGamesMode={crazyGamesMode}
         />
       );
     }
@@ -716,7 +718,7 @@ export function AuthGate({
         <GameStartScreen
           error={error}
           onGuestStart={startGuest}
-          isCrazyGamesMode={isCrazyGamesMode}
+          isCrazyGamesMode={crazyGamesMode}
         />
       );
     }
@@ -744,7 +746,7 @@ export function AuthGate({
         <LoginScreen
           error={authError}
           authGateMode={authGateMode}
-          isCrazyGamesMode={isCrazyGamesMode}
+          isCrazyGamesMode={crazyGamesMode}
         />
       );
     }
@@ -774,7 +776,7 @@ export function AuthGate({
       <GameStartScreen
         error={authError}
         onGuestStart={startGuest}
-        isCrazyGamesMode={isCrazyGamesMode}
+        isCrazyGamesMode={crazyGamesMode}
       />
     );
   }

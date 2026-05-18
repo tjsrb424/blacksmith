@@ -3,9 +3,9 @@ import { AuthGate } from "@/components/auth/AuthGate";
 import { GameRoot } from "@/components/GameRoot";
 
 export const metadata: Metadata = {
-  title: "CrazyGames | 세계 최강의 대장장이",
+  title: "CrazyGames | World's Greatest Blacksmith",
   description:
-    "CrazyGames 제출용으로 외부 로그인과 AdFit 광고를 제외한 게임 실행 경로입니다.",
+    "A CrazyGames-ready launch path without external login popups or external ads.",
 };
 
 export default function CrazyGamesPage() {

@@ -171,7 +171,10 @@ export function BlacksmithScreen() {
       : weaponMotion;
 
   const mainColumn = (
-    <div className="relative flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-xl border border-amber-900/35 bg-[linear-gradient(180deg,rgba(28,15,8,0.2),rgba(0,0,0,0.14))] p-2 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[220px] sm:gap-2 sm:p-2.5">
+    <div
+      className="relative flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-xl border border-amber-900/35 bg-[linear-gradient(180deg,rgba(28,15,8,0.2),rgba(0,0,0,0.14))] p-2 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[220px] sm:gap-2 sm:p-2.5"
+      data-tutorial-target="weapon-value"
+    >
       <BlacksmithResultFx kind={stageFx} burstKey={fxSession} />
       <div className="relative flex w-full flex-col items-center justify-center">
         {!def || !equipped ? (
@@ -354,6 +357,7 @@ export function BlacksmithScreen() {
                 </div>
               ) : null}
               <FantasyButton
+                data-tutorial-target="enhance-button"
                 className="enhance-button min-h-[52px] w-full overflow-hidden rounded-xl border border-amber-300/45 bg-[linear-gradient(180deg,rgba(254,215,114,0.82)_0%,rgba(217,119,6,0.94)_46%,rgba(124,45,18,0.98)_100%)] px-3 py-2 text-base shadow-[0_0_28px_rgba(245,158,11,0.36),0_10px_24px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,251,235,0.45),inset_0_-12px_22px_rgba(69,26,3,0.32)] ring-1 ring-amber-200/35 hover:bg-[linear-gradient(180deg,rgba(254,226,150,0.92)_0%,rgba(234,137,16,0.97)_48%,rgba(146,64,14,1)_100%)] focus-visible:ring-2 focus-visible:ring-amber-200/90"
                 disabled={
                   !equipped ||
@@ -488,6 +492,7 @@ export function BlacksmithScreen() {
         <div className="relative z-10 order-last flex flex-col gap-2 border-t border-zinc-800/70 pt-4">
             <FantasyButton
               variant="danger"
+              data-tutorial-target="sell-button"
               className="min-h-12 flex-1 focus-visible:ring-2 focus-visible:ring-amber-400/80"
               disabled={
                 !equipped ||

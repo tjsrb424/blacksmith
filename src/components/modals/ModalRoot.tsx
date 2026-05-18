@@ -26,6 +26,7 @@ import { EFFECT_ASSETS } from "@/data/assets";
 import { getGameMode } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
+import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 
 function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
   const { t } = useLocale();
@@ -236,6 +237,7 @@ function ModalToneEffects({ modal }: { modal: ModalPayload }) {
 export function ModalRoot() {
   useRenderDiagnostics("ModalRoot");
   const { locale, t } = useLocale();
+  const isCrazyGamesMode = useIsCrazyGamesMode();
   const modal = useGameStore((s) => s.modal);
   const serverActionPending = useGameStore((s) => s.serverActionPending);
   const prevModalRef = useRef(modal);
@@ -264,6 +266,7 @@ export function ModalRoot() {
   const acknowledgeSeasonStart = useGameStore((s) => s.acknowledgeSeasonStart);
   const isBetaMode = getGameMode() === "beta";
   const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
+  const showRewardAds = !isCrazyGamesMode;
   const isTerminalAdState =
     modal?.kind === "ad_reward_progress" &&
     (modal.phase === "unavailable" ||
@@ -788,12 +791,14 @@ export function ModalRoot() {
                         {t("modal.emberAmount", { amount: formatInt(modal.pendingBase) })}
                       </span>
                     </div>
-                    <div className="mt-1 flex justify-between gap-2">
-                      <span className="text-zinc-500">{t("forge.adDouble")}</span>
-                      <span className="font-mono text-violet-300">
-                        {t("modal.emberAmount", { amount: formatInt(modal.pendingAdDouble) })}
-                      </span>
-                    </div>
+                    {showRewardAds ? (
+                      <div className="mt-1 flex justify-between gap-2">
+                        <span className="text-zinc-500">{t("forge.adDouble")}</span>
+                        <span className="font-mono text-violet-300">
+                          {t("modal.emberAmount", { amount: formatInt(modal.pendingAdDouble) })}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                   {modal.hitTimeCap || modal.isStorageFull ? (
                     <p className="rounded-lg bg-red-950/35 p-3 text-xs leading-relaxed text-red-200 ring-1 ring-red-500/25">
@@ -810,27 +815,31 @@ export function ModalRoot() {
                     >
                       {t("forge.basicCollect")}
                     </FantasyButton>
-                    <FantasyButton
-                      variant="promo"
-                      className="w-full"
-                      onClick={() => collectForge(true)}
-                      disabled={
-                        modal.pendingBase <= 0 ||
-                        isRewardAdDisabled ||
-                        serverActionPending
-                      }
-                    >
-                      {isRewardAdDisabled
-                        ? t("ads.rewardPreparing")
-                        : t("ads.watchForDoubleCollect")}
-                    </FantasyButton>
-                    {isRewardAdDisabled ? (
-                      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-                        {t("reward.extraPreparing")}
-                      </p>
-                    ) : (
-                      <AdRewardStatusText rewardType="forgeCollectDouble" />
-                    )}
+                    {showRewardAds ? (
+                      <>
+                        <FantasyButton
+                          variant="promo"
+                          className="w-full"
+                          onClick={() => collectForge(true)}
+                          disabled={
+                            modal.pendingBase <= 0 ||
+                            isRewardAdDisabled ||
+                            serverActionPending
+                          }
+                        >
+                          {isRewardAdDisabled
+                            ? t("ads.rewardPreparing")
+                            : t("ads.watchForDoubleCollect")}
+                        </FantasyButton>
+                        {isRewardAdDisabled ? (
+                          <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                            {t("reward.extraPreparing")}
+                          </p>
+                        ) : (
+                          <AdRewardStatusText rewardType="forgeCollectDouble" />
+                        )}
+                      </>
+                    ) : null}
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       {t("modal.collectLater")}
                     </FantasyButton>
@@ -993,45 +1002,53 @@ export function ModalRoot() {
                       <span className="text-zinc-500">{t("modal.baseSalePrice")}</span>
                       <span className="font-mono text-sky-300">{formatGold(modal.saleGold)}</span>
                     </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-zinc-500">{t("ads.saleBonus")}</span>
-                      <span className="font-mono text-orange-300">{formatGold(modal.adSaleGold)}</span>
-                    </div>
+                    {showRewardAds ? (
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">{t("ads.saleBonus")}</span>
+                        <span className="font-mono text-orange-300">{formatGold(modal.adSaleGold)}</span>
+                      </div>
+                    ) : null}
                     <div className="flex justify-between gap-2 border-t border-zinc-800 pt-2">
                       <span className="text-zinc-500">{t("modal.rankingValueReference")}</span>
                       <span className="font-mono text-zinc-400">{formatGold(modal.rankingValue)}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-zinc-500">
-                    {t("modal.rankingValueUnaffectedByAd")}
-                  </p>
+                  {showRewardAds ? (
+                    <p className="text-xs text-zinc-500">
+                      {t("modal.rankingValueUnaffectedByAd")}
+                    </p>
+                  ) : null}
                   <div className="flex flex-col gap-2 pt-1">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className={showRewardAds ? "grid grid-cols-1 gap-2 sm:grid-cols-2" : "grid grid-cols-1 gap-2"}>
                       <FantasyButton variant="accent" disabled={serverActionPending} onClick={() => commitSell("normal")}>
                         {serverActionPending ? t("inventory.selling") : t("modal.basicSale")}
                       </FantasyButton>
-                      <FantasyButton
-                        variant="promo"
-                        disabled={serverActionPending || isRewardAdDisabled}
-                        onClick={() => commitSell("adBonus")}
-                      >
-                        {serverActionPending
-                          ? t("inventory.selling")
-                          : isRewardAdDisabled
-                            ? t("ads.rewardPreparing")
-                            : t("ads.watchForBonusSale")}
-                      </FantasyButton>
+                      {showRewardAds ? (
+                        <FantasyButton
+                          variant="promo"
+                          disabled={serverActionPending || isRewardAdDisabled}
+                          onClick={() => commitSell("adBonus")}
+                        >
+                          {serverActionPending
+                            ? t("inventory.selling")
+                            : isRewardAdDisabled
+                              ? t("ads.rewardPreparing")
+                              : t("ads.watchForBonusSale")}
+                        </FantasyButton>
+                      ) : null}
                     </div>
-                    {isRewardAdDisabled ? (
-                      <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-                        {t("ads.unavailableBasicSaleAvailable")}
-                      </p>
-                    ) : (
-                      <AdRewardStatusText
-                        rewardType="sellBonus"
-                        relatedActionId={modal.instanceId}
-                      />
-                    )}
+                    {showRewardAds ? (
+                      isRewardAdDisabled ? (
+                        <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                          {t("ads.unavailableBasicSaleAvailable")}
+                        </p>
+                      ) : (
+                        <AdRewardStatusText
+                          rewardType="sellBonus"
+                          relatedActionId={modal.instanceId}
+                        />
+                      )
+                    ) : null}
                     <FantasyButton variant="muted" className="w-full" onClick={close}>
                       {t("common.cancel")}
                     </FantasyButton>

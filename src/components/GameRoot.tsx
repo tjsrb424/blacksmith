@@ -9,6 +9,7 @@ import { AutoForgeScreen } from "@/components/screens/AutoForgeScreen";
 import { InventoryScreen } from "@/components/screens/InventoryScreen";
 import { RankingScreen } from "@/components/screens/RankingScreen";
 import { SettingsModal } from "@/components/settings/SettingsModal";
+import { QuickTutorialOverlay } from "@/components/tutorial/QuickTutorialOverlay";
 import { EnhanceAnimationOrchestrator } from "@/components/effects/EnhanceAnimationOrchestrator";
 import { navTabToScreenKey, preloadBootstrapAssets } from "@/lib/preloadAssets";
 import {
@@ -30,6 +31,8 @@ import { getCurrentSeasonInfo } from "@/lib/season";
 import { preloadSounds, unlockAudio } from "@/lib/sound";
 import { getGameMode } from "@/lib/supabase/env";
 import { useLocale } from "@/lib/i18n/useLocale";
+import { isCrazyGamesBuild } from "@/lib/distribution";
+import { DistributionProvider } from "@/lib/distributionContext";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
 
@@ -466,6 +469,7 @@ export function GameRoot({
 }) {
   useRenderDiagnostics("GameRoot");
   const { t } = useLocale();
+  const crazyGamesMode = isCrazyGamesMode || isCrazyGamesBuild();
   const [hydrated, setHydrated] = useState(false);
   const [hydrateSlow, setHydrateSlow] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -578,25 +582,28 @@ export function GameRoot({
 
   return (
     <>
-      <AppShell
-        onOpenSettings={() => setSettingsOpen(true)}
-        showAds={!isCrazyGamesMode}
-      >
-        {tab === "blacksmith" ? <BlacksmithScreen /> : null}
-        {tab === "shop" ? <WeaponShopScreen /> : null}
-        {tab === "forge" ? <AutoForgeScreen /> : null}
-        {tab === "inventory" ? <InventoryScreen /> : null}
-        {tab === "ranking" ? <RankingScreen /> : null}
-      </AppShell>
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        isCrazyGamesMode={isCrazyGamesMode}
-      />
-      <ModalRoot />
-      <EnhanceAnimationOrchestrator />
-      <ServerActionOverlay />
-      <DevToolsPanel screen={tab} />
+      <DistributionProvider isCrazyGamesMode={crazyGamesMode}>
+        <AppShell
+          onOpenSettings={() => setSettingsOpen(true)}
+          showAds={!crazyGamesMode}
+        >
+          {tab === "blacksmith" ? <BlacksmithScreen /> : null}
+          {tab === "shop" ? <WeaponShopScreen /> : null}
+          {tab === "forge" ? <AutoForgeScreen /> : null}
+          {tab === "inventory" ? <InventoryScreen /> : null}
+          {tab === "ranking" ? <RankingScreen /> : null}
+        </AppShell>
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          isCrazyGamesMode={crazyGamesMode}
+        />
+        <ModalRoot />
+        <QuickTutorialOverlay enabled={crazyGamesMode} />
+        <EnhanceAnimationOrchestrator />
+        <ServerActionOverlay />
+        <DevToolsPanel screen={tab} />
+      </DistributionProvider>
     </>
   );
 }

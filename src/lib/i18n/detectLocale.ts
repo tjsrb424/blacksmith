@@ -1,5 +1,10 @@
 import { DEFAULT_LOCALE, type SupportedLocale } from "./locales";
 import { getSavedLocale } from "./localeStorage";
+import { isCrazyGamesBuild } from "@/lib/distribution";
+
+export function getDefaultLocale(): SupportedLocale {
+  return isCrazyGamesBuild() ? "en" : DEFAULT_LOCALE;
+}
 
 export function normalizeLocale(locale: string): SupportedLocale {
   const normalized = locale.trim().replace("_", "-");
@@ -27,7 +32,7 @@ export function normalizeLocale(locale: string): SupportedLocale {
     return "en";
   }
 
-  return DEFAULT_LOCALE;
+  return getDefaultLocale();
 }
 
 function getNavigatorLanguages(): readonly string[] {
@@ -43,6 +48,10 @@ function getNavigatorLanguages(): readonly string[] {
 }
 
 export function detectInitialLocale(): SupportedLocale {
+  if (isCrazyGamesBuild()) {
+    return "en";
+  }
+
   const savedLocale = getSavedLocale();
   if (savedLocale) {
     return savedLocale;
@@ -55,5 +64,5 @@ export function detectInitialLocale(): SupportedLocale {
     }
   }
 
-  return DEFAULT_LOCALE;
+  return getDefaultLocale();
 }

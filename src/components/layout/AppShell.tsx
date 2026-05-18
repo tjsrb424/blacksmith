@@ -5,6 +5,7 @@ import { SideBannerSlot } from "@/components/ads/SideBannerSlot";
 import { BottomTabs } from "@/components/layout/BottomTabs";
 import { TopResourceBar } from "@/components/layout/TopResourceBar";
 import { BACKGROUND_ASSETS } from "@/data/assets";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 
 function useDesktopSideRails() {
   const [enabled, setEnabled] = useState(false);
@@ -77,8 +78,9 @@ export function AppShell({
   showAds?: boolean;
 }) {
   const desktopSideRailsEnabled = useDesktopSideRails();
-  const showDesktopSideRails = desktopSideRailsEnabled && showAds;
-  const layoutClassName = showAds
+  const adsEnabled = showAds && !isCrazyGamesBuild();
+  const showDesktopSideRails = desktopSideRailsEnabled && adsEnabled;
+  const layoutClassName = showDesktopSideRails
     ? "app-shell-layout relative z-10 mx-auto"
     : "app-shell-layout app-shell-layout-centered relative z-10 mx-auto";
 

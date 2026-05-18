@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { SideBannerSlot } from "@/components/ads/SideBannerSlot";
 import { BACKGROUND_ASSETS } from "@/data/assets";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 import { useLocale } from "@/lib/i18n/useLocale";
 import { type NicknameValidationReason, validateNickname } from "@/lib/player/nickname";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -58,12 +59,13 @@ export function GameStartScreen({
   onGuestStart,
   isCrazyGamesMode = false,
 }: GameStartScreenProps) {
+  const crazyGamesMode = isCrazyGamesMode || isCrazyGamesBuild();
   const [nickname, setNickname] = useState("");
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [guestStarting, setGuestStarting] = useState(false);
   const desktopSideRailsEnabled = useDesktopSideRails();
-  const showDesktopSideRails = desktopSideRailsEnabled && !isCrazyGamesMode;
+  const showDesktopSideRails = desktopSideRailsEnabled && !crazyGamesMode;
   const env = getSupabaseBrowserEnv();
   const { locale, t } = useLocale();
   const eyebrowTrackingClass =
@@ -102,6 +104,7 @@ export function GameStartScreen({
   }
 
   async function onGoogleSignIn() {
+    if (crazyGamesMode) return;
     setMessage(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
@@ -193,7 +196,7 @@ export function GameStartScreen({
               {guestStarting ? t("common.checking") : t("common.start")}
             </button>
 
-            {!isCrazyGamesMode ? (
+            {!crazyGamesMode ? (
               <>
                 <div className="mt-4 flex items-center gap-3">
                   <div className="h-px flex-1 bg-amber-900/35" />
@@ -218,7 +221,7 @@ export function GameStartScreen({
             ) : null}
 
             <p className="mt-3 text-center text-xs leading-5 text-zinc-500">
-              {isCrazyGamesMode
+              {crazyGamesMode
                 ? t("login.crazyGamesSaveNotice")
                 : t("start.guestNotice")}
             </p>

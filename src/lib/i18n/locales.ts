@@ -2,7 +2,7 @@ export const SUPPORTED_LOCALES = ["ko", "en", "ja", "zh-TW"] as const;
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
-export const DEFAULT_LOCALE: SupportedLocale = "en";
+export const DEFAULT_LOCALE: SupportedLocale = "ko";
 
 export const LOCALE_LABELS: Record<SupportedLocale, string> = {
   ko: "한국어",

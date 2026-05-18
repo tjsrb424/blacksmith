@@ -7,6 +7,7 @@ import {
   setSettingsLanguage,
   SETTINGS_LANGUAGE_OPTIONS,
 } from "@/components/settings/settingsStorage";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 import { useLocale } from "@/lib/i18n/useLocale";
 import {
   clearGuestProfile,
@@ -58,6 +59,7 @@ export function SettingsModal({
   onClose,
   isCrazyGamesMode = false,
 }: SettingsModalProps) {
+  const crazyGamesMode = isCrazyGamesMode || isCrazyGamesBuild();
   const { snapshot, refresh } = useBetaPlayer();
   const { locale, setLocale, t } = useLocale();
   const env = getSupabaseBrowserEnv();
@@ -108,6 +110,7 @@ export function SettingsModal({
   };
 
   const signInWithGoogle = async () => {
+    if (crazyGamesMode) return;
     setAccountMessage(null);
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
@@ -392,11 +395,11 @@ export function SettingsModal({
                 ) : null}
               </div>
               <p className="mt-3 text-xs leading-5 text-zinc-500">
-                {isCrazyGamesMode
+                {crazyGamesMode
                   ? t("login.crazyGamesSaveNotice")
                   : t("account.linkDescription")}
               </p>
-              {!isCrazyGamesMode ? (
+              {!crazyGamesMode ? (
                 <div className="mt-4">
                 {isAuthenticated ? (
                   <button

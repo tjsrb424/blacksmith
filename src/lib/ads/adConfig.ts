@@ -1,10 +1,12 @@
 import type { AdProviderId } from "@/types/ads";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 
 function isProductionRuntime() {
   return process.env.NODE_ENV === "production";
 }
 
 export function getGoogleRewardedAdUnitId(): string | undefined {
+  if (isCrazyGamesBuild()) return undefined;
   return (
     process.env.NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID ??
     process.env.NEXT_PUBLIC_GOOGLE_AD_UNIT_ID ??
@@ -13,6 +15,8 @@ export function getGoogleRewardedAdUnitId(): string | undefined {
 }
 
 export function getConfiguredAdProvider(): AdProviderId {
+  if (isCrazyGamesBuild()) return "disabled";
+
   const provider = process.env.NEXT_PUBLIC_AD_PROVIDER;
   if (provider === "mock") {
     return isProductionRuntime() ? "disabled" : "mock";

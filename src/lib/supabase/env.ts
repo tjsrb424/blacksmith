@@ -1,6 +1,8 @@
 import type { GameMode } from "@/types/server";
+import { isCrazyGamesBuild } from "@/lib/distribution";
 
 export function getGameMode(): GameMode {
+  if (isCrazyGamesBuild()) return "local";
   return process.env.NEXT_PUBLIC_GAME_MODE === "beta" ? "beta" : "local";
 }
 

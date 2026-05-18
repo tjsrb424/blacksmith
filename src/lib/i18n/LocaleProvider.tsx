@@ -9,10 +9,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { detectInitialLocale } from "@/lib/i18n/detectLocale";
+import { detectInitialLocale, getDefaultLocale } from "@/lib/i18n/detectLocale";
 import { saveLocale } from "@/lib/i18n/localeStorage";
 import {
-  DEFAULT_LOCALE,
   isSupportedLocale,
   type SupportedLocale,
 } from "@/lib/i18n/locales";
@@ -29,7 +28,7 @@ type LocaleContextValue = {
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<SupportedLocale>(DEFAULT_LOCALE);
+  const [locale, setLocaleState] = useState<SupportedLocale>(getDefaultLocale);
 
   useEffect(() => {
     let mounted = true;
@@ -47,7 +46,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const setLocale = useCallback((nextLocale: SupportedLocale) => {
     const safeLocale = isSupportedLocale(nextLocale)
       ? nextLocale
-      : DEFAULT_LOCALE;
+      : getDefaultLocale();
     setLocaleState(safeLocale);
     saveLocale(safeLocale);
   }, []);

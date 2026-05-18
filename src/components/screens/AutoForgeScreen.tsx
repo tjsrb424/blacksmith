@@ -18,6 +18,7 @@ import { useLocale } from "@/lib/i18n/useLocale";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
+import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
@@ -60,6 +61,7 @@ function ForgeProgressBar({
 export function AutoForgeScreen() {
   useRenderDiagnostics("AutoForgeScreen");
   const { t } = useLocale();
+  const isCrazyGamesMode = useIsCrazyGamesMode();
   const forgeLevel = useGameStore((s) => s.forgeLevel);
   const forgeLastCollectAt = useGameStore((s) => s.forgeLastCollectAt);
   const ember = useGameStore((s) => s.ember);
@@ -93,6 +95,7 @@ export function AutoForgeScreen() {
   const upgradeCost = forgeUpgradeCostGold(forgeLevel);
   const canAffordUpgrade = forgeLevel < 10 && gold >= upgradeCost;
   const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
+  const showRewardAds = !isCrazyGamesMode;
 
   const pct = Math.round(snap.fillRatio * 100);
   const warnBand = snap.fillRatio >= 0.8 && snap.fillRatio < 1;
@@ -187,7 +190,7 @@ export function AutoForgeScreen() {
                 {t("forge.collect")}
               </span>
             </FantasyButton>
-            {isRewardAdDisabled ? (
+            {!showRewardAds ? null : isRewardAdDisabled ? (
               <div className="rounded-xl border border-zinc-800/80 bg-black/24 px-3 py-3 text-center ring-1 ring-zinc-900/60">
                 <div className="flex justify-center">
                   <StatusBadge tone="pending">{t("reward.preparing")}</StatusBadge>
@@ -210,30 +213,40 @@ export function AutoForgeScreen() {
               </FantasyButton>
             )}
           </div>
-          {isRewardAdDisabled ? (
-            <p className="text-center text-[11px] leading-relaxed text-zinc-500">
-              {t("reward.extraPreparing")}
-            </p>
-          ) : (
-            <AdRewardStatusText rewardType="forgeCollectDouble" />
-          )}
+          {showRewardAds ? (
+            isRewardAdDisabled ? (
+              <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                {t("reward.extraPreparing")}
+              </p>
+            ) : (
+              <AdRewardStatusText rewardType="forgeCollectDouble" />
+            )
+          ) : null}
 
-          <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
+          <div
+            className={
+              showRewardAds
+                ? "grid grid-cols-2 gap-2 text-xs text-zinc-400"
+                : "grid grid-cols-1 gap-2 text-xs text-zinc-400"
+            }
+          >
             <div className="rounded-xl bg-black/24 p-3 ring-1 ring-zinc-700/50">
               <div className="text-zinc-500">{t("forge.basicCollect")}</div>
               <div className="numeric-value mt-1 font-mono text-amber-100">{formatInt(pending)}</div>
             </div>
-            <div
-              className={cn(
-                "rounded-xl p-3 ring-1",
-                isRewardAdDisabled
-                  ? "bg-black/18 opacity-60 ring-zinc-800/70"
-                  : "bg-violet-950/16 ring-violet-700/30",
-              )}
-            >
-              <div className="text-zinc-500">{t("forge.adDouble")}</div>
-              <div className="numeric-value mt-1 font-mono text-violet-100">{formatInt(pending * 2)}</div>
-            </div>
+            {showRewardAds ? (
+              <div
+                className={cn(
+                  "rounded-xl p-3 ring-1",
+                  isRewardAdDisabled
+                    ? "bg-black/18 opacity-60 ring-zinc-800/70"
+                    : "bg-violet-950/16 ring-violet-700/30",
+                )}
+              >
+                <div className="text-zinc-500">{t("forge.adDouble")}</div>
+                <div className="numeric-value mt-1 font-mono text-violet-100">{formatInt(pending * 2)}</div>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

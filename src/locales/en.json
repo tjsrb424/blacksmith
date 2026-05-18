@@ -19,6 +19,16 @@
     "retry": "Retry",
     "or": "or"
   },
+  "tutorial": {
+    "stepLabel": "Step {current}/{total}",
+    "tapEnhance": "Tap Enhance to upgrade your weapon.",
+    "weaponValue": "Higher upgrades increase your weapon value.",
+    "sellWeapons": "Sell weapons to earn Embers and keep growing.",
+    "reachHighest": "Reach the highest enhancement level!",
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Done"
+  },
   "nav": {
     "blacksmith": "Blacksmith",
     "shop": "Shop",
