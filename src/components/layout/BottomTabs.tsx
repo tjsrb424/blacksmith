@@ -95,7 +95,7 @@ function TabButton({
       }}
       onClick={onClick}
       className={cn(
-        "flex min-h-[44px] touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[10px] font-semibold transition",
+        "flex min-h-[44px] min-w-0 touch-manipulation select-none flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[10px] font-semibold transition",
         disabled && "cursor-not-allowed opacity-35",
         active
           ? "bg-amber-600/25 text-amber-50 ring-1 ring-amber-500/40"
@@ -123,7 +123,7 @@ function TabButton({
           />
         )}
       </span>
-      <span className="leading-none">{label}</span>
+      <span className="max-w-full truncate leading-none">{label}</span>
     </button>
   );
 }

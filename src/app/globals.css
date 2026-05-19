@@ -3,6 +3,11 @@
 :root {
   --background: #070708;
   --foreground: #f4f4f5;
+  --game-stage-width: 430px;
+  --game-stage-height: 883px;
+  --game-stage-scale: 1;
+  --game-stage-scaled-width: 430px;
+  --game-stage-scaled-height: 883px;
   --resource-header-height: 60px;
   --bottom-nav-height: 68px;
 }
@@ -24,7 +29,10 @@ html,
 body {
   height: 100%;
   min-height: 100%;
+  min-width: 0;
+  width: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 html::-webkit-scrollbar,
@@ -124,13 +132,14 @@ body {
 }
 
 .game-viewport {
-  aspect-ratio: 9.5 / 19.5;
-  width: min(430px, 100vw, calc((100svh - 16px) * 9.5 / 19.5));
-  max-width: 430px;
-  max-height: calc(100svh - 16px);
+  width: 100%;
+  height: 100%;
 }
 
 .app-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
   height: 100svh;
   overflow: hidden;
 }
@@ -138,22 +147,50 @@ body {
 .app-shell-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
+  min-height: 0;
   overflow: hidden;
   place-items: center;
-  width: 100vw;
+  width: 100%;
 }
 
 .app-shell-layout-centered {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
   grid-template-columns: none;
   justify-items: center;
 }
 
 .desktop-side-rail {
   width: 100%;
+}
+
+.game-stage-outer {
+  align-self: stretch;
+  display: grid;
+  height: 100%;
+  justify-self: stretch;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  place-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.game-stage-slot {
+  flex: 0 0 auto;
+  overflow: visible;
+  position: relative;
+}
+
+.game-stage {
+  isolation: isolate;
+  left: 0;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  transform-origin: top left;
 }
 
 .main-scroll {
@@ -244,16 +281,42 @@ body {
 }
 
 .game-fixed-overlay {
-  aspect-ratio: 9.5 / 19.5;
-  width: min(430px, 100vw, calc((100svh - 16px) * 9.5 / 19.5));
-  max-width: 430px;
-  max-height: calc(100svh - 16px);
+  height: var(--game-stage-height);
+  max-height: none;
+  max-width: none;
+  transform: translate(-50%, -50%) scale(var(--game-stage-scale));
+  transform-origin: center;
+  width: var(--game-stage-width);
 }
 
 .game-modal-overlay {
-  width: min(440px, 100vw);
-  height: calc(100svh - 16px);
-  max-height: calc(100svh - 16px);
+  height: var(--game-stage-height);
+  max-height: none;
+  max-width: none;
+  transform: translate(-50%, -50%) scale(var(--game-stage-scale));
+  transform-origin: center;
+  width: var(--game-stage-width);
+}
+
+.game-modal-panel {
+  max-height: calc(var(--game-stage-height) - 48px);
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(245, 158, 11, 0.62) rgba(0, 0, 0, 0.26);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.game-modal-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.game-modal-panel::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.game-modal-panel::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.62);
+  border-radius: 999px;
 }
 
 @supports (height: 100dvh) {
@@ -261,28 +324,21 @@ body {
     height: 100dvh;
   }
 
-  .game-viewport,
-  .game-fixed-overlay {
-    width: min(430px, 100vw, calc((100dvh - 16px) * 9.5 / 19.5));
-    max-height: calc(100dvh - 16px);
-  }
-
-  .game-modal-overlay {
-    height: calc(100dvh - 16px);
-    max-height: calc(100dvh - 16px);
-  }
 }
 
 @media (min-width: 1200px) {
   .app-shell-layout {
-    grid-template-columns: minmax(180px, 1fr) 430px minmax(180px, 1fr);
+    grid-template-columns:
+      minmax(180px, 1fr)
+      var(--game-stage-scaled-width)
+      minmax(180px, 1fr);
     width: 100%;
   }
 
   .app-shell-layout-centered {
-    display: flex;
+    display: grid;
     grid-template-columns: none;
-    width: 100vw;
+    width: 100%;
   }
 }
 

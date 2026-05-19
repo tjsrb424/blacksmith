@@ -172,7 +172,7 @@ export function BlacksmithScreen() {
 
   const mainColumn = (
     <div
-      className="relative flex min-h-[150px] flex-col items-center justify-center gap-1.5 rounded-xl border border-amber-900/35 bg-[linear-gradient(180deg,rgba(28,15,8,0.2),rgba(0,0,0,0.14))] p-2 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px] sm:min-h-[220px] sm:gap-2 sm:p-2.5"
+      className="relative flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-xl border border-amber-900/35 bg-[linear-gradient(180deg,rgba(28,15,8,0.2),rgba(0,0,0,0.14))] p-2.5 ring-1 ring-inset ring-amber-900/25 backdrop-blur-[2px]"
       data-tutorial-target="weapon-value"
     >
       <BlacksmithResultFx kind={stageFx} burstKey={fxSession} />
@@ -191,11 +191,11 @@ export function BlacksmithScreen() {
           </>
         ) : (
           <>
-            <div className="relative flex h-[min(26vw,102px)] w-full max-w-[178px] items-center justify-center sm:h-[min(34vw,178px)] sm:max-w-[250px]">
+            <div className="relative flex h-[178px] w-full max-w-[250px] items-center justify-center">
               <div className="absolute inset-0 flex items-center justify-center">
                 <ForgeGlow
                   mode={auraMode === "idle" ? "neutral" : auraMode}
-                  className="h-[112px] w-[112px] sm:h-44 sm:w-44"
+                  className="h-44 w-44"
                   showRing={false}
                 />
               </div>
@@ -214,16 +214,16 @@ export function BlacksmithScreen() {
                 <WeaponImage
                   src={def.imagePath}
                   alt={stageWeaponName}
-                  className="relative z-10 max-h-[min(21vw,82px)] w-auto object-contain drop-shadow-[0_0_22px_rgba(251,146,60,0.42)] sm:max-h-[145px]"
+                  className="relative z-10 max-h-[145px] w-auto object-contain drop-shadow-[0_0_22px_rgba(251,146,60,0.42)]"
                 />
               </motion.div>
             </div>
             <div className="mt-1 flex min-h-[42px] max-w-full flex-col items-center justify-start text-center">
-              <div className="max-w-full truncate px-2 text-sm font-bold leading-tight text-amber-50 drop-shadow-[0_1px_6px_rgba(0,0,0,0.72)] sm:text-base">
+              <div className="max-w-full truncate px-2 text-base font-bold leading-tight text-amber-50 drop-shadow-[0_1px_6px_rgba(0,0,0,0.72)]">
                 {stageWeaponName}
               </div>
               <motion.div
-                className="font-mono text-xs leading-tight text-amber-200/90 sm:text-sm"
+                className="font-mono text-sm leading-tight text-amber-200/90"
                 animate={
                   stageFx === "enhance_ok"
                     ? { scale: [1, 1.15, 1], color: ["#fde68a", "#fef08a", "#fde68a"] }
@@ -268,7 +268,7 @@ export function BlacksmithScreen() {
           {t("blacksmith.equipOrBuyPrompt")}
         </p>
       ) : (
-        <dl className="space-y-1 text-xs sm:text-sm">
+        <dl className="space-y-1 text-sm">
           <div className="stat-row">
             <dt className="text-zinc-500">{t("weapon.grade")}</dt>
             <dd className="text-zinc-100">
@@ -300,7 +300,7 @@ export function BlacksmithScreen() {
         <div className="space-y-2">
           {!isMaxEnhance ? (
             <>
-              <dl className="space-y-1 text-xs sm:text-sm">
+              <dl className="space-y-1 text-sm">
                 <div className="stat-row">
                   <dt className="text-zinc-500">{t("enhance.nextLevel")}</dt>
                   <dd className="numeric-value font-mono text-zinc-100">+{targetLevel}</dd>

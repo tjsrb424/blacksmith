@@ -48,7 +48,7 @@ function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
   const { t } = useLocale();
 
   return (
-    <div className="rounded-xl bg-gradient-to-r from-violet-950/80 to-indigo-950/80 p-4 text-sm ring-1 ring-violet-500/40">
+    <div className="rounded-xl bg-gradient-to-r from-violet-950/80 to-indigo-950/80 p-3 text-sm ring-1 ring-violet-500/40">
       <div className="font-bold text-violet-200">{t("records.newRecord")}</div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {rb.isPersonalBest ? (
@@ -74,19 +74,19 @@ function RecordBreakBanner({ rb }: { rb: RecordBreakInfo }) {
         </p>
       )}
       {rb.isPersonalBest && rb.delta != null && rb.delta > 0 ? (
-        <p className="mt-2 font-mono text-xs text-emerald-400/95">
+        <p className="mt-1.5 font-mono text-xs text-emerald-400/95">
           {t("records.valueIncrease", { value: formatGold(rb.delta) })}
         </p>
       ) : null}
       {rb.estimatedWeeklyRank != null && rb.isWeeklyTop100 ? (
-        <p className="mt-2 text-xs text-zinc-300">
+        <p className="mt-1.5 text-xs text-zinc-300">
           {t("records.estimatedWeeklyRank")}{" "}
           <span className="font-mono font-semibold text-amber-200">
             {t("ranking.rankPosition", { rank: rb.estimatedWeeklyRank })}
           </span>
         </p>
       ) : null}
-      <p className="mt-2 text-[11px] text-zinc-500">
+      <p className="mt-1.5 text-[11px] text-zinc-500">
         {t("records.weeklyCandidateRegistered")}
       </p>
     </div>
@@ -304,7 +304,7 @@ export function ModalRoot() {
     <AnimatePresence>
       {modal ? (
         <motion.div
-          className="game-no-select game-modal-overlay fixed left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 items-end justify-center bg-black/62 p-2 backdrop-blur-[1px] sm:items-center sm:backdrop-blur-sm"
+          className="game-no-select game-modal-overlay fixed left-1/2 top-1/2 z-50 flex items-center justify-center bg-black/62 p-3 backdrop-blur-[1px] sm:backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -325,7 +325,7 @@ export function ModalRoot() {
               transition={{ duration: 0.16, ease: "easeOut" }}
               className={cn(
                 modal ? getModalShellClass(getModalToneFromPayload(modal)) : "",
-                "relative max-h-[calc(100%-1rem)] min-w-0 w-full overflow-y-auto",
+                "game-modal-panel relative min-w-0 w-full overflow-y-auto",
                 isResult
                   ? "max-w-[440px] px-4 py-6 sm:px-5 sm:py-7"
                   : "max-w-[406px]",
@@ -401,11 +401,11 @@ export function ModalRoot() {
               ) : null}
 
               {modal.kind === "enhance_success" ? (
-                <div className="w-full space-y-5 text-center">
+                <div className="w-full space-y-4 text-center">
                   <motion.div
                     initial={{ scale: 0.85 }}
                     animate={{ scale: 1 }}
-                    className="text-[1.625rem] font-extrabold leading-snug text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.45)] sm:text-3xl"
+                    className="text-2xl font-extrabold leading-snug text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.45)]"
                   >
                     {t("modal.enhanceSuccess")}
                   </motion.div>
@@ -420,9 +420,9 @@ export function ModalRoot() {
                     {t("ranking.score.rankingValue")} {formatGold(modal.result.beforeValue)} →{" "}
                     <span className="text-emerald-300">{formatGold(modal.result.afterValue)}</span>
                   </p>
-                  <div className="flex w-full flex-col gap-2.5 pt-2">
+                  <div className="flex w-full flex-col gap-2 pt-1">
                     <FantasyButton
-                      className="min-h-14 w-full shadow-[0_0_20px_rgba(245,158,11,0.22)]"
+                      className="min-h-12 w-full shadow-[0_0_20px_rgba(245,158,11,0.22)]"
                       onClick={() => {
                         close();
                         setTab("blacksmith");
@@ -432,7 +432,7 @@ export function ModalRoot() {
                     </FantasyButton>
                     <FantasyButton
                       variant="promo"
-                      className="min-h-14 w-full"
+                      className="min-h-12 w-full"
                       onClick={() => {
                         close();
                         queueMicrotask(() => requestSellEquipped());
@@ -442,7 +442,7 @@ export function ModalRoot() {
                     </FantasyButton>
                     <FantasyButton
                       variant="accent"
-                      className="min-h-14 w-full"
+                      className="min-h-12 w-full"
                       onClick={() => {
                         close();
                         setTab("ranking");
@@ -450,7 +450,7 @@ export function ModalRoot() {
                     >
                       {t("ranking.view")}
                     </FantasyButton>
-                    <FantasyButton variant="secondary" className="min-h-14 w-full" onClick={close}>
+                    <FantasyButton variant="secondary" className="min-h-12 w-full" onClick={close}>
                       {t("common.close")}
                     </FantasyButton>
                   </div>
@@ -578,11 +578,11 @@ export function ModalRoot() {
               ) : null}
 
               {modal.kind === "transcend_success" ? (
-                <div className="space-y-5 text-center">
+                <div className="space-y-4 text-center">
                   <motion.div
                     initial={{ scale: 0.88 }}
                     animate={{ scale: 1 }}
-                    className={`text-[1.625rem] font-extrabold leading-snug drop-shadow-[0_0_22px_rgba(167,139,250,0.5)] sm:text-3xl ${
+                    className={`text-2xl font-extrabold leading-snug drop-shadow-[0_0_22px_rgba(167,139,250,0.5)] ${
                       modal.afterStar >= 10 ? "text-amber-200" : "text-violet-300"
                     }`}
                   >
@@ -617,11 +617,11 @@ export function ModalRoot() {
                       </p>
                     </>
                   )}
-                  <div className="flex flex-col gap-2.5 pt-2">
+                  <div className="flex flex-col gap-2 pt-1">
                     {modal.afterStar >= 10 ? (
                       <FantasyButton
                         variant="accent"
-                        className="min-h-14 w-full"
+                        className="min-h-12 w-full"
                         onClick={() => {
                           close();
                           setTab("ranking");
@@ -631,7 +631,7 @@ export function ModalRoot() {
                       </FantasyButton>
                     ) : (
                       <FantasyButton
-                        className="min-h-14 w-full bg-gradient-to-b from-violet-600 to-indigo-900 text-amber-50 ring-violet-400/40"
+                        className="min-h-12 w-full bg-gradient-to-b from-violet-600 to-indigo-900 text-amber-50 ring-violet-400/40"
                         onClick={() => {
                           close();
                           requestTranscend();
@@ -642,7 +642,7 @@ export function ModalRoot() {
                     )}
                     <FantasyButton
                       variant="accent"
-                      className="min-h-14 w-full"
+                      className="min-h-12 w-full"
                       onClick={() => {
                         close();
                         queueMicrotask(() => requestSellEquipped());
@@ -650,7 +650,7 @@ export function ModalRoot() {
                     >
                       {t("inventory.sell")}
                     </FantasyButton>
-                    <FantasyButton variant="secondary" className="min-h-14 w-full" onClick={close}>
+                    <FantasyButton variant="secondary" className="min-h-12 w-full" onClick={close}>
                       {t("common.close")}
                     </FantasyButton>
                   </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { SideBannerSlot } from "@/components/ads/SideBannerSlot";
 import { BottomTabs } from "@/components/layout/BottomTabs";
+import { GameStageScaler } from "@/components/layout/GameStageScaler";
 import { TopResourceBar } from "@/components/layout/TopResourceBar";
 import { BACKGROUND_ASSETS } from "@/data/assets";
 import { isCrazyGamesBuild } from "@/lib/distribution";
@@ -29,7 +30,7 @@ function SideRail({ side }: { side: "left" | "right" }) {
 
   return (
     <aside
-      className="desktop-side-rail relative min-h-dvh w-full min-w-[180px] overflow-hidden"
+      className="desktop-side-rail relative h-full min-h-0 w-full min-w-[180px] overflow-hidden"
       aria-hidden
       data-side-rail={side}
     >
@@ -56,7 +57,7 @@ function SideRail({ side }: { side: "left" | "right" }) {
             : "pointer-events-none absolute left-0 top-0 h-full w-px bg-gradient-to-b from-transparent via-amber-500/18 to-transparent"
         }
       />
-      <div className="relative z-10 flex min-h-dvh items-center justify-center px-2">
+      <div className="relative z-10 flex h-full min-h-0 items-center justify-center px-2">
         <div className="space-y-5">
           <SideBannerSlot
             slotName={isLeft ? "side-banner-left" : "side-banner-right"}
@@ -89,14 +90,16 @@ export function AppShell({
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%),linear-gradient(90deg,rgba(0,0,0,0.72),transparent_38%,transparent_62%,rgba(0,0,0,0.72))]" />
       <div className={layoutClassName}>
         {showDesktopSideRails ? <SideRail side="left" /> : null}
-        <div className="game-no-select game-viewport relative mx-auto flex min-h-0 flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)]">
-          <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)]" />
-          <TopResourceBar onOpenSettings={onOpenSettings} />
-          <main className="main-scroll relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {children}
-          </main>
-          <BottomTabs />
-        </div>
+        <GameStageScaler>
+          <div className="game-no-select game-viewport relative flex min-h-0 flex-col overflow-hidden bg-[#08080a] shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_0_60px_rgba(0,0,0,0.72)]">
+            <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,rgba(251,146,60,0.08),transparent_34%)]" />
+            <TopResourceBar onOpenSettings={onOpenSettings} />
+            <main className="main-scroll relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto">
+              {children}
+            </main>
+            <BottomTabs />
+          </div>
+        </GameStageScaler>
         {showDesktopSideRails ? <SideRail side="right" /> : null}
       </div>
     </div>
