@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import { AdRewardError, getAdRewardStatus } from "@/lib/server/adRewardService";
+import { resolveRequestPlayerForHotMutation } from "@/lib/server/playerIdentity";
+import type { GuestRequestContext } from "@/types/server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +31,22 @@ function adRewardErrorResponse(error: unknown) {
 export async function GET(request: NextRequest) {
   return withApiLatency("api/ad/reward/status", async () => {
     try {
-      const auth = await requireSupabaseUser();
-      if (!auth.ok) return auth.response;
       const relatedActionId = request.nextUrl.searchParams.get("relatedActionId");
+      const playerContext: GuestRequestContext = {
+        mode:
+          request.nextUrl.searchParams.get("mode") === "guest"
+            ? "guest"
+            : undefined,
+        guestId: request.nextUrl.searchParams.get("guestId") ?? undefined,
+        guestSecret:
+          request.nextUrl.searchParams.get("guestSecret") ?? undefined,
+        nickname: request.nextUrl.searchParams.get("nickname") ?? undefined,
+      };
+      const player = await resolveRequestPlayerForHotMutation(playerContext);
+      if (!player.ok) return player.response;
+
       return NextResponse.json(
-        await getAdRewardStatus(auth.user, { relatedActionId }),
+        await getAdRewardStatus(player.identity, { relatedActionId }),
       );
     } catch (error) {
       return adRewardErrorResponse(error);

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import { AdRewardError, requestAdReward } from "@/lib/server/adRewardService";
+import { resolveRequestPlayerForHotMutation } from "@/lib/server/playerIdentity";
 import type { AdRewardRequest } from "@/types/ads";
 
 export const dynamic = "force-dynamic";
@@ -49,11 +49,11 @@ function adRewardErrorResponse(error: unknown, fallback: string) {
 export async function POST(request: NextRequest) {
   return withApiLatency("api/ad/reward/request", async () => {
     try {
-      const auth = await requireSupabaseUser();
-      if (!auth.ok) return auth.response;
-
       const payload = (await request.json()) as AdRewardRequest;
-      return NextResponse.json(await requestAdReward(auth.user, payload));
+      const player = await resolveRequestPlayerForHotMutation(payload);
+      if (!player.ok) return player.response;
+
+      return NextResponse.json(await requestAdReward(player.identity, payload));
     } catch (error) {
       return adRewardErrorResponse(error, "추가 보상 준비에 실패했습니다.");
     }

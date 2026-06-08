@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireSupabaseUser } from "@/lib/server/auth";
 import { withApiLatency } from "@/lib/server/apiLatency";
 import { AdRewardError, completeAdReward } from "@/lib/server/adRewardService";
+import { resolveRequestPlayerForHotMutation } from "@/lib/server/playerIdentity";
 import { createServerStepTimer } from "@/lib/server/stepLatency";
 import type { AdRewardCompleteRequest } from "@/types/ads";
 
@@ -51,18 +51,18 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      const auth = await timer.time("auth user lookup", () =>
-        requireSupabaseUser(),
-      );
-      if (!auth.ok) {
-        timer.finish("ad reward complete total");
-        return auth.response;
-      }
-
       const payload = (await timer.time("request parse", () =>
         request.json(),
       )) as AdRewardCompleteRequest;
-      const result = await completeAdReward(auth.user, payload, { timer });
+      const player = await timer.time("player identity lookup", () =>
+        resolveRequestPlayerForHotMutation(payload),
+      );
+      if (!player.ok) {
+        timer.finish("ad reward complete total");
+        return player.response;
+      }
+
+      const result = await completeAdReward(player.identity, payload, { timer });
       const response = timer.timeSync("response serialize", () =>
         NextResponse.json(result),
       );

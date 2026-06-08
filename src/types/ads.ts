@@ -1,4 +1,5 @@
 import type { BetaPlayerSnapshot, ServerActionDisplay, ServerActionPatch } from "@/types/server";
+import type { GuestRequestContext } from "@/types/server";
 
 export type AdRewardType =
   | "forgeCollectDouble"
@@ -16,7 +17,7 @@ export type AdRewardStatus =
 
 export type AdProviderId = "mock" | "googleH5" | "googleWeb" | "disabled";
 
-export type AdRewardRequest = {
+export type AdRewardRequest = GuestRequestContext & {
   actionId: string;
   rewardType: AdRewardType;
   relatedActionId?: string;
@@ -58,7 +59,7 @@ export type AdRewardFlowStatus = {
   message: string;
 };
 
-export type AdRewardCompleteRequest = {
+export type AdRewardCompleteRequest = GuestRequestContext & {
   rewardIntentId: string;
   completeActionId?: string;
   providerResult: AdProviderResult;

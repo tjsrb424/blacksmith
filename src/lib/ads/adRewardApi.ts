@@ -1,6 +1,7 @@
 "use client";
 
 import { getAdProvider } from "@/lib/ads/adProvider";
+import { getGuestRequestContext } from "@/lib/player/guest";
 import { requestJson } from "@/lib/server/http";
 import type {
   AdRewardCompleteResponse,
@@ -10,6 +11,7 @@ import type {
   AdRewardStatusResponse,
   AdProviderResult,
 } from "@/types/ads";
+import type { GuestRequestContext } from "@/types/server";
 
 type AdRewardTimingEvent =
   | "provider_load_start"
@@ -19,6 +21,25 @@ type AdRewardTimingEvent =
   | "complete_api_start"
   | "complete_api_response";
 
+function withGuestContext<T extends object>(payload: T): T & GuestRequestContext {
+  return {
+    ...getGuestRequestContext(),
+    ...payload,
+  };
+}
+
+function guestContextSearchParams() {
+  const context = getGuestRequestContext();
+  const params = new URLSearchParams();
+  if (context.mode === "guest") {
+    params.set("mode", "guest");
+    if (context.guestId) params.set("guestId", context.guestId);
+    if (context.guestSecret) params.set("guestSecret", context.guestSecret);
+    if (context.nickname) params.set("nickname", context.nickname);
+  }
+  return params;
+}
+
 export async function requestAdReward(
   payload: AdRewardRequest,
 ): Promise<AdRewardIntent> {
@@ -26,16 +47,18 @@ export async function requestAdReward(
     method: "POST",
     apiName: "api/ad/reward/request",
     timeoutMs: 8_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(withGuestContext(payload)),
   });
 }
 
 export async function getAdRewardStatus(params?: {
   relatedActionId?: string;
 }): Promise<AdRewardStatusResponse> {
-  const query = params?.relatedActionId
-    ? `?relatedActionId=${encodeURIComponent(params.relatedActionId)}`
-    : "";
+  const queryParams = guestContextSearchParams();
+  if (params?.relatedActionId) {
+    queryParams.set("relatedActionId", params.relatedActionId);
+  }
+  const query = queryParams.size ? `?${queryParams.toString()}` : "";
   return requestJson<AdRewardStatusResponse>(`/api/ad/reward/status${query}`, {
     apiName: "api/ad/reward/status",
     timeoutMs: 8_000,
@@ -51,6 +74,7 @@ async function markIncompleteReward(
     apiName: "api/ad/reward/complete",
     timeoutMs: 10_000,
     body: JSON.stringify({
+      ...getGuestRequestContext(),
       rewardIntentId: intent.rewardIntentId,
       completeActionId: crypto.randomUUID(),
       providerResult,
@@ -117,6 +141,7 @@ export async function completeAdReward(
       apiName: "api/ad/reward/complete",
       timeoutMs: 10_000,
       body: JSON.stringify({
+        ...getGuestRequestContext(),
         rewardIntentId: intent.rewardIntentId,
         completeActionId: crypto.randomUUID(),
         providerResult,

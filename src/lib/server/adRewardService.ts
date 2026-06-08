@@ -1,6 +1,5 @@
 ﻿import "server-only";
 
-import type { User } from "@supabase/supabase-js";
 import {
   AD_REWARD_COOLDOWNS,
   AD_REWARD_DAILY_LIMITS,
@@ -19,6 +18,7 @@ import {
   defaultWeeklySeasonStats,
   getOwnedWeaponsForSnapshot,
 } from "@/lib/server/playerRepository";
+import type { PlayerIdentity } from "@/lib/server/playerRepository";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { ServerStepTimer } from "@/lib/server/stepLatency";
 import { WEAPONS_BY_ID } from "@/data/weapons";
@@ -344,7 +344,7 @@ function displayReward(rewardType: AdRewardType, payload: Record<string, unknown
 }
 
 async function buildPayload(
-  user: User,
+  user: PlayerIdentity,
   request: AdRewardRequest,
 ): Promise<Record<string, unknown>> {
   if (request.rewardType === "forgeCollectDouble") {
@@ -417,7 +417,7 @@ async function buildPayload(
 }
 
 export async function requestAdReward(
-  user: User,
+  user: PlayerIdentity,
   request: AdRewardRequest,
 ): Promise<AdRewardIntent> {
   const actionId = assertActionId(request.actionId);
@@ -541,7 +541,7 @@ function logToIntent(log: AdRewardLogRow): AdRewardIntent {
 }
 
 export async function getAdRewardStatus(
-  user: User,
+  user: PlayerIdentity,
   params?: {
     relatedActionId?: string | null;
   },
@@ -630,7 +630,7 @@ export async function getAdRewardStatus(
 // Retained temporarily as a parity reference while the fast path is validated.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function completeForgeCollect(
-  user: User,
+  user: PlayerIdentity,
   log: AdRewardLogRow,
   timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
@@ -775,7 +775,7 @@ async function completeForgeCollect(
 // Retained temporarily as a parity reference while the fast path is validated.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function completeSellBonus(
-  user: User,
+  user: PlayerIdentity,
   log: AdRewardLogRow,
   timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
@@ -1017,7 +1017,7 @@ async function completeSellBonus(
 }
 
 async function completeForgeCollectFast(
-  user: User,
+  user: PlayerIdentity,
   log: AdRewardLogRow,
   timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
@@ -1186,7 +1186,7 @@ async function completeForgeCollectFast(
 }
 
 async function completeSellBonusFast(
-  user: User,
+  user: PlayerIdentity,
   log: AdRewardLogRow,
   timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
@@ -1403,7 +1403,7 @@ async function completeSellBonusFast(
 }
 
 export async function completeAdReward(
-  user: User,
+  user: PlayerIdentity,
   request: AdRewardCompleteRequest,
   options: { timer?: ServerStepTimer } = {},
 ): Promise<AdRewardCompleteResponse> {
