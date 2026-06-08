@@ -90,6 +90,10 @@ export function GameStartScreen({
         body: JSON.stringify({ nickname: result.nickname }),
       });
       const body = (await response.json()) as NicknameValidateResponse;
+      if (response.status >= 500) {
+        setMessage(t("error.nicknameValidateTryAgain"));
+        return;
+      }
       if (!response.ok || !body.ok) {
         setMessage(body.ok ? t("error.nicknameValidateFailed") : t(nicknameReasonKey(body.reason)));
         return;

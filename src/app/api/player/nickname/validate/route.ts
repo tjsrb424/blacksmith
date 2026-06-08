@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       {
         ok: false,
         reason: "invalid_characters",
-        message: "닉네임을 확인할 수 없습니다. 잠시 후 다시 시도하세요.",
+        message: "error.nicknameValidateTryAgain",
       },
       { status: 500 },
     );
