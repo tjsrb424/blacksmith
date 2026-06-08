@@ -72,6 +72,7 @@ import {
   getCurrentPlayerSnapshot,
   invalidatePlayerApiCache,
 } from "@/lib/server/playerApi";
+import { isOfflineGuestPlayActive } from "@/lib/player/guest";
 import {
   diagnosticLog,
   getRenderCount,
@@ -110,7 +111,7 @@ function devToolsRuntimeEnabled(): boolean {
 }
 
 function isBetaMode(): boolean {
-  return getGameMode() === "beta";
+  return getGameMode() === "beta" && !isOfflineGuestPlayActive();
 }
 
 function newActionMeta() {

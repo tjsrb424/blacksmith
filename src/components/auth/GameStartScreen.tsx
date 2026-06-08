@@ -13,7 +13,10 @@ import type { NicknameValidateResponse } from "@/types/server";
 
 type GameStartScreenProps = {
   error?: string | null;
-  onGuestStart: (nickname: string) => void;
+  onGuestStart: (
+    nickname: string,
+    options?: { serverMode?: "online" | "offline" },
+  ) => void;
   isCrazyGamesMode?: boolean;
 };
 
@@ -91,7 +94,7 @@ export function GameStartScreen({
       });
       const body = (await response.json()) as NicknameValidateResponse;
       if (response.status >= 500) {
-        setMessage(t("error.nicknameValidateTryAgain"));
+        onGuestStart(result.nickname, { serverMode: "offline" });
         return;
       }
       if (!response.ok || !body.ok) {
@@ -101,7 +104,7 @@ export function GameStartScreen({
 
       onGuestStart(body.nickname);
     } catch {
-      setMessage(t("error.nicknameValidateTryAgain"));
+      onGuestStart(result.nickname, { serverMode: "offline" });
     } finally {
       setGuestStarting(false);
     }

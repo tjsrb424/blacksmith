@@ -25,6 +25,7 @@ import {
   clearPendingGuestLink,
   getPendingGuestLink,
   getGuestProfile,
+  isOfflineGuestPlayActive,
   markAuthenticatedPlay,
   startGuestPlay,
   type PendingGuestLink,
@@ -229,8 +230,9 @@ export function AuthGate({
     }
   }, [sessionUserId]);
 
-  const startGuest = useCallback((nickname: string) => {
-    setGuestProfile(startGuestPlay(nickname));
+  const startGuest = useCallback((nickname: string, options?: { serverMode?: "online" | "offline" }) => {
+    const profile = startGuestPlay(nickname, options);
+    setGuestProfile(profile);
     setError(null);
     setAuthChecked(true);
     setAuthStage("ready");
@@ -607,6 +609,7 @@ export function AuthGate({
 
   useEffect(() => {
     if (mode !== "beta" || !guestProfile || sessionUserId) return;
+    if (guestProfile.serverMode === "offline") return;
     if (
       bootstrappedUserIdRef.current === guestProfile.guestId &&
       snapshot?.userId === guestProfile.guestId
@@ -623,8 +626,18 @@ export function AuthGate({
     () => ({ snapshot, refresh }),
     [refresh, snapshot],
   );
+  const offlineGuestActive =
+    guestProfile?.serverMode === "offline" || isOfflineGuestPlayActive();
 
   if (crazyGamesMode || mode !== "beta") {
+    return (
+      <BetaPlayerContext.Provider value={contextValue}>
+        {children}
+      </BetaPlayerContext.Provider>
+    );
+  }
+
+  if (offlineGuestActive && !sessionUserId) {
     return (
       <BetaPlayerContext.Provider value={contextValue}>
         {children}

@@ -2,6 +2,7 @@ export const GUEST_PLAY_MODE_KEY = "blacksmith.play_mode";
 export const GUEST_ID_KEY = "blacksmith.guest_id";
 export const GUEST_SECRET_KEY = "blacksmith.guest_secret";
 export const GUEST_NICKNAME_KEY = "blacksmith.guest_nickname";
+export const GUEST_SERVER_MODE_KEY = "blacksmith.guest_server_mode";
 export const PENDING_LINK_GUEST_ID_KEY = "blacksmith.pending_link_guest_id";
 export const PENDING_LINK_GUEST_SECRET_KEY = "blacksmith.pending_link_guest_secret";
 export const PENDING_LINK_STARTED_AT_KEY = "blacksmith.pending_link_started_at";
@@ -12,6 +13,7 @@ export type GuestProfile = {
   guestId: string;
   guestSecret: string;
   nickname: string;
+  serverMode: "online" | "offline";
 };
 
 export type PendingGuestLink = {
@@ -56,16 +58,23 @@ export function getGuestProfile(): GuestProfile | null {
   const guestId = window.localStorage.getItem(GUEST_ID_KEY);
   const guestSecret = window.localStorage.getItem(GUEST_SECRET_KEY);
   const nickname = window.localStorage.getItem(GUEST_NICKNAME_KEY);
+  const serverMode =
+    window.localStorage.getItem(GUEST_SERVER_MODE_KEY) === "offline"
+      ? "offline"
+      : "online";
   if (!isUuid(guestId) || !guestSecret || !nickname) return null;
 
-  return { guestId, guestSecret, nickname };
+  return { guestId, guestSecret, nickname, serverMode };
 }
 
 export function isGuestPlayActive() {
   return Boolean(getGuestProfile());
 }
 
-export function startGuestPlay(nickname: string): GuestProfile {
+export function startGuestPlay(
+  nickname: string,
+  options: { serverMode?: "online" | "offline" } = {},
+): GuestProfile {
   const normalized = nickname.trim();
   const existingId = canUseStorage()
     ? window.localStorage.getItem(GUEST_ID_KEY)
@@ -73,10 +82,12 @@ export function startGuestPlay(nickname: string): GuestProfile {
   const existingSecret = canUseStorage()
     ? window.localStorage.getItem(GUEST_SECRET_KEY)
     : null;
+  const serverMode = options.serverMode ?? "online";
   const profile = {
     guestId: isUuid(existingId) ? existingId : createGuestId(),
     guestSecret: existingSecret || randomToken(),
     nickname: normalized,
+    serverMode,
   };
 
   if (canUseStorage()) {
@@ -84,6 +95,7 @@ export function startGuestPlay(nickname: string): GuestProfile {
     window.localStorage.setItem(GUEST_ID_KEY, profile.guestId);
     window.localStorage.setItem(GUEST_SECRET_KEY, profile.guestSecret);
     window.localStorage.setItem(GUEST_NICKNAME_KEY, profile.nickname);
+    window.localStorage.setItem(GUEST_SERVER_MODE_KEY, serverMode);
   }
 
   return profile;
@@ -100,10 +112,14 @@ export function resumeGuestPlay(): GuestProfile | null {
   const guestId = window.localStorage.getItem(GUEST_ID_KEY);
   const guestSecret = window.localStorage.getItem(GUEST_SECRET_KEY);
   const nickname = window.localStorage.getItem(GUEST_NICKNAME_KEY);
+  const serverMode =
+    window.localStorage.getItem(GUEST_SERVER_MODE_KEY) === "offline"
+      ? "offline"
+      : "online";
   if (!isUuid(guestId) || !guestSecret || !nickname) return null;
 
   window.localStorage.setItem(GUEST_PLAY_MODE_KEY, "guest");
-  return { guestId, guestSecret, nickname };
+  return { guestId, guestSecret, nickname, serverMode };
 }
 
 export function updateStoredGuestNickname(nickname: string) {
@@ -117,6 +133,7 @@ export function clearGuestProfile() {
   window.localStorage.removeItem(GUEST_ID_KEY);
   window.localStorage.removeItem(GUEST_SECRET_KEY);
   window.localStorage.removeItem(GUEST_NICKNAME_KEY);
+  window.localStorage.removeItem(GUEST_SERVER_MODE_KEY);
 }
 
 export function storePendingGuestLink(profile: GuestProfile) {
@@ -156,10 +173,15 @@ export function clearPendingGuestLink() {
 export function getGuestRequestContext() {
   const profile = getGuestProfile();
   if (!profile) return {};
+  if (profile.serverMode === "offline") return {};
   return {
     mode: "guest" as const,
     guestId: profile.guestId,
     guestSecret: profile.guestSecret,
     nickname: profile.nickname,
   };
+}
+
+export function isOfflineGuestPlayActive() {
+  return getGuestProfile()?.serverMode === "offline";
 }
