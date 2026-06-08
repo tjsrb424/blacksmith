@@ -1022,11 +1022,18 @@ async function completeForgeCollectFast(
   timer?: ServerStepTimer,
 ): Promise<AdRewardCompleteResponse> {
   const payload = log.payload as Record<string, unknown>;
-  const state = await (timer
-    ? timer.time("forgeCollectDouble: player_state forge_ember lookup", () =>
-        getPlayerState(user.id),
-      )
-    : getPlayerState(user.id));
+  const [state, record] = await Promise.all([
+    timer
+      ? timer.time("forgeCollectDouble: player_state forge_ember lookup", () =>
+          getPlayerState(user.id),
+        )
+      : getPlayerState(user.id),
+    timer
+      ? timer.time("forgeCollectDouble: player_records lookup", () =>
+          getPlayerRecord(user.id),
+        )
+      : getPlayerRecord(user.id),
+  ]);
 
   const assertFreshForgeState = () => {
     if (state.forge_last_collected_at !== payload.forgeLastCollectedAt) {
@@ -1046,15 +1053,24 @@ async function completeForgeCollectFast(
     assertFreshForgeState();
   }
 
-  const { basePending, gained, bonusAmount, collectAt } = timer
+  const { basePending, gained, bonusAmount, collectAt, nextRecords } = timer
     ? timer.timeSync("forgeCollectDouble: reward amount calculation", () => {
         const basePending = Number(payload.expectedBaseAmount ?? 0);
         const gained = Number(payload.finalAmount ?? basePending * 2);
         const bonusAmount = Number(payload.bonusAmount ?? basePending);
+        const records = currentRecords(record);
         return {
           basePending,
           gained,
           bonusAmount,
+          nextRecords: {
+            ...records,
+            totalForgeCollected: records.totalForgeCollected + gained,
+            totalForgeAdBonusCollected:
+              records.totalForgeAdBonusCollected + bonusAmount,
+            forgeCollectCount: records.forgeCollectCount + 1,
+            forgeAdCollectCount: records.forgeAdCollectCount + 1,
+          },
           collectAt: new Date(
             Number(payload.requestedAtMs ?? Date.now()),
           ).toISOString(),
@@ -1064,10 +1080,19 @@ async function completeForgeCollectFast(
         const basePending = Number(payload.expectedBaseAmount ?? 0);
         const gained = Number(payload.finalAmount ?? basePending * 2);
         const bonusAmount = Number(payload.bonusAmount ?? basePending);
+        const records = currentRecords(record);
         return {
           basePending,
           gained,
           bonusAmount,
+          nextRecords: {
+            ...records,
+            totalForgeCollected: records.totalForgeCollected + gained,
+            totalForgeAdBonusCollected:
+              records.totalForgeAdBonusCollected + bonusAmount,
+            forgeCollectCount: records.forgeCollectCount + 1,
+            forgeAdCollectCount: records.forgeAdCollectCount + 1,
+          },
           collectAt: new Date(
             Number(payload.requestedAtMs ?? Date.now()),
           ).toISOString(),
@@ -1079,28 +1104,45 @@ async function completeForgeCollectFast(
     forge_ember: Number(state.forge_ember) + gained,
     forge_last_collected_at: collectAt,
   };
+  const nextRecord: PlayerRecordRow = {
+    ...record,
+    stats: toJson(nextRecords),
+  };
   const admin = getSupabaseAdminClient();
   await (timer
-    ? timer.time("forgeCollectDouble: player_state forge_ember update", async () => {
-        const { error } = await admin
+    ? timer.time("forgeCollectDouble: player_state/player_records update", async () => {
+        const [stateResult, recordResult] = await Promise.all([
+          admin
+            .from("player_states")
+            .update({
+              forge_ember: nextState.forge_ember,
+              forge_last_collected_at: nextState.forge_last_collected_at,
+            })
+            .eq("id", state.id),
+          admin
+            .from("player_records")
+            .update({ stats: nextRecord.stats })
+            .eq("id", record.id),
+        ]);
+        if (stateResult.error) throw stateResult.error;
+        if (recordResult.error) throw recordResult.error;
+      })
+    : Promise.all([
+        admin
           .from("player_states")
           .update({
             forge_ember: nextState.forge_ember,
             forge_last_collected_at: nextState.forge_last_collected_at,
           })
-          .eq("id", state.id);
-        if (error) throw error;
-      })
-    : admin
-        .from("player_states")
-        .update({
-          forge_ember: nextState.forge_ember,
-          forge_last_collected_at: nextState.forge_last_collected_at,
-        })
-        .eq("id", state.id)
-        .then(({ error }) => {
-          if (error) throw error;
-        }));
+          .eq("id", state.id),
+        admin
+          .from("player_records")
+          .update({ stats: nextRecord.stats })
+          .eq("id", record.id),
+      ]).then(([stateResult, recordResult]) => {
+        if (stateResult.error) throw stateResult.error;
+        if (recordResult.error) throw recordResult.error;
+      }));
 
   return {
     actionId: log.action_id,
@@ -1114,12 +1156,24 @@ async function completeForgeCollectFast(
           currentEmber: Number(nextState.forge_ember),
           currentStone: Number(nextState.transcend_stone),
           forgeLastCollectedAt: nextState.forge_last_collected_at,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(
+            getCurrentSeasonInfo().seasonId,
+            nextState,
+          ),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
         }))
       : {
           currentGold: Number(nextState.gold),
           currentEmber: Number(nextState.forge_ember),
           currentStone: Number(nextState.transcend_stone),
           forgeLastCollectedAt: nextState.forge_last_collected_at,
+          records: defaultPlayerRecords(nextRecord),
+          weeklySeasonStats: defaultWeeklySeasonStats(
+            getCurrentSeasonInfo().seasonId,
+            nextState,
+          ),
+          bestWeaponSnapshot: bestWeaponSnapshotFromRecord(nextRecord),
         },
     display: {
       kind: "forgeCollect",
