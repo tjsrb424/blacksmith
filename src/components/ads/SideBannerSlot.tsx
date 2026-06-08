@@ -1,6 +1,7 @@
 "use client";
 
 import { AdFitBanner } from "@/components/ads/AdFitBanner";
+import { AdsenseSideBanner } from "@/components/ads/AdsenseSideBanner";
 import { useLocale } from "@/lib/i18n/useLocale";
 import {
   getSideAdConfig,
@@ -58,6 +59,23 @@ export function SideBannerSlot({
       <AdFitBanner
         slotName={slotName}
         unitId={sideAdConfig.unitId}
+        width={sideAdConfig.width}
+        height={sideAdConfig.height}
+      />
+    );
+  }
+
+  if (
+    sideAdConfig.provider === "adsense" &&
+    sideAdConfig.enabled &&
+    sideAdConfig.clientId &&
+    sideAdConfig.unitId
+  ) {
+    return (
+      <AdsenseSideBanner
+        slotName={slotName}
+        clientId={sideAdConfig.clientId}
+        slotId={sideAdConfig.unitId}
         width={sideAdConfig.width}
         height={sideAdConfig.height}
       />

@@ -14,7 +14,7 @@ export type AdRewardStatus =
   | "failed"
   | "canceled";
 
-export type AdProviderId = "mock" | "googleWeb" | "disabled";
+export type AdProviderId = "mock" | "googleH5" | "googleWeb" | "disabled";
 
 export type AdRewardRequest = {
   actionId: string;

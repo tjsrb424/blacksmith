@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/app/providers";
+import {
+  getAdsenseClientId,
+  isH5AdBreakTestMode,
+} from "@/lib/ads/adConfig";
 import { isCrazyGamesBuild } from "@/lib/distribution";
 import "./globals.css";
 
@@ -16,6 +20,8 @@ const geistMono = Geist_Mono({
 });
 
 const crazyGamesBuild = isCrazyGamesBuild();
+const adsenseClientId = getAdsenseClientId();
+const h5AdBreakTestMode = isH5AdBreakTestMode();
 
 export const metadata: Metadata = crazyGamesBuild
   ? {
@@ -39,8 +45,30 @@ export default function RootLayout({
       lang={crazyGamesBuild ? "en" : "ko"}
       className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
+      {adsenseClientId ? (
+        <head>
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(adsenseClientId)}`}
+            crossOrigin="anonymous"
+            data-ad-client={adsenseClientId}
+            data-ad-frequency-hint="30s"
+            {...(h5AdBreakTestMode ? { "data-adbreak-test": "on" } : {})}
+          />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.adsbygoogle = window.adsbygoogle || [];
+                window.adBreak = window.adConfig = function(o) {
+                  window.adsbygoogle.push(o);
+                };
+              `,
+            }}
+          />
+        </head>
+      ) : null}
       <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
-        <Providers>{children}</Providers>
+        <Providers adsenseClientId={adsenseClientId}>{children}</Providers>
         <Analytics />
       </body>
     </html>

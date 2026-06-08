@@ -1,6 +1,7 @@
 import { isCrazyGamesBuild } from "@/lib/distribution";
+import { getAdsenseClientId, getAdsenseSideSlotId } from "@/lib/ads/adConfig";
 
-export type SideAdProviderId = "disabled" | "adfit";
+export type SideAdProviderId = "disabled" | "adfit" | "adsense";
 
 export type SideBannerSlotName = "side-banner-left" | "side-banner-right";
 
@@ -8,6 +9,7 @@ export type SideAdConfig = {
   provider: SideAdProviderId;
   enabled: boolean;
   unitId?: string;
+  clientId?: string;
   width: 160;
   height: 600;
 };
@@ -17,9 +19,9 @@ const SIDE_AD_HEIGHT = 600;
 
 function getSideAdProvider(): SideAdProviderId {
   if (isCrazyGamesBuild()) return "disabled";
-  return process.env.NEXT_PUBLIC_SIDE_AD_PROVIDER === "adfit"
-    ? "adfit"
-    : "disabled";
+  const provider = process.env.NEXT_PUBLIC_SIDE_AD_PROVIDER;
+  if (provider === "adfit" || provider === "adsense") return provider;
+  return process.env.NEXT_PUBLIC_GAME_MODE === "beta" ? "adsense" : "disabled";
 }
 
 function isAdFitSideAdsEnabled() {
@@ -37,12 +39,24 @@ function getAdFitUnitId(slotName: SideBannerSlotName) {
 
 export function getSideAdConfig(slotName: SideBannerSlotName): SideAdConfig {
   const provider = getSideAdProvider();
-  const enabled = provider === "adfit" && isAdFitSideAdsEnabled();
+  const adsenseClientId = getAdsenseClientId();
+  const adsenseSlotId = getAdsenseSideSlotId(
+    slotName === "side-banner-left" ? "left" : "right",
+  );
+  const enabled =
+    (provider === "adfit" && isAdFitSideAdsEnabled()) ||
+    (provider === "adsense" && Boolean(adsenseClientId && adsenseSlotId));
 
   return {
     provider,
     enabled,
-    unitId: enabled ? getAdFitUnitId(slotName) : undefined,
+    unitId:
+      enabled && provider === "adfit"
+        ? getAdFitUnitId(slotName)
+        : enabled && provider === "adsense"
+          ? adsenseSlotId
+          : undefined,
+    clientId: enabled && provider === "adsense" ? adsenseClientId : undefined,
     width: SIDE_AD_WIDTH,
     height: SIDE_AD_HEIGHT,
   };
