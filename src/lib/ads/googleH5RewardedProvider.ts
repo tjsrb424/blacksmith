@@ -2,7 +2,7 @@
 
 import type { RewardedAdProvider } from "@/lib/ads/adProvider";
 import { getAdsenseClientId } from "@/lib/ads/adConfig";
-import type { AdProviderResult, AdRewardIntent } from "@/types/ads";
+import type { AdProviderResult, AdRewardIntent, AdRewardType } from "@/types/ads";
 
 type H5PlacementInfo = {
   breakStatus?: string;
@@ -21,10 +21,23 @@ type H5AdBreakConfig = {
   adBreakDone?: (placementInfo: H5PlacementInfo) => void;
 };
 
+type H5RewardPromptDetail = {
+  rewardType: AdRewardType;
+  displayReward: string;
+  handled?: boolean;
+  accept: () => void;
+  dismiss: () => void;
+};
+
 declare global {
   interface Window {
+    adsbygoogle?: unknown[];
     adBreak?: (config: H5AdBreakConfig | Record<string, unknown>) => void;
     adConfig?: (config: Record<string, unknown>) => void;
+  }
+
+  interface WindowEventMap {
+    "blacksmith:h5-reward-prompt": CustomEvent<H5RewardPromptDetail>;
   }
 }
 
@@ -34,15 +47,33 @@ function warnStatus(status: string, detail?: unknown) {
   }
 }
 
+function ensureAdPlacementApi() {
+  if (typeof window === "undefined") return;
+
+  window.adsbygoogle = window.adsbygoogle || [];
+
+  const adPlacementApiShim = (
+    config: H5AdBreakConfig | Record<string, unknown>,
+  ) => {
+    window.adsbygoogle = window.adsbygoogle || [];
+    window.adsbygoogle.push(config);
+  };
+
+  window.adBreak = window.adBreak || adPlacementApiShim;
+  window.adConfig = window.adConfig || adPlacementApiShim;
+}
+
 function waitForAdBreak(timeoutMs = 10_000): Promise<void> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Google H5 ads require a browser."));
   }
+  ensureAdPlacementApi();
   if (window.adBreak) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const intervalId = window.setInterval(() => {
+      ensureAdPlacementApi();
       if (window.adBreak) {
         window.clearInterval(intervalId);
         resolve();
@@ -53,6 +84,45 @@ function waitForAdBreak(timeoutMs = 10_000): Promise<void> {
         reject(new Error("google_h5_adbreak_unavailable"));
       }
     }, 100);
+  });
+}
+
+function requestRewardPrompt(
+  intent: AdRewardIntent,
+  showAdFn: () => void,
+): Promise<"accepted" | "dismissed" | "unhandled"> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const settle = (result: "accepted" | "dismissed" | "unhandled") => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const detail: H5RewardPromptDetail = {
+      rewardType: intent.rewardType,
+      displayReward: intent.displayReward,
+      accept: () => {
+        if (settled) return;
+        try {
+          showAdFn();
+          settle("accepted");
+        } catch (error) {
+          warnStatus("show_reward_failed", error);
+          settle("unhandled");
+        }
+      },
+      dismiss: () => settle("dismissed"),
+    };
+
+    window.dispatchEvent(
+      new CustomEvent("blacksmith:h5-reward-prompt", { detail }),
+    );
+
+    window.setTimeout(() => {
+      if (!detail.handled) settle("unhandled");
+    }, 0);
   });
 }
 
@@ -94,7 +164,18 @@ function showGoogleH5RewardedAd(
         beforeReward: (showAdFn) => {
           rewardPromptShown = true;
           warnStatus("before_reward");
-          showAdFn();
+          void requestRewardPrompt(intent, showAdFn).then((result) => {
+            if (result === "accepted") return;
+            finish({
+              provider: "googleH5",
+              rewarded: false,
+              outcome: result === "dismissed" ? "canceled" : "failed",
+              error:
+                result === "dismissed"
+                  ? "reward_prompt_dismissed"
+                  : "reward_prompt_unhandled",
+            });
+          });
         },
         adDismissed: () => {
           finish({

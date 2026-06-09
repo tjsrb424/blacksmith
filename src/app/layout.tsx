@@ -23,6 +23,11 @@ const geistMono = Geist_Mono({
 const crazyGamesBuild = isCrazyGamesBuild();
 const adsenseClientId = getAdsenseClientId();
 const h5AdBreakTestMode = isH5AdBreakTestMode();
+const adsenseScriptSrc = adsenseClientId
+  ? `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(
+      adsenseClientId,
+    )}`
+  : null;
 
 export const metadata: Metadata = crazyGamesBuild
   ? {
@@ -47,29 +52,24 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
-        {adsenseClientId ? (
-          <>
-            <Script id="adsense-h5-api-init" strategy="beforeInteractive">
-              {`
-                window.adsbygoogle = window.adsbygoogle || [];
-                window.adBreak = window.adConfig = function(o) {
-                  window.adsbygoogle.push(o);
-                };
-              `}
-            </Script>
-            <Script
-              id="adsense-h5-loader"
-              async
-              src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(adsenseClientId)}`}
-              strategy="afterInteractive"
-              crossOrigin="anonymous"
-              data-ad-client={adsenseClientId}
-              data-ad-frequency-hint="30s"
-              {...(h5AdBreakTestMode ? { "data-adbreak-test": "on" } : {})}
-            />
-          </>
+        {!crazyGamesBuild && adsenseClientId && adsenseScriptSrc ? (
+          <Script
+            id="adsense-h5-loader"
+            async
+            src={adsenseScriptSrc}
+            strategy="beforeInteractive"
+            crossOrigin="anonymous"
+            data-ad-client={adsenseClientId}
+            data-ad-frequency-hint="30s"
+            {...(h5AdBreakTestMode ? { "data-adbreak-test": "on" } : {})}
+          />
         ) : null}
-        <Providers adsenseClientId={adsenseClientId}>{children}</Providers>
+        <Providers
+          adsenseClientId={adsenseClientId}
+          h5AdBreakTestMode={h5AdBreakTestMode}
+        >
+          {children}
+        </Providers>
         <Analytics />
       </body>
     </html>

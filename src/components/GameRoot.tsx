@@ -474,6 +474,8 @@ export function GameRoot({
   const [hydrateSlow, setHydrateSlow] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const tab = useGameStore((s) => s.activeTab);
+  const modal = useGameStore((s) => s.modal);
+  const showSideAds = !crazyGamesMode && modal?.kind !== "ad_reward_progress";
   const equippedWeaponId = useGameStore((s) => {
     const row = s.ownedWeapons.find((o) => o.instanceId === s.equippedWeaponId);
     return row?.weaponId ?? null;
@@ -585,7 +587,7 @@ export function GameRoot({
       <DistributionProvider isCrazyGamesMode={crazyGamesMode}>
         <AppShell
           onOpenSettings={() => setSettingsOpen(true)}
-          showAds={!crazyGamesMode}
+          showAds={showSideAds}
         >
           {tab === "blacksmith" ? <BlacksmithScreen /> : null}
           {tab === "shop" ? <WeaponShopScreen /> : null}

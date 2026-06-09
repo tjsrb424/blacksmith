@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ModalPayload, RecordBreakInfo } from "@/types/game";
+import type { AdRewardType } from "@/types/ads";
 import { AnimatePresence, motion } from "framer-motion";
 import { FantasyButton } from "@/components/ui/FantasyButton";
 import { formatGold, formatInt } from "@/lib/format";
@@ -29,6 +30,17 @@ import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 
 type TranslationFn = ReturnType<typeof useLocale>["t"];
+
+type H5RewardPrompt = {
+  rewardType: AdRewardType;
+  displayReward: string;
+  accept: () => void;
+  dismiss: () => void;
+};
+
+type H5RewardPromptEventDetail = H5RewardPrompt & {
+  handled?: boolean;
+};
 
 function formatOfflineDurationLabel(ms: number, t: TranslationFn): string {
   const totalMinutes = Math.max(1, Math.floor(ms / 60000));
@@ -257,6 +269,44 @@ export function ModalRoot() {
   const modal = useGameStore((s) => s.modal);
   const serverActionPending = useGameStore((s) => s.serverActionPending);
   const prevModalRef = useRef(modal);
+  const [h5RewardPrompt, setH5RewardPrompt] =
+    useState<H5RewardPrompt | null>(null);
+
+  useEffect(() => {
+    const handleH5RewardPrompt = (event: Event) => {
+      const detail = (event as CustomEvent<H5RewardPromptEventDetail>).detail;
+      if (!detail) return;
+
+      detail.handled = true;
+      setH5RewardPrompt((current) => {
+        current?.dismiss();
+        return {
+          rewardType: detail.rewardType,
+          displayReward: detail.displayReward,
+          accept: detail.accept,
+          dismiss: detail.dismiss,
+        };
+      });
+    };
+
+    window.addEventListener("blacksmith:h5-reward-prompt", handleH5RewardPrompt);
+    return () => {
+      window.removeEventListener(
+        "blacksmith:h5-reward-prompt",
+        handleH5RewardPrompt,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (modal?.kind === "ad_reward_progress" || !h5RewardPrompt) return;
+    const prompt = h5RewardPrompt;
+    prompt.dismiss();
+    window.setTimeout(() => {
+      setH5RewardPrompt((current) => (current === prompt ? null : current));
+    }, 0);
+  }, [h5RewardPrompt, modal?.kind]);
+
   useEffect(() => {
     const prev = prevModalRef.current;
     if (modal && !prev) {
@@ -299,6 +349,24 @@ export function ModalRoot() {
         ? "medium"
         : "medium";
   const isResult = modal ? isResultModal(modal) : false;
+  const h5RewardPromptButtonLabel =
+    h5RewardPrompt?.rewardType === "sellBonus"
+      ? t("ads.watchForBonusSale")
+      : t("ads.watchForDoubleCollect");
+
+  const acceptH5RewardPrompt = () => {
+    if (!h5RewardPrompt) return;
+    const prompt = h5RewardPrompt;
+    setH5RewardPrompt(null);
+    prompt.accept();
+  };
+
+  const dismissH5RewardPrompt = () => {
+    if (!h5RewardPrompt) return;
+    const prompt = h5RewardPrompt;
+    setH5RewardPrompt(null);
+    prompt.dismiss();
+  };
 
   return (
     <AnimatePresence>
@@ -971,16 +1039,38 @@ export function ModalRoot() {
                     <div
                       className={cn(
                         "h-7 w-7 rounded-full border-2 border-violet-300/30 border-t-violet-200",
-                        isTerminalAdState ? "" : "animate-spin",
+                        isTerminalAdState || h5RewardPrompt ? "" : "animate-spin",
                       )}
                     />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-violet-100">{t("ads.reward")}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-                      {modal.message.includes(".") ? t(modal.message) : modal.message}
+                      {h5RewardPrompt
+                        ? h5RewardPrompt.displayReward
+                        : modal.message.includes(".")
+                          ? t(modal.message)
+                          : modal.message}
                     </p>
                   </div>
+                  {h5RewardPrompt && !isTerminalAdState ? (
+                    <div className="flex flex-col gap-2">
+                      <FantasyButton
+                        variant="promo"
+                        className="w-full"
+                        onClick={acceptH5RewardPrompt}
+                      >
+                        {h5RewardPromptButtonLabel}
+                      </FantasyButton>
+                      <FantasyButton
+                        variant="muted"
+                        className="w-full"
+                        onClick={dismissH5RewardPrompt}
+                      >
+                        {t("common.cancel")}
+                      </FantasyButton>
+                    </div>
+                  ) : null}
                   {isTerminalAdState ? (
                     <FantasyButton className="w-full" onClick={close}>
                       {t("common.confirm")}

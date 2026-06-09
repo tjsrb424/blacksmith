@@ -11,6 +11,8 @@ declare global {
   }
 }
 
+let adsensePushScheduled = false;
+
 type AdsenseSideBannerProps = {
   slotName: SideBannerSlotName;
   clientId: string;
@@ -18,6 +20,41 @@ type AdsenseSideBannerProps = {
   width: 160;
   height: 600;
 };
+
+function hasUnprocessedAdsenseSlot() {
+  return Array.from(document.querySelectorAll("ins.adsbygoogle")).some(
+    (node) => {
+      const element = node as HTMLElement;
+      return !element.dataset.adsbygoogleStatus && !element.dataset.adStatus;
+    },
+  );
+}
+
+function isAlreadyProcessedAdsenseError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes("already have ads in them")
+  );
+}
+
+function scheduleAdsensePush(onFailure: () => void) {
+  if (adsensePushScheduled) return;
+  adsensePushScheduled = true;
+
+  window.setTimeout(() => {
+    adsensePushScheduled = false;
+    if (!hasUnprocessedAdsenseSlot()) return;
+
+    try {
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adsbygoogle.push({});
+    } catch (error) {
+      if (!isAlreadyProcessedAdsenseError(error)) {
+        onFailure();
+      }
+    }
+  }, 0);
+}
 
 export function AdsenseSideBanner({
   slotName,
@@ -33,12 +70,7 @@ export function AdsenseSideBanner({
   useEffect(() => {
     if (pushedRef.current) return;
     pushedRef.current = true;
-    try {
-      window.adsbygoogle = window.adsbygoogle || [];
-      window.adsbygoogle.push({});
-    } catch {
-      window.setTimeout(() => setFailed(true), 0);
-    }
+    scheduleAdsensePush(() => window.setTimeout(() => setFailed(true), 0));
   }, []);
 
   return (
