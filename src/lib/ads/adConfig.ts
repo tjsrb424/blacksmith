@@ -9,16 +9,26 @@ function isProductionRuntime() {
   return process.env.NODE_ENV === "production";
 }
 
-function envOrDefault(value: string | undefined, fallback: string) {
-  return value?.trim() || fallback;
+function firstEnvValue(...values: Array<string | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function envOrDefault(values: Array<string | undefined>, fallback: string) {
+  return firstEnvValue(...values) ?? fallback;
 }
 
 export function getAdsenseClientId(): string | undefined {
   if (isCrazyGamesBuild()) return undefined;
   return envOrDefault(
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT ??
-      process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ??
+    [
+      process.env.NEXT_PUBLIC_ADSENSE_CLIENT,
+      process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID,
       process.env.NEXT_PUBLIC_GOOGLE_AD_CLIENT,
+    ],
     DEFAULT_ADSENSE_CLIENT_ID,
   );
 }
@@ -27,8 +37,14 @@ export function getAdsenseSideSlotId(side: "left" | "right"): string | undefined
   if (isCrazyGamesBuild()) return undefined;
   return envOrDefault(
     side === "left"
-      ? process.env.NEXT_PUBLIC_ADSENSE_LEFT_SLOT
-      : process.env.NEXT_PUBLIC_ADSENSE_RIGHT_SLOT,
+      ? [
+          process.env.NEXT_PUBLIC_ADSENSE_LEFT_SLOT,
+          process.env.NEXT_PUBLIC_ADSENSE_SIDE_LEFT_SLOT,
+        ]
+      : [
+          process.env.NEXT_PUBLIC_ADSENSE_RIGHT_SLOT,
+          process.env.NEXT_PUBLIC_ADSENSE_SIDE_RIGHT_SLOT,
+        ],
     side === "left"
       ? DEFAULT_ADSENSE_LEFT_SLOT_ID
       : DEFAULT_ADSENSE_RIGHT_SLOT_ID,
@@ -41,10 +57,9 @@ export function isH5AdBreakTestMode() {
 
 export function getGoogleRewardedAdUnitId(): string | undefined {
   if (isCrazyGamesBuild()) return undefined;
-  return (
-    process.env.NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID ??
-    process.env.NEXT_PUBLIC_GOOGLE_AD_UNIT_ID ??
-    undefined
+  return firstEnvValue(
+    process.env.NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID,
+    process.env.NEXT_PUBLIC_GOOGLE_AD_UNIT_ID,
   );
 }
 
