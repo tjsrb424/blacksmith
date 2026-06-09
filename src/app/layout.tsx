@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/app/providers";
 import {
@@ -51,19 +50,21 @@ export default function RootLayout({
       lang={crazyGamesBuild ? "en" : "ko"}
       className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
+      <head>
         {!crazyGamesBuild && adsenseClientId && adsenseScriptSrc ? (
-          <Script
+          <script
             id="adsense-h5-loader"
             async
             src={adsenseScriptSrc}
-            strategy="beforeInteractive"
             crossOrigin="anonymous"
             data-ad-client={adsenseClientId}
             data-ad-frequency-hint="30s"
             {...(h5AdBreakTestMode ? { "data-adbreak-test": "on" } : {})}
+            suppressHydrationWarning
           />
         ) : null}
+      </head>
+      <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
         <Providers
           adsenseClientId={adsenseClientId}
           h5AdBreakTestMode={h5AdBreakTestMode}
