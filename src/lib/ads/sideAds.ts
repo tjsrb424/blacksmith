@@ -1,4 +1,4 @@
-import { isCrazyGamesBuild } from "@/lib/distribution";
+import { areExternalAdsEnabled } from "@/lib/platform";
 import { getAdsenseClientId, getAdsenseSideSlotId } from "@/lib/ads/adConfig";
 
 export type SideAdProviderId = "disabled" | "adfit" | "adsense";
@@ -18,7 +18,7 @@ const SIDE_AD_WIDTH = 160;
 const SIDE_AD_HEIGHT = 600;
 
 function getSideAdProvider(): SideAdProviderId {
-  if (isCrazyGamesBuild()) return "disabled";
+  if (!areExternalAdsEnabled) return "disabled";
   const provider = process.env.NEXT_PUBLIC_SIDE_AD_PROVIDER;
   if (provider === "adfit" || provider === "adsense") return provider;
   return process.env.NEXT_PUBLIC_GAME_MODE === "beta" ? "adsense" : "disabled";

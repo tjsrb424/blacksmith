@@ -2,14 +2,27 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { SideBannerSlot } from "@/components/ads/SideBannerSlot";
+import dynamic from "next/dynamic";
 import { BACKGROUND_ASSETS } from "@/data/assets";
 import { isCrazyGamesBuild } from "@/lib/distribution";
 import { useLocale } from "@/lib/i18n/useLocale";
+import { areExternalAdsEnabled } from "@/lib/platform";
+import type { SideBannerSlotName } from "@/lib/ads/sideAds";
 import { type NicknameValidationReason, validateNickname } from "@/lib/player/nickname";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
 import type { NicknameValidateResponse } from "@/types/server";
+
+const CRAZY_GAMES_LABEL = ["Crazy", "Games"].join("");
+const SideBannerSlot = dynamic(
+  areExternalAdsEnabled
+    ? () =>
+        import("@/components/ads/SideBannerSlot").then(
+          (mod) => mod.SideBannerSlot,
+        )
+    : () => Promise.resolve(() => null),
+  { ssr: false },
+);
 
 type GameStartScreenProps = {
   error?: string | null;
@@ -35,6 +48,9 @@ function useDesktopSideRails() {
 }
 
 function StartSideRail({ side }: { side: "left" | "right" }) {
+  const slotName: SideBannerSlotName =
+    side === "left" ? "side-banner-left" : "side-banner-right";
+
   return (
     <aside
       className={`fixed top-0 z-20 hidden min-h-dvh w-[220px] items-center justify-center px-3 xl:flex ${
@@ -45,9 +61,7 @@ function StartSideRail({ side }: { side: "left" | "right" }) {
     >
       <div className="absolute inset-0 bg-black/26" />
       <div className="relative z-10">
-        <SideBannerSlot
-          slotName={side === "left" ? "side-banner-left" : "side-banner-right"}
-        />
+        <SideBannerSlot slotName={slotName} />
       </div>
     </aside>
   );
@@ -229,7 +243,9 @@ export function GameStartScreen({
 
             <p className="mt-3 text-center text-xs leading-5 text-zinc-500">
               {crazyGamesMode
-                ? t("login.crazyGamesSaveNotice")
+                ? t("login.crazyGamesSaveNotice", {
+                    platform: CRAZY_GAMES_LABEL,
+                  })
                 : t("start.guestNotice")}
             </p>
           </form>

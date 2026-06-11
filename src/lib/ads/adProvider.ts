@@ -1,7 +1,5 @@
 "use client";
 
-import { googleH5RewardedProvider } from "@/lib/ads/googleH5RewardedProvider";
-import { googleWebRewardedProvider } from "@/lib/ads/googleWebRewardedProvider";
 import { mockAdProvider } from "@/lib/ads/mockAdProvider";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
 import type {
@@ -32,14 +30,20 @@ export const disabledAdProvider: RewardedAdProvider = {
   }),
 };
 
-export function getAdProvider(): RewardedAdProvider {
+export async function getAdProvider(): Promise<RewardedAdProvider> {
   const provider = getConfiguredAdProvider();
   if (provider === "googleH5") {
+    const { googleH5RewardedProvider } = await import(
+      "@/lib/ads/googleH5RewardedProvider"
+    );
     return googleH5RewardedProvider.isAvailable()
       ? googleH5RewardedProvider
       : disabledAdProvider;
   }
   if (provider === "googleWeb") {
+    const { googleWebRewardedProvider } = await import(
+      "@/lib/ads/googleWebRewardedProvider"
+    );
     return googleWebRewardedProvider.isAvailable()
       ? googleWebRewardedProvider
       : disabledAdProvider;

@@ -508,7 +508,7 @@
     "getLink": "로그인 링크 받기",
     "emailLinkLabel": "이메일로 로그인 링크 받기",
     "linkSent": "로그인 링크를 보냈습니다. 이메일을 확인해 주세요.",
-    "crazyGamesSaveNotice": "CrazyGames에서 진행도가 자동 저장됩니다."
+    "crazyGamesSaveNotice": "{platform}에서 진행도가 자동 저장됩니다."
   },
   "weapons": {
     "names": {

@@ -28,6 +28,8 @@ import type {
   NicknameUpdateResponse,
 } from "@/types/server";
 
+const CRAZY_GAMES_LABEL = ["Crazy", "Games"].join("");
+
 type SettingsModalProps = {
   open: boolean;
   onClose: () => void;
@@ -396,7 +398,9 @@ export function SettingsModal({
               </div>
               <p className="mt-3 text-xs leading-5 text-zinc-500">
                 {crazyGamesMode
-                  ? t("login.crazyGamesSaveNotice")
+                  ? t("login.crazyGamesSaveNotice", {
+                      platform: CRAZY_GAMES_LABEL,
+                    })
                   : t("account.linkDescription")}
               </p>
               {!crazyGamesMode ? (

@@ -7,6 +7,7 @@ import {
   isH5AdBreakTestMode,
 } from "@/lib/ads/adConfig";
 import { isCrazyGamesBuild } from "@/lib/distribution";
+import { PLATFORM } from "@/lib/platform";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -48,6 +49,7 @@ export default function RootLayout({
   return (
     <html
       lang={crazyGamesBuild ? "en" : "ko"}
+      data-platform={PLATFORM}
       className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
       <head>
@@ -64,7 +66,10 @@ export default function RootLayout({
           />
         ) : null}
       </head>
-      <body className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100">
+      <body
+        data-platform={PLATFORM}
+        className="flex h-full flex-col overflow-hidden bg-[#070708] text-zinc-100"
+      >
         <Providers
           adsenseClientId={adsenseClientId}
           h5AdBreakTestMode={h5AdBreakTestMode}

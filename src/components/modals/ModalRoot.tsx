@@ -23,6 +23,7 @@ import {
 } from "@/lib/i18n/weaponText";
 import { playSound } from "@/lib/sound";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
+import { areExternalAdsEnabled } from "@/lib/platform";
 import { EFFECT_ASSETS } from "@/data/assets";
 import { getGameMode } from "@/lib/supabase/env";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
@@ -332,7 +333,7 @@ export function ModalRoot() {
   const acknowledgeSeasonStart = useGameStore((s) => s.acknowledgeSeasonStart);
   const isBetaMode = getGameMode() === "beta";
   const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
-  const showRewardAds = !isCrazyGamesMode;
+  const showRewardAds = areExternalAdsEnabled && !isCrazyGamesMode;
   const isTerminalAdState =
     modal?.kind === "ad_reward_progress" &&
     (modal.phase === "unavailable" ||

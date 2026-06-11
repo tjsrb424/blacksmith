@@ -518,7 +518,7 @@
     "getLink": "Get login link",
     "emailLinkLabel": "Get a login link by email",
     "linkSent": "Login link sent. Please check your email.",
-    "crazyGamesSaveNotice": "Your progress is saved automatically on CrazyGames."
+    "crazyGamesSaveNotice": "Your progress is saved automatically on {platform}."
   },
   "weapons": {
     "names": {

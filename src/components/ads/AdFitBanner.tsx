@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/lib/i18n/useLocale";
 import type { SideBannerSlotName } from "@/lib/ads/sideAds";
-import { isCrazyGamesBuild } from "@/lib/distribution";
+import { areExternalAdsEnabled } from "@/lib/platform";
 
 const ADFIT_SCRIPT_ID = "kakao-adfit-ba-script";
 const ADFIT_SCRIPT_SRC = "https://t1.kakaocdn.net/kas/static/ba.min.js";
@@ -29,7 +29,7 @@ function getAdFitScript() {
 }
 
 function loadAdFitScript() {
-  if (isCrazyGamesBuild()) return Promise.reject(new Error("AdFit is disabled for CrazyGames."));
+  if (!areExternalAdsEnabled) return Promise.reject(new Error("AdFit is disabled for this platform."));
   if (window.adfit?.render) return Promise.resolve();
   if (scriptLoadPromise) return scriptLoadPromise;
 
@@ -105,7 +105,7 @@ export function AdFitBanner({
   const scriptFailed = failedUnitId === unitId;
 
   useEffect(() => {
-    if (isCrazyGamesBuild()) return;
+    if (!areExternalAdsEnabled) return;
     const adElement = insRef.current;
     if (!unitId || !adElement) return;
 
@@ -130,7 +130,7 @@ export function AdFitBanner({
     };
   }, [unitId]);
 
-  if (isCrazyGamesBuild()) return null;
+  if (!areExternalAdsEnabled) return null;
 
   if (!unitId) {
     return (

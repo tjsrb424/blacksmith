@@ -91,7 +91,7 @@ export async function completeAdReward(
     onTiming?: (event: AdRewardTimingEvent) => void;
   },
 ): Promise<AdRewardCompleteResponse> {
-  const provider = getAdProvider();
+  const provider = await getAdProvider();
   const report = options?.onStatus;
   const timing = options?.onTiming;
 

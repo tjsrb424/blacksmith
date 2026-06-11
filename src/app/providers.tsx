@@ -1,8 +1,19 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AdsenseRuntimeInit } from "@/components/ads/AdsenseRuntimeInit";
+import dynamic from "next/dynamic";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
+import { areExternalAdsEnabled } from "@/lib/platform";
+
+const AdsenseRuntimeInit = dynamic(
+  areExternalAdsEnabled
+    ? () =>
+        import("@/components/ads/AdsenseRuntimeInit").then(
+          (mod) => mod.AdsenseRuntimeInit,
+        )
+    : () => Promise.resolve(() => null),
+  { ssr: false },
+);
 
 export function Providers({
   adsenseClientId,
@@ -15,10 +26,12 @@ export function Providers({
 }) {
   return (
     <LocaleProvider>
-      <AdsenseRuntimeInit
-        clientId={adsenseClientId}
-        h5AdBreakTestMode={h5AdBreakTestMode}
-      />
+      {areExternalAdsEnabled ? (
+        <AdsenseRuntimeInit
+          clientId={adsenseClientId}
+          h5AdBreakTestMode={h5AdBreakTestMode}
+        />
+      ) : null}
       {children}
     </LocaleProvider>
   );

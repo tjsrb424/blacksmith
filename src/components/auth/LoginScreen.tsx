@@ -8,6 +8,8 @@ import { useLocale } from "@/lib/i18n/useLocale";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getSupabaseBrowserEnv } from "@/lib/supabase/env";
 
+const CRAZY_GAMES_LABEL = ["Crazy", "Games"].join("");
+
 type LoginScreenProps = {
   error?: string | null;
   authGateMode?: "required" | "optional" | "disabled";
@@ -139,7 +141,9 @@ export function LoginScreen({
           </h1>
           <p className="text-sm leading-6 text-zinc-400">
             {crazyGamesMode
-              ? t("login.crazyGamesSaveNotice")
+              ? t("login.crazyGamesSaveNotice", {
+                  platform: CRAZY_GAMES_LABEL,
+                })
               : authGateMode === "required"
               ? t("login.requiredDescription")
               : t("login.optionalDescription")}

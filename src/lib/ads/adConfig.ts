@@ -1,5 +1,5 @@
 import type { AdProviderId } from "@/types/ads";
-import { isCrazyGamesBuild } from "@/lib/distribution";
+import { areExternalAdsEnabled } from "@/lib/platform";
 
 const DEFAULT_ADSENSE_CLIENT_ID = "ca-pub-4666198871295401";
 const DEFAULT_ADSENSE_LEFT_SLOT_ID = "1937439790";
@@ -22,7 +22,7 @@ function envOrDefault(values: Array<string | undefined>, fallback: string) {
 }
 
 export function getAdsenseClientId(): string | undefined {
-  if (isCrazyGamesBuild()) return undefined;
+  if (!areExternalAdsEnabled) return undefined;
   return envOrDefault(
     [
       process.env.NEXT_PUBLIC_ADSENSE_CLIENT,
@@ -34,7 +34,7 @@ export function getAdsenseClientId(): string | undefined {
 }
 
 export function getAdsenseSideSlotId(side: "left" | "right"): string | undefined {
-  if (isCrazyGamesBuild()) return undefined;
+  if (!areExternalAdsEnabled) return undefined;
   return envOrDefault(
     side === "left"
       ? [
@@ -52,11 +52,12 @@ export function getAdsenseSideSlotId(side: "left" | "right"): string | undefined
 }
 
 export function isH5AdBreakTestMode() {
+  if (!areExternalAdsEnabled) return false;
   return process.env.NEXT_PUBLIC_H5_ADBREAK_TEST === "true";
 }
 
 export function getGoogleRewardedAdUnitId(): string | undefined {
-  if (isCrazyGamesBuild()) return undefined;
+  if (!areExternalAdsEnabled) return undefined;
   return firstEnvValue(
     process.env.NEXT_PUBLIC_GOOGLE_REWARDED_AD_UNIT_ID,
     process.env.NEXT_PUBLIC_GOOGLE_AD_UNIT_ID,
@@ -64,7 +65,7 @@ export function getGoogleRewardedAdUnitId(): string | undefined {
 }
 
 export function getConfiguredAdProvider(): AdProviderId {
-  if (isCrazyGamesBuild()) return "disabled";
+  if (!areExternalAdsEnabled) return "disabled";
 
   const provider = process.env.NEXT_PUBLIC_AD_PROVIDER;
   if (provider === "mock") {

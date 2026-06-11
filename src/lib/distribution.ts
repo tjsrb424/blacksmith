@@ -1,15 +1,25 @@
-export type Distribution = "web" | "crazygames";
+import {
+  PLATFORM,
+  isCrazyGamesPlatform,
+  isTossPlatform,
+  isWebPlatform,
+  type Platform,
+} from "@/lib/platform";
+
+export type Distribution = Platform;
 
 export function getDistribution(): Distribution {
-  const value = (
-    process.env.NEXT_PUBLIC_DISTRIBUTION ??
-    process.env.NEXT_PUBLIC_PLATFORM ??
-    ""
-  ).toLowerCase();
-
-  return value === "crazygames" ? "crazygames" : "web";
+  return PLATFORM;
 }
 
 export function isCrazyGamesBuild() {
-  return getDistribution() === "crazygames";
+  return isCrazyGamesPlatform;
+}
+
+export function isTossBuild() {
+  return isTossPlatform;
+}
+
+export function isWebBuild() {
+  return isWebPlatform;
 }

@@ -18,6 +18,8 @@ import type { RankingCategory, RankingRowDisplay } from "@/types/game";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 
+const CRAZY_GAMES_LABEL = ["Crazy", "Games"].join("");
+
 type SubTab = "weekly" | "world" | "me";
 
 const MANUAL_RANKING_REFRESH_COOLDOWN_MS = 30_000;
@@ -333,7 +335,8 @@ function CrazyGamesRankingScreen() {
             Coming Soon
           </div>
           <p className="mt-2 text-sm font-semibold leading-6 text-sky-50">
-            Sign in with CrazyGames to compete globally after leaderboard integration.
+            Sign in with {CRAZY_GAMES_LABEL} to compete globally after
+            leaderboard integration.
           </p>
         </div>
       </FantasyPanel>

@@ -32,6 +32,7 @@ import { preloadSounds, unlockAudio } from "@/lib/sound";
 import { getGameMode } from "@/lib/supabase/env";
 import { useLocale } from "@/lib/i18n/useLocale";
 import { isCrazyGamesBuild } from "@/lib/distribution";
+import { areExternalAdsEnabled } from "@/lib/platform";
 import { DistributionProvider } from "@/lib/distributionContext";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
 import { useGameStore } from "@/store/gameStore";
@@ -475,7 +476,8 @@ export function GameRoot({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const tab = useGameStore((s) => s.activeTab);
   const modal = useGameStore((s) => s.modal);
-  const showSideAds = !crazyGamesMode && modal?.kind !== "ad_reward_progress";
+  const showSideAds =
+    areExternalAdsEnabled && !crazyGamesMode && modal?.kind !== "ad_reward_progress";
   const equippedWeaponId = useGameStore((s) => {
     const row = s.ownedWeapons.find((o) => o.instanceId === s.equippedWeaponId);
     return row?.weaponId ?? null;

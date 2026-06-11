@@ -18,6 +18,7 @@ import { useLocale } from "@/lib/i18n/useLocale";
 import { ScreenBackground } from "@/components/ui/ScreenBackground";
 import { AdRewardStatusText } from "@/components/ads/AdRewardStatusText";
 import { getConfiguredAdProvider } from "@/lib/ads/adConfig";
+import { areExternalAdsEnabled } from "@/lib/platform";
 import { useIsCrazyGamesMode } from "@/lib/distributionContext";
 import { useGameStore } from "@/store/gameStore";
 import { useRenderDiagnostics } from "@/lib/useRenderDiagnostics";
@@ -95,7 +96,7 @@ export function AutoForgeScreen() {
   const upgradeCost = forgeUpgradeCostGold(forgeLevel);
   const canAffordUpgrade = forgeLevel < 10 && gold >= upgradeCost;
   const isRewardAdDisabled = getConfiguredAdProvider() === "disabled";
-  const showRewardAds = !isCrazyGamesMode;
+  const showRewardAds = areExternalAdsEnabled && !isCrazyGamesMode;
 
   const pct = Math.round(snap.fillRatio * 100);
   const warnBand = snap.fillRatio >= 0.8 && snap.fillRatio < 1;
